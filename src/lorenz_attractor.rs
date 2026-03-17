@@ -30,6 +30,9 @@ impl LorenzAttractor {
 		self.z += dz * step_size;
 	}
 
+	pub fn get_xyz(&self) -> (float, float, float) {
+		(self.x, self.y, self.z)
+	}
 	pub fn get_linear_combination(&self, cx: float, cy: float, cz: float) -> float {
 		cx * self.x + cy * self.y + cz * self.z
 	}
