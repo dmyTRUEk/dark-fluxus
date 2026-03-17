@@ -15,11 +15,17 @@ mod colors;
 mod font_rendering;
 mod frame_buffer;
 mod lorenz_attractor;
+mod math_aliases;
+mod vec2d;
+mod vec3d;
 
 use colors::*;
 use font_rendering::*;
 use frame_buffer::*;
 use lorenz_attractor::*;
+use math_aliases::*;
+use vec2d::*;
+use vec3d::*;
 
 
 
@@ -44,8 +50,8 @@ fn main() {
 	let mut frame_n: u64 = 0;
 	let mut is_paused: bool = false;
 	let mut scale: u32 = 1;
-	let mut lorenz_attractor = LorenzAttractor::new();
-	let mut last_points: Vec<(float, float, float)> = vec![];
+	let mut lorenz_attractor = LorenzAttractor::new().offset_params(0.01, -0.01, 0.001);
+	let mut last_points: Vec<Vec3d<float>> = vec![];
 
 	while window.is_open() && !window.is_key_down(Key::Escape) {
 		let mut is_redraw_needed: bool = false;
@@ -72,7 +78,7 @@ fn main() {
 		}
 
 		if !is_paused {
-			lorenz_attractor.step(0.001);
+			lorenz_attractor.step(1e-2);
 			is_redraw_needed = true;
 		}
 
@@ -86,33 +92,71 @@ fn main() {
 				&format!("X: {}", lorenz_attractor.x),
 				(0, 10),
 				RED,
-				4,
+				3,
 				(w, h),
 			);
 			buffer.render_text(
 				&format!("Y: {}", lorenz_attractor.y),
-				(0, 50),
+				(0, 40),
 				GREEN,
-				4,
+				3,
 				(w, h),
 			);
 			buffer.render_text(
 				&format!("Z: {}", lorenz_attractor.z),
-				(0, 90),
+				(0, 70),
 				BLUE,
-				4,
+				3,
 				(w, h),
 			);
 
-			last_points.push(lorenz_attractor.get_xyz());
+			last_points.push(lorenz_attractor.get_xyz_as_vec3d());
 
-			// for p in last_points {
-			// 	let x = p.0 as i32;
-			// 	let y = p.1 as i32;
-			// 	if x < 0 || y < 0 { continue }
-			// 	let (x, y) = (x as )
-			// 	buffer[]
-			// }
+			const SCALE: float = 5.;
+
+			// projection 1: drop X
+			for v in last_points.iter() {
+				let mut v = *v;
+				v *= SCALE;
+				let mut v = v.yz();
+				v += Vec2d::new(w as float, h as float) / 4.;
+				let Vec2d { x, y } = v;
+				let (x, y) = (x as u32, y as u32);
+				buffer[(x, y)] = WHITE.0;
+			}
+
+			// projection 2: drop Y
+			for v in last_points.iter() {
+				let mut v = *v;
+				v *= SCALE;
+				let mut v = v.xz();
+				v += Vec2d::new((w*3) as float, h as float) / 4.;
+				let Vec2d { x, y } = v;
+				let (x, y) = (x as u32, y as u32);
+				buffer[(x, y)] = WHITE.0;
+			}
+
+			// projection 3: drop Z
+			for v in last_points.iter() {
+				let mut v = *v;
+				v *= SCALE;
+				let mut v = v.xy();
+				v += Vec2d::new(w as float, (h*3) as float) / 4.;
+				let Vec2d { x, y } = v;
+				let (x, y) = (x as u32, y as u32);
+				buffer[(x, y)] = WHITE.0;
+			}
+
+			// projection 4
+			for v in last_points.iter() {
+				let mut v = *v;
+				v *= SCALE;
+				let mut v = v.project_2d(Vec3d::new(1.,1.,0.).normed(), Vec3d::new(0.,-1.,-1.).normed());
+				v += Vec2d::new((w*3) as float, (h*3) as float) / 4.;
+				let Vec2d { x, y } = v;
+				let (x, y) = (x as u32, y as u32);
+				buffer[(x, y)] = WHITE.0;
+			}
 
 			window.update_with_my_buffer(&buffer);
 		} // end of render

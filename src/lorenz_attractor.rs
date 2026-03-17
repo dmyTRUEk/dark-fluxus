@@ -1,6 +1,6 @@
 //! lorenz attractor
 
-use crate::float;
+use crate::{float, vec3d::Vec3d};
 
 
 
@@ -20,6 +20,13 @@ impl LorenzAttractor {
 		}
 	}
 
+	pub fn offset_params(mut self, s: float, r: float, b: float) -> Self {
+		self.sigma += s;
+		self.rho += r;
+		self.beta += b;
+		self
+	}
+
 	pub fn step(&mut self, step_size: float) {
 		let LorenzAttractor { sigma, rho, beta, x, y, z } = *self;
 		let dx = sigma * (y - x);
@@ -30,8 +37,11 @@ impl LorenzAttractor {
 		self.z += dz * step_size;
 	}
 
-	pub fn get_xyz(&self) -> (float, float, float) {
+	pub fn get_xyz_as_tuple(&self) -> (float, float, float) {
 		(self.x, self.y, self.z)
+	}
+	pub fn get_xyz_as_vec3d(&self) -> Vec3d<float> {
+		Vec3d::new(self.x, self.y, self.z)
 	}
 	pub fn get_linear_combination(&self, cx: float, cy: float, cz: float) -> float {
 		cx * self.x + cy * self.y + cz * self.z

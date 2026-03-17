@@ -1,6 +1,6 @@
 //! frame buffer (vec of pixels)
 
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 
 use crate::colors::{BLACK, Color};
 
@@ -9,11 +9,16 @@ use crate::colors::{BLACK, Color};
 pub struct FrameBuffer {
 	pub w: u32, pub h: u32,
 	pub buf: Vec<u32>,
+	pub trash: u32,
 }
 
 impl FrameBuffer {
 	pub fn new(w: u32, h: u32) -> Self {
-		Self { w, h, buf: vec![BLACK.0; (w as usize) * (h as usize)] }
+		Self {
+			w, h,
+			buf: vec![BLACK.0; (w as usize) * (h as usize)],
+			trash: 0,
+		}
 	}
 
 	pub fn get_wh(&self) -> (u32, u32) {
@@ -45,10 +50,34 @@ impl FrameBuffer {
 	}
 }
 
-// impl Index<(u32, u32)> for FrameBuffer {
-// 	type Output = u32;
-// 	fn index(&self, (w, h): (u32, u32)) -> &Self::Output {
-// 		self.buf[]
-// 	}
-// }
+
+
+impl Index<(u32, u32)> for FrameBuffer {
+	type Output = u32;
+	fn index(&self, (w, h): (u32, u32)) -> &Self::Output {
+		let w = w as usize;
+		let h = h as usize;
+		let self_w = self.w as usize;
+		let index = w + h * self_w;
+		if index >= self.buf.len() {
+			&self.trash
+		} else {
+			&self.buf[index]
+		}
+	}
+}
+
+impl IndexMut<(u32, u32)> for FrameBuffer {
+	fn index_mut(&mut self, (w, h): (u32, u32)) -> &mut Self::Output {
+		let w = w as usize;
+		let h = h as usize;
+		let self_w = self.w as usize;
+		let index = w + h * self_w;
+		if index >= self.buf.len() {
+			&mut self.trash
+		} else {
+			&mut self.buf[index]
+		}
+	}
+}
 
