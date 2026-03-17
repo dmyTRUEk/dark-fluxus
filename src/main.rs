@@ -4,6 +4,10 @@
 	clippy::collapsible_if,
 )]
 
+#![deny(
+	unused_variables,
+)]
+
 use minifb::{Key, Window, WindowOptions};
 use rand::{distr::weighted::WeightedIndex, rng, rngs::StdRng, Rng, SeedableRng};
 
@@ -37,9 +41,11 @@ fn main() {
 	window.set_target_fps(60);
 	window.update_with_buffer(&buffer.buf, w as usize, h as usize).expect(UNABLE_TO_UPDATE_WINDOW_BUFFER);
 
+	#[allow(unused_variables)]
 	let mut frame_n: u64 = 0;
 	let mut is_paused: bool = false;
 	let mut scale: u32 = 1;
+	let mut lorenz_attractor = LorenzAttractor::new();
 
 	while window.is_open() && !window.is_key_down(Key::Escape) {
 		let mut is_redraw_needed: bool = true;
@@ -64,17 +70,34 @@ fn main() {
 			is_redraw_needed = true;
 		}
 
+		if !is_paused {
+			lorenz_attractor.step(0.001);
+		}
+
 		// render new frame
 		if is_redraw_needed {
 			frame_n += 1;
-
 			buffer.clear();
 
 			buffer.render_text(
-				&format!("{frame_n}"),
-				((w/2) as i32, (h/2) as i32),
-				WHITE,
-				5,
+				&format!("X: {}", lorenz_attractor.x),
+				(0, (h/2) as i32 - 50),
+				RED,
+				4,
+				(w, h),
+			);
+			buffer.render_text(
+				&format!("Y: {}", lorenz_attractor.y),
+				(0, (h/2) as i32),
+				GREEN,
+				4,
+				(w, h),
+			);
+			buffer.render_text(
+				&format!("Z: {}", lorenz_attractor.z),
+				(0, (h/2) as i32 + 50),
+				BLUE,
+				4,
 				(w, h),
 			);
 

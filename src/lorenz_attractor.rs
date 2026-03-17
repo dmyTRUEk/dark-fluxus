@@ -16,7 +16,7 @@ impl LorenzAttractor {
 	pub fn new() -> Self {
 		Self {
 			sigma: 10., rho: 28., beta: 8./3.,
-			x: 0., y: 0., z: 0.,
+			x: 0., y: 1., z: 1.,
 		}
 	}
 
@@ -25,9 +25,9 @@ impl LorenzAttractor {
 		let dx = sigma * (y - x);
 		let dy = x * (rho - z) - y;
 		let dz = x * y - beta * z;
-		self.x += dx;
-		self.y += dy;
-		self.z += dz;
+		self.x += dx * step_size;
+		self.y += dy * step_size;
+		self.z += dz * step_size;
 	}
 
 	pub fn get_linear_combination(&self, cx: float, cy: float, cz: float) -> float {
