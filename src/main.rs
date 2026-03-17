@@ -14,6 +14,7 @@ use minifb::{Key, Window, WindowOptions};
 use rand::{Rng, RngExt, SeedableRng, distr::weighted::WeightedIndex, rng, rngs::StdRng};
 
 mod colors;
+mod extensions;
 mod font_rendering;
 mod frame_buffer;
 mod lorenz_attractor;
@@ -23,6 +24,7 @@ mod vec3d;
 mod zqqx_lang;
 
 use colors::*;
+use extensions::*;
 use font_rendering::*;
 use frame_buffer::*;
 use lorenz_attractor::*;
@@ -57,8 +59,9 @@ fn main() {
 	let mut frame_n: u64 = 0;
 	let mut is_paused: bool = false;
 	let mut scale: u32 = 1;
-	let mut lorenz_attractor = LorenzAttractor::new().offset_params(0.01, -0.01, 0.001);
+	let mut lorenz_attractor = LorenzAttractor::new();//.offset_params(0.01, -0.01, 0.001);
 	let mut last_points: Vec<Vec3d<float>> = vec![];
+	let mut zqqx_lang = ZqqxLang::new();
 
 	while window.is_open() && !window.is_key_down(Key::Escape) {
 		let mut is_redraw_needed: bool = false;
@@ -165,20 +168,23 @@ fn main() {
 				buffer[(x, y)] = WHITE.0;
 			}
 
+			// zqqx lang
 			for char_n in 0..5 {
 				let scale: u8 = 5;
-				let bitmap: [u8; 25] = array::from_fn(|i| {
+				let zqqx_char: [i8; 25] = array::from_fn(|i| {
 					let (i, j) = (i % 5, i / 5);
 					let cx = char_n as float;
 					let cy = ((i+j*5) as float).sqrt();
-					let cz = ((j+i*5) as float).ln_1p();
+					// let cz = ((j+i*5) as float).ln_1p();
+					let cz = (frame_n as float).ln_1p().ln_1p().ln_1p();
 					let coefs = Vec3d::new(cx, cy, cz).normed();
 					let t = lorenz_attractor.get_linear_combination(coefs.x, coefs.y, coefs.z);
 					let t = t.rem_euclid(1.);
-					(t < 0.2) as u8
+					(t * 255. - 128.) as i8
 				});
+				let bitmap = zqqx_lang.add_or_quantize(ZqqxChar::new(zqqx_char));
 				buffer.render_custom_char(
-					bitmap,
+					bitmap.quantize(),
 					((w as i32) - 200 + (((char_n*7)*scale) as i32), 10),
 					WHITE,
 					scale,
