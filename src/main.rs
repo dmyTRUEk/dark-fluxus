@@ -38,7 +38,7 @@ fn main() {
 	).expect("unable to create window");
 
 	window.set_target_fps(60);
-	window.update_with_buffer(&buffer.buf, buffer.w as usize, buffer.h as usize).expect(UNABLE_TO_UPDATE_WINDOW_BUFFER);
+	window.update_with_my_buffer(&buffer);
 
 	#[allow(unused_variables)]
 	let mut frame_n: u64 = 0;
@@ -114,7 +114,7 @@ fn main() {
 			// 	buffer[]
 			// }
 
-			window.update_with_buffer(&buffer.buf, w as usize, h as usize).expect(UNABLE_TO_UPDATE_WINDOW_BUFFER);
+			window.update_with_my_buffer(&buffer);
 		} // end of render
 		else {
 			window.update();
@@ -141,16 +141,31 @@ type float = f64;
 
 
 
-trait WindowExtIsKeyPressed {
+trait ExtWindowIsKeyPressed {
 	fn is_key_pressed_once(&self, key: Key) -> bool;
 	fn is_key_pressed_repeat(&self, key: Key) -> bool;
 }
-impl WindowExtIsKeyPressed for Window {
+impl ExtWindowIsKeyPressed for Window {
 	fn is_key_pressed_once(&self, key: Key) -> bool {
 		self.is_key_pressed(key, minifb::KeyRepeat::No)
 	}
 	fn is_key_pressed_repeat(&self, key: Key) -> bool {
 		self.is_key_pressed(key, minifb::KeyRepeat::Yes)
+	}
+}
+
+
+
+trait ExtWindowUpdateWithMyBuffer {
+	fn update_with_my_buffer(&mut self, buffer: &FrameBuffer);
+}
+impl ExtWindowUpdateWithMyBuffer for Window {
+	fn update_with_my_buffer(&mut self, buffer: &FrameBuffer) {
+		self.update_with_buffer(
+			&buffer.buf,
+			buffer.w as usize,
+			buffer.h as usize
+		).expect(UNABLE_TO_UPDATE_WINDOW_BUFFER);
 	}
 }
 
