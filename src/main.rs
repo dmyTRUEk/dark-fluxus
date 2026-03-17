@@ -8,8 +8,10 @@
 	unused_variables,
 )]
 
+use std::array;
+
 use minifb::{Key, Window, WindowOptions};
-use rand::{distr::weighted::WeightedIndex, rng, rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, RngExt, SeedableRng, distr::weighted::WeightedIndex, rng, rngs::StdRng};
 
 mod colors;
 mod font_rendering;
@@ -18,6 +20,7 @@ mod lorenz_attractor;
 mod math_aliases;
 mod vec2d;
 mod vec3d;
+mod zqqx_lang;
 
 use colors::*;
 use font_rendering::*;
@@ -26,6 +29,7 @@ use lorenz_attractor::*;
 use math_aliases::*;
 use vec2d::*;
 use vec3d::*;
+use zqqx_lang::*;
 
 
 
@@ -45,6 +49,9 @@ fn main() {
 
 	window.set_target_fps(60);
 	window.update_with_my_buffer(&buffer);
+
+	#[allow(unused_variables)]
+	let mut rng = rng();
 
 	#[allow(unused_variables)]
 	let mut frame_n: u64 = 0;
@@ -156,6 +163,27 @@ fn main() {
 				let Vec2d { x, y } = v;
 				let (x, y) = (x as u32, y as u32);
 				buffer[(x, y)] = WHITE.0;
+			}
+
+			for char_n in 0..5 {
+				let scale: u8 = 5;
+				let bitmap: [u8; 25] = array::from_fn(|i| {
+					let (i, j) = (i % 5, i / 5);
+					let cx = char_n as float;
+					let cy = ((i+j*5) as float).sqrt();
+					let cz = ((j+i*5) as float).ln_1p();
+					let coefs = Vec3d::new(cx, cy, cz).normed();
+					let t = lorenz_attractor.get_linear_combination(coefs.x, coefs.y, coefs.z);
+					let t = t.rem_euclid(1.);
+					(t < 0.2) as u8
+				});
+				buffer.render_custom_char(
+					bitmap,
+					((w as i32) - 200 + (((char_n*7)*scale) as i32), 10),
+					WHITE,
+					scale,
+					(w, h),
+				);
 			}
 
 			window.update_with_my_buffer(&buffer);
