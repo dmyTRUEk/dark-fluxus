@@ -35,7 +35,7 @@ fn main() {
 	let mut buffer = FrameBuffer::new(1600, 900);
 
 	let mut window = Window::new(
-		concat!("Stockmarket Simulator v", env!("CARGO_PKG_VERSION")),
+		concat!("Weird Game v", env!("CARGO_PKG_VERSION")),
 		buffer.w as usize, buffer.h as usize,
 		WindowOptions {
 			resize: true,
