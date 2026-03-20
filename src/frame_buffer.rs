@@ -2,7 +2,7 @@
 
 use std::ops::{Index, IndexMut};
 
-use crate::colors::{BLACK, Color};
+use crate::{colors::{BLACK, Color}, float};
 
 
 
@@ -21,9 +21,10 @@ impl FrameBuffer {
 		}
 	}
 
-	pub fn get_wh(&self) -> (u32, u32) {
-		(self.w, self.h)
-	}
+	pub fn wh(&self) -> (u32, u32) { (self.w, self.h) }
+	pub fn wf(&self) -> float { self.w as float }
+	pub fn hf(&self) -> float { self.h as float }
+	pub fn whf(&self) -> (float, float) { (self.wf(), self.hf()) }
 
 	pub fn is_resized(&self, (w, h): (usize, usize)) -> bool {
 		(w as u32, h as u32) != (self.w, self.h)

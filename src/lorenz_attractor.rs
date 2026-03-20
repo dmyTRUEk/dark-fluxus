@@ -41,7 +41,7 @@ impl LorenzAttractor {
 		(self.x, self.y, self.z)
 	}
 	pub fn get_xyz_as_vec3d(&self) -> Vec3d<float> {
-		Vec3d::new(self.x, self.y, self.z)
+		Vec3d::from(self.x, self.y, self.z)
 	}
 	pub fn get_linear_combination(&self, cx: float, cy: float, cz: float) -> float {
 		cx * self.x + cy * self.y + cz * self.z

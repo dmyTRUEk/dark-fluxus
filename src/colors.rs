@@ -14,3 +14,5 @@ pub const CYAN   : Color = Color(0x00ffff);
 pub const MAGENTA: Color = Color(0xff00ff);
 pub const YELLOW : Color = Color(0xffff00);
 
+pub const GRAY: Color = Color(0x888888);
+

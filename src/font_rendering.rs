@@ -10,29 +10,28 @@ const FONT_H: u32 = 5;
 
 pub trait RenderText {
 	/// render text with top-left corner being `pos`, with Out Of Bounds check
-	fn render_text(&mut self, text: &str, pos: (i32, i32), color: Color, scale: u8, buffer_wh: (u32, u32));
+	fn render_text(&mut self, text: &str, pos: (i32, i32), color: Color, scale: u8);
 	/// render char with top-left corner being `pos`, with Out Of Bounds check
-	fn render_char(&mut self, char: char, pos: (i32, i32), color: Color, scale: u8, buffer_wh: (u32, u32));
+	fn render_char(&mut self, char: char, pos: (i32, i32), color: Color, scale: u8);
 
 	/// render text with top-left corner being `pos`, NO Out Of Bounds check
-	fn render_text_unchecked(&mut self, text: &str, pos: (i32, i32), color: Color, scale: u8, buffer_wh: (u32, u32));
+	fn render_text_unchecked(&mut self, text: &str, pos: (i32, i32), color: Color, scale: u8);
 	/// render char with top-left corner being `pos`, NO Out Of Bounds check
-	fn render_char_unchecked(&mut self, char: char, pos: (i32, i32), color: Color, scale: u8, buffer_wh: (u32, u32));
+	fn render_char_unchecked(&mut self, char: char, pos: (i32, i32), color: Color, scale: u8);
 
-	fn render_custom_char(&mut self, bitmap: [u8; 25], pos: (i32, i32), color: Color, scale: u8, buffer_wh: (u32, u32));
+	fn render_custom_char(&mut self, bitmap: [u8; 25], pos: (i32, i32), color: Color, scale: u8);
 }
 impl RenderText for FrameBuffer {
-	fn render_text(&mut self, text: &str, mut pos: (i32, i32), color: Color, scale: u8, buffer_wh: (u32, u32)) {
+	fn render_text(&mut self, text: &str, mut pos: (i32, i32), color: Color, scale: u8) {
 		assert!(scale > 0);
 		for c in text.chars() {
-			self.render_char(c, pos, color, scale, buffer_wh);
+			self.render_char(c, pos, color, scale);
 			pos.0 += ((FONT_W as i32) + 1) * (scale as i32);
 		}
 	}
 
-	fn render_char(&mut self, char: char, pos: (i32, i32), color: Color, scale: u8, buffer_wh: (u32, u32)) {
+	fn render_char(&mut self, char: char, pos: (i32, i32), color: Color, scale: u8) {
 		assert!(scale > 0);
-		let (w, h) = buffer_wh;
 		let bitmap: Bitmap = get_bitmap_for(char);
 		for y in 0..FONT_H as i32 {
 			for x in 0..FONT_W as i32 {
@@ -43,13 +42,13 @@ impl RenderText for FrameBuffer {
 					// draw scaled block
 					for dy in 0..scale as i32 {
 						let Y = base_y + dy;
-						if Y >= h as i32 { break }
+						if Y >= self.h as i32 { break }
 						if Y < 0 { continue }
 						for dx in 0..scale as i32 {
 							let X = base_x + dx;
-							if X >= w as i32 { break }
+							if X >= self.w as i32 { break }
 							if X < 0 { continue }
-							self.buf[(Y * (w as i32) + X) as usize] = color.0;
+							self.buf[(Y * (self.w as i32) + X) as usize] = color.0;
 						}
 					}
 				}
@@ -57,17 +56,16 @@ impl RenderText for FrameBuffer {
 		}
 	}
 
-	fn render_text_unchecked(&mut self, text: &str, mut pos: (i32, i32), color: Color, scale: u8, buffer_wh: (u32, u32)) {
+	fn render_text_unchecked(&mut self, text: &str, mut pos: (i32, i32), color: Color, scale: u8) {
 		assert!(scale > 0);
 		for c in text.chars() {
-			self.render_char_unchecked(c, pos, color, scale, buffer_wh);
+			self.render_char_unchecked(c, pos, color, scale);
 			pos.0 += ((FONT_W as i32) + 1) * (scale as i32);
 		}
 	}
 
-	fn render_char_unchecked(&mut self, char: char, pos: (i32, i32), color: Color, scale: u8, buffer_wh: (u32, u32)) {
+	fn render_char_unchecked(&mut self, char: char, pos: (i32, i32), color: Color, scale: u8) {
 		assert!(scale > 0);
-		let (w, _h) = buffer_wh;
 		let bitmap: Bitmap = get_bitmap_for(char);
 		for y in 0..FONT_H as i32 {
 			for x in 0..FONT_W as i32 {
@@ -80,7 +78,7 @@ impl RenderText for FrameBuffer {
 						let Y = base_y + dy;
 						for dx in 0..scale as i32 {
 							let X = base_x + dx;
-							self.buf[(Y * (w as i32) + X) as usize] = color.0;
+							self.buf[(Y * (self.w as i32) + X) as usize] = color.0;
 						}
 					}
 				}
@@ -88,9 +86,8 @@ impl RenderText for FrameBuffer {
 		}
 	}
 
-	fn render_custom_char(&mut self, bitmap: [u8; 25], pos: (i32, i32), color: Color, scale: u8, buffer_wh: (u32, u32)) {
+	fn render_custom_char(&mut self, bitmap: [u8; 25], pos: (i32, i32), color: Color, scale: u8) {
 		assert!(scale > 0);
-		let (w, h) = buffer_wh;
 		for y in 0..FONT_H as i32 {
 			for x in 0..FONT_W as i32 {
 				if bitmap[(y * (FONT_W as i32) + x) as usize] == 1 {
@@ -100,13 +97,13 @@ impl RenderText for FrameBuffer {
 					// draw scaled block
 					for dy in 0..scale as i32 {
 						let Y = base_y + dy;
-						if Y >= h as i32 { break }
+						if Y >= self.h as i32 { break }
 						if Y < 0 { continue }
 						for dx in 0..scale as i32 {
 							let X = base_x + dx;
-							if X >= w as i32 { break }
+							if X >= self.w as i32 { break }
 							if X < 0 { continue }
-							self.buf[(Y * (w as i32) + X) as usize] = color.0;
+							self.buf[(Y * (self.w as i32) + X) as usize] = color.0;
 						}
 					}
 				}
