@@ -139,6 +139,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "dark-fluxus"
+version = "0.0.0"
+dependencies = [
+ "encoding_rs",
+ "llama-cpp-2",
+ "minifb",
+ "rand",
+]
+
+[[package]]
 name = "dlib"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1149,16 +1159,6 @@ checksum = "854ba17bb104abfb26ba36da9729addc7ce7f06f5c0f90f3c391f8461cca21f9"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "weird-game"
-version = "0.0.0"
-dependencies = [
- "encoding_rs",
- "llama-cpp-2",
- "minifb",
- "rand",
 ]
 
 [[package]]
