@@ -11,8 +11,8 @@
 
 use std::array;
 
-use encoding_rs::UTF_8;
-use llama_cpp_2::{context::params::LlamaContextParams, llama_backend::LlamaBackend, llama_batch::LlamaBatch, model::{AddBos, LlamaModel, params::LlamaModelParams}, sampling::LlamaSampler};
+// use encoding_rs::UTF_8;
+// use llama_cpp_2::{context::params::LlamaContextParams, llama_backend::LlamaBackend, llama_batch::LlamaBatch, model::{AddBos, LlamaModel, params::LlamaModelParams}, sampling::LlamaSampler};
 use minifb::{Key, Window, WindowOptions};
 use rand::{Rng, RngExt, SeedableRng, distr::weighted::WeightedIndex, rng, rngs::StdRng};
 
@@ -43,135 +43,128 @@ use zqqx_lang::*;
 
 
 fn main() {
-	// const MODEL_PATH: &str = "models/tinyllama-1.1b-chat-v1.0.Q8_0.gguf"; // dumb af
-	// const MODEL_PATH: &str = "models/Llama-3.2-1B-Instruct-IQ3_M.gguf";
-	const MODEL_PATH: &str = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"; // best
-	// const MODEL_PATH: &str = "models/Llama-3.2-1B-Instruct-f16.gguf";
-	// const MODEL_PATH: &str = "models/machbase-llama3b.Q6_K.gguf";
-
+	#[allow(unused_variables)]
 	let mut rng = rng();
 
-
-
-	// 1. Initialize the llama.cpp backend
-	let mut backend = LlamaBackend::init().unwrap();
-	backend.void_logs();
-	let backend = backend;
-
-	// 2. Load the model from the file
-	let model_params = LlamaModelParams::default();
-	let model = LlamaModel::load_from_file(&backend, MODEL_PATH, &model_params)
-		.expect(&format!("Failed to load model. Check if '{MODEL_PATH}' exists."));
-
-	let mut items: Vec<String> = vec![
-		format!("water"),
-		format!("air"),
-		format!("stone"),
-		format!("fire"),
-		// format!("ambrosia"),
-		// format!("flumoxium"),
-		// format!("diminution"),
-	];
-
-	loop {
-		for (i, item) in items.iter().enumerate() {
-			println!("{i}. {item}");
-		}
-		println!();
-		// let Ok(n1) = prompt("Give first item number: ").parse::<usize>() else { continue };
-		// let Ok(n2) = prompt("Give second item number: ").parse::<usize>() else { continue };
-		// let Some(item_1) = &items.get(n1) else { continue };
-		// let Some(item_2) = &items.get(n2) else { continue };
-		let item_1 = &items[rng.random_range(0..items.len())];
-		let item_2 = &items[rng.random_range(0..items.len())];
-
-		println!("{item_1} + {item_2}:");
-
-		// 3. Create a context for execution
-		let ctx_params = LlamaContextParams::default();
-		let mut ctx = model.new_context(&backend, ctx_params).unwrap();
-
-		// 4. Tokenize the prompt
-		let prompt = format!("You are a master wizard alchemist. Be creative. What is the result of mixing {item_1} with {item_2}? Answer with only one word, the name of new thing, no more text output, question, explanations or anything. One word.");
-		let tokens = model.str_to_token(&prompt, AddBos::Always).unwrap();
-
-		// print!("\n\n\n{}", prompt);
-		// io::stdout().flush().unwrap();
-
-		// 5. Create a batch and add the prompt tokens
-		// We allocate space for 512 tokens, 1 sequence.
-		let mut batch = LlamaBatch::new(512, 1);
-		// let last_index = tokens.len() - 1;
-
-		for (i, &token) in tokens.iter().enumerate() {
-			let is_last = i == tokens.len() - 1;
-			batch.add(token, i as i32, &[0], is_last).unwrap(); // Must be true for the very last prompt token
-		}
-		ctx.decode(&mut batch).unwrap();
-
-		// 5. Initialize the modern Sampler (Greedy)
-		let mut sampler = LlamaSampler::greedy();
-
-		// 6. Text Generation Loop
-		let max_tokens = 100;
-		let mut n_cur = tokens.len();
-
-		let mut decoder = UTF_8.new_decoder();
-
-		// println!();
-
-		let mut output = String::new();
-
-		while n_cur < max_tokens {
-			// This sampler call fails if the PREVIOUS decode didn't request logits
-			let new_token_id = sampler.sample(&ctx, batch.n_tokens() - 1);
-
-			if new_token_id == model.token_eos() {
-				break;
-			}
-
-			// Decode to string
-			let token_str = model.token_to_piece(new_token_id, &mut decoder, false, None).unwrap();
-			output += &token_str;
-			// print!("{}", token_str);
-			// io::stdout().flush().unwrap();
-
-			// --- THE FIX IS HERE ---
-			batch.clear();
-
-			// The last 'true' tells llama.cpp: "I want to sample from THIS token next"
-			// Without this 'true', the next iteration's sampler.sample() will crash.
-			batch.add(new_token_id, n_cur as i32, &[0], true).unwrap();
-
-			ctx.decode(&mut batch).unwrap();
-			n_cur += 1;
-		}
-
-		dbg!(&output);
-		output = output.trim().chars().filter(|c| c.is_alphanumeric() || " ".contains(*c)).collect();
-		output = output.to_lowercase();
-		// output = format!("{s}{output}{s}", s=" ".repeat(10));
-		dbg!(&output);
-		for item in items.iter() {
-			output = output.replace(item, "");
-			// output = output.replace(&format!(" {item} "), "");
-		}
-		output = output.trim().to_lowercase();
-		dbg!(&output);
-		if !output.is_empty() && output.chars().filter(|&c| c == ' ').count() < 3 && output.chars().count() >= 3 {
-			items.push(output);
-		}
-
-		println!();
-	}
-
-
-
-
-
-	return;
-
-
+	// // const MODEL_PATH: &str = "models/tinyllama-1.1b-chat-v1.0.Q8_0.gguf"; // dumb af
+	// // const MODEL_PATH: &str = "models/Llama-3.2-1B-Instruct-IQ3_M.gguf";
+	// const MODEL_PATH: &str = "models/Llama-3.2-1B-Instruct-Q8_0.gguf"; // best
+	// // const MODEL_PATH: &str = "models/Llama-3.2-1B-Instruct-f16.gguf";
+	// // const MODEL_PATH: &str = "models/machbase-llama3b.Q6_K.gguf";
+	//
+	// // 1. Initialize the llama.cpp backend
+	// let mut backend = LlamaBackend::init().unwrap();
+	// backend.void_logs();
+	// let backend = backend;
+	//
+	// // 2. Load the model from the file
+	// let model_params = LlamaModelParams::default();
+	// let model = LlamaModel::load_from_file(&backend, MODEL_PATH, &model_params)
+	// 	.expect(&format!("Failed to load model. Check if '{MODEL_PATH}' exists."));
+	//
+	// let mut items: Vec<String> = vec![
+	// 	format!("water"),
+	// 	format!("air"),
+	// 	format!("stone"),
+	// 	format!("fire"),
+	// 	// format!("ambrosia"),
+	// 	// format!("flumoxium"),
+	// 	// format!("diminution"),
+	// ];
+	//
+	// loop {
+	// 	for (i, item) in items.iter().enumerate() {
+	// 		println!("{i}. {item}");
+	// 	}
+	// 	println!();
+	// 	// let Ok(n1) = prompt("Give first item number: ").parse::<usize>() else { continue };
+	// 	// let Ok(n2) = prompt("Give second item number: ").parse::<usize>() else { continue };
+	// 	// let Some(item_1) = &items.get(n1) else { continue };
+	// 	// let Some(item_2) = &items.get(n2) else { continue };
+	// 	let item_1 = &items[rng.random_range(0..items.len())];
+	// 	let item_2 = &items[rng.random_range(0..items.len())];
+	//
+	// 	println!("{item_1} + {item_2}:");
+	//
+	// 	// 3. Create a context for execution
+	// 	let ctx_params = LlamaContextParams::default();
+	// 	let mut ctx = model.new_context(&backend, ctx_params).unwrap();
+	//
+	// 	// 4. Tokenize the prompt
+	// 	let prompt = format!("You are a master wizard alchemist. Be creative. What is the result of mixing {item_1} with {item_2}? Answer with only one word, the name of new thing, no more text output, question, explanations or anything. One word.");
+	// 	let tokens = model.str_to_token(&prompt, AddBos::Always).unwrap();
+	//
+	// 	// print!("\n\n\n{}", prompt);
+	// 	// io::stdout().flush().unwrap();
+	//
+	// 	// 5. Create a batch and add the prompt tokens
+	// 	// We allocate space for 512 tokens, 1 sequence.
+	// 	let mut batch = LlamaBatch::new(512, 1);
+	// 	// let last_index = tokens.len() - 1;
+	//
+	// 	for (i, &token) in tokens.iter().enumerate() {
+	// 		let is_last = i == tokens.len() - 1;
+	// 		batch.add(token, i as i32, &[0], is_last).unwrap(); // Must be true for the very last prompt token
+	// 	}
+	// 	ctx.decode(&mut batch).unwrap();
+	//
+	// 	// 5. Initialize the modern Sampler (Greedy)
+	// 	let mut sampler = LlamaSampler::greedy();
+	//
+	// 	// 6. Text Generation Loop
+	// 	let max_tokens = 100;
+	// 	let mut n_cur = tokens.len();
+	//
+	// 	let mut decoder = UTF_8.new_decoder();
+	//
+	// 	// println!();
+	//
+	// 	let mut output = String::new();
+	//
+	// 	while n_cur < max_tokens {
+	// 		// This sampler call fails if the PREVIOUS decode didn't request logits
+	// 		let new_token_id = sampler.sample(&ctx, batch.n_tokens() - 1);
+	//
+	// 		if new_token_id == model.token_eos() {
+	// 			break;
+	// 		}
+	//
+	// 		// Decode to string
+	// 		let token_str = model.token_to_piece(new_token_id, &mut decoder, false, None).unwrap();
+	// 		output += &token_str;
+	// 		// print!("{}", token_str);
+	// 		// io::stdout().flush().unwrap();
+	//
+	// 		// --- THE FIX IS HERE ---
+	// 		batch.clear();
+	//
+	// 		// The last 'true' tells llama.cpp: "I want to sample from THIS token next"
+	// 		// Without this 'true', the next iteration's sampler.sample() will crash.
+	// 		batch.add(new_token_id, n_cur as i32, &[0], true).unwrap();
+	//
+	// 		ctx.decode(&mut batch).unwrap();
+	// 		n_cur += 1;
+	// 	}
+	//
+	// 	dbg!(&output);
+	// 	output = output.trim().chars().filter(|c| c.is_alphanumeric() || " ".contains(*c)).collect();
+	// 	output = output.to_lowercase();
+	// 	// output = format!("{s}{output}{s}", s=" ".repeat(10));
+	// 	dbg!(&output);
+	// 	for item in items.iter() {
+	// 		output = output.replace(item, "");
+	// 		// output = output.replace(&format!(" {item} "), "");
+	// 	}
+	// 	output = output.trim().to_lowercase();
+	// 	dbg!(&output);
+	// 	if !output.is_empty() && output.chars().filter(|&c| c == ' ').count() < 3 && output.chars().count() >= 3 {
+	// 		items.push(output);
+	// 	}
+	//
+	// 	println!();
+	// }
+	//
+	// return;
 
 	let mut buffer = FrameBuffer::new(1600, 900);
 
@@ -186,9 +179,6 @@ fn main() {
 
 	window.set_target_fps(60);
 	window.update_with_my_buffer(&buffer);
-
-	// #[allow(unused_variables)]
-	// let mut rng = rng();
 
 	#[allow(unused_variables)]
 	let mut frame_n: u64 = 0;
