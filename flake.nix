@@ -9,6 +9,9 @@
 		devShells.${system}.default = pkgs.mkShell rec {
 			packages = with pkgs; [
 				libxkbcommon # for minifb
+				clang
+				llvmPackages.libclang
+				cmake
 			];
 			# Environment variables:
 			# RUST_BACKTRACE = "full";
