@@ -1,4 +1,4 @@
-//! weird game
+//! dark fluxus
 
 #![allow(
 	clippy::collapsible_if,
@@ -7,15 +7,16 @@
 
 #![deny(
 	unused_must_use,
+	unused_results,
 	unused_variables,
 )]
 
-use std::array;
+use std::{array, f32::consts::PI, time::SystemTime};
 
 // use encoding_rs::UTF_8;
 // use llama_cpp_2::{context::params::LlamaContextParams, llama_backend::LlamaBackend, llama_batch::LlamaBatch, model::{AddBos, LlamaModel, params::LlamaModelParams}, sampling::LlamaSampler};
 use minifb::{Key, Window, WindowOptions};
-use rand::{Rng, RngExt, SeedableRng, distr::weighted::WeightedIndex, rng, rngs::StdRng};
+use rand::{Rng, rng};
 
 mod colors;
 mod consts;
@@ -24,7 +25,7 @@ mod font_rendering;
 mod frame_buffer;
 mod lorenz_attractor;
 mod math_aliases;
-mod teapot;
+// mod teapot;
 mod utils_io;
 mod vec2d;
 mod vec3d;
@@ -50,11 +51,11 @@ fn main() {
 	#[allow(unused_variables)]
 	let mut rng = rng();
 
-	// // const MODEL_PATH: &str = "llm_models/tinyllama-1.1b-chat-v1.0.Q8_0.gguf"; // dumb af
-	// // const MODEL_PATH: &str = "llm_models/Llama-3.2-1B-Instruct-IQ3_M.gguf";
+	// // const MODEL_PATH: &str = "llm_models/tinyllama-1.1b-chat-v1.0.Q8_0.gguf"; // dumb af // src: https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/tree/main
+	// // const MODEL_PATH: &str = "llm_models/Llama-3.2-1B-Instruct-IQ3_M.gguf"; // src: https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/tree/main
 	// const MODEL_PATH: &str = "llm_models/Llama-3.2-1B-Instruct-Q8_0.gguf"; // best
 	// // const MODEL_PATH: &str = "llm_models/Llama-3.2-1B-Instruct-f16.gguf";
-	// // const MODEL_PATH: &str = "llm_models/machbase-llama3b.Q6_K.gguf";
+	// // const MODEL_PATH: &str = "llm_models/machbase-llama3b.Q6_K.gguf"; // src: https://huggingface.co/mradermacher/machbase-llama3b-GGUF/tree/main
 	//
 	// // 1. Initialize the llama.cpp backend
 	// let mut backend = LlamaBackend::init().unwrap();
@@ -183,46 +184,6 @@ fn main() {
 
 	window.set_target_fps(60);
 	window.update_with_my_buffer(&buffer);
-
-	#[allow(unused_variables)]
-	let mut frame_n: u64 = 0;
-	let mut is_paused: bool = false;
-	// let mut scale: u32 = 1;
-	// let mut lorenz_attractor = LorenzAttractor::new();//.offset_params(0.01, -0.01, 0.001);
-	// let mut last_points: Vec<Vec3f> = vec![];
-	// let mut zqqx_lang = ZqqxLang::new();
-
-	// let lines: Vec<(Vec3f, Vec3f)> = vec![
-	// 	(vec3![0,0,0], vec3![1,0,0]),
-	// 	(vec3![0,0,0], vec3![0,1,0]),
-	// 	(vec3![0,0,0], vec3![0,0,1]),
-	// 	(vec3![1,0,0], vec3![0,1,0]),
-	// 	(vec3![1,0,0], vec3![0,0,1]),
-	// 	(vec3![0,1,0], vec3![0,0,1]),
-	// ];
-
-	let lines: Vec<(Vec3f, Vec3f)> = {
-		use teapot::*;
-		let lines = VERTICES.chunks(9)
-			.flat_map(|coords| {
-				let [ax,ay,az, bx,by,bz, cx,cy,cz] = *coords else { unreachable!() };
-				let a = Vec3f::new(ax,ay,az);
-				let b = Vec3f::new(bx,by,bz);
-				let c = Vec3f::new(cx,cy,cz);
-				[ (a, b), (b, c), (c, a) ]
-			})
-			.collect();
-		lines
-	};
-	dbg!(lines.len());
-
-
-	let mut camera = Camera {
-		pos: vec3![0., 0., -2.],
-		forward: vec3![0., 0., 1.],
-		up: vec3![0., 1., 0.],
-		fov: 90. * DEG_TO_RAD,
-	};
 
 	#[derive(Debug)]
 	struct Camera {
@@ -379,8 +340,89 @@ fn main() {
 	}
 
 
+	// let lines: Vec<(Vec3f, Vec3f)> = vec![
+	// 	(vec3![0,0,0], vec3![1,0,0]),
+	// 	(vec3![0,0,0], vec3![0,1,0]),
+	// 	(vec3![0,0,0], vec3![0,0,1]),
+	// 	(vec3![1,0,0], vec3![0,1,0]),
+	// 	(vec3![1,0,0], vec3![0,0,1]),
+	// 	(vec3![0,1,0], vec3![0,0,1]),
+	// ];
+
+	// let lines: Vec<(Vec3f, Vec3f)> = {
+	// 	use teapot::*;
+	// 	let lines = VERTICES.chunks(9)
+	// 		.flat_map(|coords| {
+	// 			let [ax,ay,az, bx,by,bz, cx,cy,cz] = *coords else { unreachable!() };
+	// 			let a = Vec3f::new(ax,ay,az);
+	// 			let b = Vec3f::new(bx,by,bz);
+	// 			let c = Vec3f::new(cx,cy,cz);
+	// 			[ (a, b), (b, c), (c, a) ]
+	// 		})
+	// 		.collect();
+	// 	lines
+	// };
+
+	let lines: Vec<(Vec3f, Vec3f)> = {
+		let mut lines = vec![];
+		const N: i32 = 30;
+		for x in -N ..= N {
+			for z in -N ..= N {
+				let x = x as float;
+				let z = z as float;
+				let a = vec3xz!(x-0.5, z-0.5);
+				let b = vec3xz!(x+0.5, z-0.5);
+				let c = vec3xz!(x-0.5, z+0.5);
+				lines.push((a, b));
+				lines.push((b, c));
+				lines.push((c, a));
+			}
+		}
+		for x in -N ..= N {
+			let z = N;
+			let x = x as float;
+			let z = z as float;
+			let a = vec3xz!(x+0.5, z+0.5);
+			let b = vec3xz!(x-0.5, z+0.5);
+			lines.push((a, b));
+		}
+		for z in -N ..= N {
+			let x = N;
+			let x = x as float;
+			let z = z as float;
+			let a = vec3xz!(x+0.5, z+0.5);
+			let b = vec3xz!(x+0.5, z-0.5);
+			lines.push((a, b));
+		}
+		for line in lines.iter_mut() {
+			for p in [&mut line.0, &mut line.1].iter_mut() {
+				p.y += 2. * ln(0.2*(p.x*p.x+p.z*p.z));
+			}
+		}
+		lines
+	};
+
+	let mut camera = Camera {
+		pos: vec3![0., 0.7, -2.],
+		forward: vec3![0., 0., 1.],
+		up: vec3![0., 1., 0.],
+		fov: 90. * DEG_TO_RAD,
+	};
+
+
+
+	#[allow(unused_variables)]
+	let mut frame_n: u64 = 0;
+	let mut is_paused: bool = false;
+	// let mut scale: u32 = 1;
+	// let mut lorenz_attractor = LorenzAttractor::new();//.offset_params(0.01, -0.01, 0.001);
+	// let mut last_points: Vec<Vec3f> = vec![];
+	// let mut zqqx_lang = ZqqxLang::new();
+
+
 
 	while window.is_open() && !window.is_key_down(Key::Escape) {
+		let frame_begin_timestamp = SystemTime::now();
 		let mut is_redraw_needed: bool = frame_n == 0;
 
 		// handle resizing
@@ -405,38 +447,79 @@ fn main() {
 		// }
 
 		const DELTA: float = 0.01; // TODO
+		const MOVE_SPEED: float = 20.;
+		const ROTATION_SPEED: float = 3.;
 		if window.is_key_down(Key::Up) {
-			camera.pos += camera.forward * DELTA;
+			camera.pos += camera.forward * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
 		if window.is_key_down(Key::Down) {
-			camera.pos -= camera.forward * DELTA;
+			camera.pos -= camera.forward * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
 		if window.is_key_down(Key::Left) {
-			// camera.pos += vec3x!(1) * DELTA;
-			camera.forward -= camera.basis().0 * DELTA;
+			camera.pos -= camera.basis().0 * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
 		if window.is_key_down(Key::Right) {
-			// camera.pos -= vec3x!(1) * DELTA;
-			camera.forward += camera.basis().0 * DELTA;
-			is_redraw_needed = true;
-		}
-		if window.is_key_down(Key::A) {
-			camera.pos += vec3y!(1) * DELTA;
+			camera.pos += camera.basis().0 * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
 		if window.is_key_down(Key::Z) {
-			camera.pos -= vec3y!(1) * DELTA;
+			camera.pos += vec3y!(1) * DELTA * MOVE_SPEED;
+			// camera.pos += camera.basis().1 * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
+		if window.is_key_down(Key::X) {
+			camera.pos -= vec3y!(1) * DELTA * MOVE_SPEED;
+			// camera.pos -= camera.basis().1 * DELTA * MOVE_SPEED;
+			is_redraw_needed = true;
+		}
+		if window.is_key_down(Key::W) {
+			camera.forward += camera.basis().1 * DELTA * ROTATION_SPEED;
+			camera.forward.normlize();
+			is_redraw_needed = true;
+		}
+		if window.is_key_down(Key::S) {
+			camera.forward -= camera.basis().1 * DELTA * ROTATION_SPEED;
+			camera.forward.normlize();
+			is_redraw_needed = true;
+		}
+		if window.is_key_down(Key::A) {
+			camera.forward -= camera.basis().0 * DELTA * ROTATION_SPEED;
+			camera.forward.normlize();
+			is_redraw_needed = true;
+		}
+		if window.is_key_down(Key::D) {
+			camera.forward += camera.basis().0 * DELTA * ROTATION_SPEED;
+			camera.forward.normlize();
+			is_redraw_needed = true;
+		}
+		// if window.is_key_down(Key::Q) {
+		// 	camera.up -= camera.basis().0 * DELTA * ROTATION_SPEED;
+		// 	camera.up.normlize();
+		// 	is_redraw_needed = true;
+		// }
+		// if window.is_key_down(Key::E) {
+		// 	camera.up += camera.basis().0 * DELTA * ROTATION_SPEED;
+		// 	camera.up.normlize();
+		// 	is_redraw_needed = true;
+		// }
+		if window.is_key_down(Key::R) {
+			camera.up = vec3y!(1.);
+			is_redraw_needed = true;
+		}
+		const MIN_FOV: float = 0.01 * PI;
+		const MAX_FOV: float = 0.9 * PI;
+		const FOV_RANGE: float = MAX_FOV - MIN_FOV;
 		if window.is_key_down(Key::I) {
-			camera.fov -= DELTA;
+			// camera.fov -= DELTA;
+			camera.fov = MIN_FOV + FOV_RANGE * sigmoid(asigmoid((camera.fov-MIN_FOV)/FOV_RANGE) - 0.03);
 			is_redraw_needed = true;
 		}
 		if window.is_key_down(Key::O) {
-			camera.fov += DELTA;
+			// camera.fov += DELTA;
+			camera.fov = MIN_FOV + FOV_RANGE * sigmoid(asigmoid((camera.fov-MIN_FOV)/FOV_RANGE) + 0.03);
 			is_redraw_needed = true;
 		}
 
@@ -459,8 +542,10 @@ fn main() {
 				}
 			}
 
-			buffer.render_text(&format!("XYZ: {:.3}, {:.3}, {:.3}", camera.pos.x, camera.pos.y, camera.pos.z), (5,5), GRAY, 4);
-			buffer.render_text(&format!("FOV: {:.3}", camera.fov * RAD_TO_DEG), (5,40), GRAY, 4);
+			let text_size = 4;
+
+			buffer.render_text(&format!("XYZ: {:.3}, {:.3}, {:.3}", camera.pos.x, camera.pos.y, camera.pos.z), (5,5), GRAY, text_size);
+			buffer.render_text(&format!("FOV: {:.3}", camera.fov * RAD_TO_DEG), (5,40), GRAY, text_size);
 
 			// buffer.render_text(
 			// 	&format!("LX: {}", lorenz_attractor.x),
@@ -552,6 +637,11 @@ fn main() {
 			// 		scale,
 			// 	);
 			// }
+
+			let frame_end_timestamp = SystemTime::now();
+			let frametime = frame_end_timestamp.duration_since(frame_begin_timestamp).unwrap();
+			let fps_text = format!("\"FPS\": {:.1}", 1. / frametime.as_secs_f64());
+			buffer.render_text(&fps_text, (buffer.w as i32 - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), GRAY, text_size);
 
 			window.update_with_my_buffer(&buffer);
 		} // end of render

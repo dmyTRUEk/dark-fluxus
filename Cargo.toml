@@ -14,7 +14,7 @@ strip = "debuginfo"
 #target-cpu = "native" -> RUSTFLAGS='-C target-cpu=native'
 
 [dependencies]
-encoding_rs = "0.8.35"
-llama-cpp-2 = "0.1.139"
+# encoding_rs = "0.8.35"
+# llama-cpp-2 = "0.1.139"
 minifb = { version = "0.28.0", default-features = false, features = ["wayland"] }
 rand = "0.10.0"
