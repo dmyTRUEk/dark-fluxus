@@ -18,7 +18,7 @@ use std::{array, f32::consts::PI, thread::sleep, time::{Duration, SystemTime}};
 use rand::{Rng, rng};
 use sdl3::{event::Event, keyboard::{KeyboardState, Keycode, Scancode}, pixels::Color, render::FPoint};
 
-mod colors;
+// mod colors;
 mod consts;
 mod extensions;
 mod font_rendering;
@@ -28,10 +28,11 @@ mod math_aliases;
 // mod teapot;
 mod utils_io;
 mod vec2d;
+mod vec2D;
 mod vec3d;
 mod zqqx_lang;
 
-use colors::*;
+// use colors::*;
 use consts::*;
 use extensions::*;
 use font_rendering::CanvasRenderText;
@@ -39,6 +40,7 @@ use lorenz_attractor::*;
 use math_aliases::*;
 use utils_io::*;
 use vec2d::*;
+use vec2D::*;
 use vec3d::*;
 use zqqx_lang::*;
 
@@ -213,51 +215,56 @@ fn main() {
 	// 	lines
 	// };
 
-	let lines: Vec<(Vec3f, Vec3f)> = {
-		let mut lines = vec![];
-		const N: i32 = 30;
-		for x in -N ..= N {
-			for z in -N ..= N {
-				let x = x as float;
-				let z = z as float;
-				let a = vec3xz!(x-0.5, z-0.5);
-				let b = vec3xz!(x+0.5, z-0.5);
-				let c = vec3xz!(x-0.5, z+0.5);
-				lines.push((a, b));
-				lines.push((b, c));
-				lines.push((c, a));
-			}
-		}
-		for x in -N ..= N {
-			let z = N;
-			let x = x as float;
-			let z = z as float;
-			let a = vec3xz!(x+0.5, z+0.5);
-			let b = vec3xz!(x-0.5, z+0.5);
-			lines.push((a, b));
-		}
-		for z in -N ..= N {
-			let x = N;
-			let x = x as float;
-			let z = z as float;
-			let a = vec3xz!(x+0.5, z+0.5);
-			let b = vec3xz!(x+0.5, z-0.5);
-			lines.push((a, b));
-		}
-		for line in lines.iter_mut() {
-			for p in [&mut line.0, &mut line.1].iter_mut() {
-				p.y += 2. * ln(0.2*(p.x*p.x+p.z*p.z));
-			}
-		}
-		lines
-	};
-
-	// let cubes = todo!();
-	//
 	// let lines: Vec<(Vec3f, Vec3f)> = {
-	//
-	// 	todo!()
+	// 	let mut lines = vec![];
+	// 	const N: i32 = 30;
+	// 	for x in -N ..= N {
+	// 		for z in -N ..= N {
+	// 			let x = x as float;
+	// 			let z = z as float;
+	// 			let a = vec3xz!(x-0.5, z-0.5);
+	// 			let b = vec3xz!(x+0.5, z-0.5);
+	// 			let c = vec3xz!(x-0.5, z+0.5);
+	// 			lines.push((a, b));
+	// 			lines.push((b, c));
+	// 			lines.push((c, a));
+	// 		}
+	// 	}
+	// 	for x in -N ..= N {
+	// 		let z = N;
+	// 		let x = x as float;
+	// 		let z = z as float;
+	// 		let a = vec3xz!(x+0.5, z+0.5);
+	// 		let b = vec3xz!(x-0.5, z+0.5);
+	// 		lines.push((a, b));
+	// 	}
+	// 	for z in -N ..= N {
+	// 		let x = N;
+	// 		let x = x as float;
+	// 		let z = z as float;
+	// 		let a = vec3xz!(x+0.5, z+0.5);
+	// 		let b = vec3xz!(x+0.5, z-0.5);
+	// 		lines.push((a, b));
+	// 	}
+	// 	for line in lines.iter_mut() {
+	// 		for p in [&mut line.0, &mut line.1].iter_mut() {
+	// 			p.y += 2. * ln(0.2*(p.x*p.x+p.z*p.z));
+	// 		}
+	// 	}
+	// 	lines
 	// };
+
+	const CHUNK_SIZE: float = 10.;
+	const CHUNK_SIZE_HALF: float = CHUNK_SIZE / 2.;
+	struct Chunk {
+		color: Color,
+	}
+
+	const CHUNKS_N: u32 = 5;
+	let chunks = Vec2D::<Chunk>::from_fn(CHUNKS_N, CHUNKS_N, |x, z| {
+		Chunk { color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0) }
+	});
+	println!("chunks.len = {}", chunks.iter().count());
 
 	let mut camera = Camera {
 		pos: vec3![0., 0.7, -2.],
@@ -265,6 +272,8 @@ fn main() {
 		up: vec3![0., 1., 0.],
 		fov: 90. * DEG_TO_RAD,
 	};
+	let mut current_chunk_x = 0;
+	let mut current_chunk_z = 0;
 
 	#[allow(unused_variables)]
 	let mut tick_n: u64 = 0;
@@ -377,6 +386,24 @@ fn main() {
 		// 	lorenz_attractor.step(1e-2);
 		// 	is_redraw_needed = true;
 		// }
+		{
+			if camera.pos.x < -CHUNK_SIZE_HALF {
+				camera.pos.x += CHUNK_SIZE;
+				current_chunk_x -= 1;
+			}
+			else if camera.pos.x > CHUNK_SIZE_HALF {
+				camera.pos.x -= CHUNK_SIZE;
+				current_chunk_x += 1;
+			}
+			if camera.pos.z < -CHUNK_SIZE_HALF {
+				camera.pos.z += CHUNK_SIZE;
+				current_chunk_z -= 1;
+			}
+			else if camera.pos.z > CHUNK_SIZE_HALF {
+				camera.pos.z -= CHUNK_SIZE;
+				current_chunk_z += 1;
+			}
+		}
 
 		// render new frame:
 		if is_redraw_needed {
@@ -392,38 +419,40 @@ fn main() {
 			let (wi, _hi) = (w as i32, h as i32);
 			let (wf, hf) = (w as float, h as float);
 
-			canvas.set_draw_color(Color::WHITE);
-			for line in lines.iter() {
-				if let Some((a, b)) = camera.project_line(line, wf, hf, 0.1) {
-					let _ = canvas.draw_line(a, b);
+			// let current_chunk_x = (camera.pos.x / CHUNK_SIZE).round() as i32;
+			// let current_chunk_z = (camera.pos.z / CHUNK_SIZE).round() as i32;
+			for (dx, dz, _X, _Z, chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, 2) {
+				canvas.set_draw_color(chunk.color);
+				const STEP: float = 1.;
+				let mut x = -CHUNK_SIZE_HALF * (1. - 1e-2);
+				while x < CHUNK_SIZE_HALF {
+					let mut z = -CHUNK_SIZE_HALF * (1. - 1e-2);
+					while z < CHUNK_SIZE_HALF {
+						let lines = [
+							(Vec3f::new((dx as float)*CHUNK_SIZE+x-STEP/3., 0., (dz as float)*CHUNK_SIZE+z-STEP/3.),
+							 Vec3f::new((dx as float)*CHUNK_SIZE+x+STEP/3., 0., (dz as float)*CHUNK_SIZE+z+STEP/3.)),
+							(Vec3f::new((dx as float)*CHUNK_SIZE+x-STEP/3., 0., (dz as float)*CHUNK_SIZE+z+STEP/3.),
+							 Vec3f::new((dx as float)*CHUNK_SIZE+x+STEP/3., 0., (dz as float)*CHUNK_SIZE+z-STEP/3.)),
+						];
+						for line in lines.iter() {
+							if let Some((a,b)) = camera.project_line(line, wf, hf, 0.1) {
+								let _ = canvas.draw_line(a,b);
+							}
+						}
+						z += STEP;
+					}
+					x += STEP;
 				}
 			}
-			// let lines_projected: Vec<(Vec2f, Vec2f)> = lines.iter().filter_map(|line| camera.project_line(line, wf, hf, 0.1)).collect();
-			// canvas.draw_lines(points);
 
 			let text_size = 4;
 			canvas.set_draw_color(Color::GRAY);
 			canvas.render_text(&format!("XYZ: {:.3}, {:.3}, {:.3}", camera.pos.x, camera.pos.y, camera.pos.z), (5,5), text_size);
 			canvas.render_text(&format!("FOV: {:.3}", camera.fov * RAD_TO_DEG), (5,40), text_size);
 
-			// buffer.render_text(
-			// 	&format!("LX: {}", lorenz_attractor.x),
-			// 	(0, 10),
-			// 	RED,
-			// 	3,
-			// );
-			// buffer.render_text(
-			// 	&format!("LY: {}", lorenz_attractor.y),
-			// 	(0, 40),
-			// 	GREEN,
-			// 	3,
-			// );
-			// buffer.render_text(
-			// 	&format!("LZ: {}", lorenz_attractor.z),
-			// 	(0, 70),
-			// 	BLUE,
-			// 	3,
-			// );
+			// buffer.render_text(&format!("LX: {}", lorenz_attractor.x), (0, 10), RED, 3);
+			// buffer.render_text(&format!("LY: {}", lorenz_attractor.y), (0, 40), GREEN, 3);
+			// buffer.render_text(&format!("LZ: {}", lorenz_attractor.z), (0, 70), BLUE, 3);
 
 			// last_points.push(lorenz_attractor.get_xyz_as_vec3d());
 			//

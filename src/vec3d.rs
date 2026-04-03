@@ -1,4 +1,4 @@
-//! vector 3 float
+//! math vector 3d
 
 use std::{ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign}, process::Output};
 

@@ -1,4 +1,4 @@
-//! vector 2 float
+//! math vector 2d
 
 use std::ops::{Add, AddAssign, Div, Mul, MulAssign};
 
