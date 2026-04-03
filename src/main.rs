@@ -11,18 +11,18 @@
 	unused_variables,
 )]
 
-use std::{array, f32::consts::PI, time::SystemTime};
+use std::{array, f32::consts::PI, thread::sleep, time::{Duration, SystemTime}};
 
 // use encoding_rs::UTF_8;
 // use llama_cpp_2::{context::params::LlamaContextParams, llama_backend::LlamaBackend, llama_batch::LlamaBatch, model::{AddBos, LlamaModel, params::LlamaModelParams}, sampling::LlamaSampler};
-use minifb::{Key, Window, WindowOptions};
 use rand::{Rng, rng};
+use sdl3::{event::Event, keyboard::{Keycode, Scancode}, pixels::Color, render::FPoint};
 
 mod colors;
 mod consts;
 mod extensions;
 mod font_rendering;
-mod frame_buffer;
+// mod frame_buffer;
 mod lorenz_attractor;
 mod math_aliases;
 // mod teapot;
@@ -34,8 +34,7 @@ mod zqqx_lang;
 use colors::*;
 use consts::*;
 use extensions::*;
-use font_rendering::*;
-use frame_buffer::*;
+use font_rendering::CanvasRenderText;
 use lorenz_attractor::*;
 use math_aliases::*;
 use utils_io::*;
@@ -171,198 +170,21 @@ fn main() {
 	//
 	// return;
 
-	let mut buffer = FrameBuffer::new(1600, 900);
-
-	let mut window = Window::new(
-		concat!("Weird Game v", env!("CARGO_PKG_VERSION")),
-		buffer.w as usize, buffer.h as usize,
-		WindowOptions {
-			resize: true,
-			..WindowOptions::default()
-		}
-	).expect("unable to create window");
-
-	window.set_target_fps(60);
-	window.update_with_my_buffer(&buffer);
-
-	#[derive(Debug)]
-	struct Camera {
-		pos: Vec3f,
-		forward: Vec3f,
-		up: Vec3f,
-		fov: float, // in radians
-	}
-	impl Camera {
-		/// returns (right, up, forward) vectors
-		fn basis(&self) -> (Vec3f, Vec3f, Vec3f) {
-			let f = self.forward.normed();
-			let r = f.cross(self.up).normed();
-			let u = r.cross(f);
-			(r, u, f)
-		}
-
-		fn project_point(&self, p: Vec3f, width: f32, height: f32) -> Option<Vec2f> {
-			let (right, up, forward) = self.basis();
-
-			// world -> camera space
-			let rel = p - self.pos;
-
-			let x = rel * right;
-			let y = rel * up;
-			let z = rel * forward;
-
-			// behind camera
-			if z <= 0. { return None; }
-
-			let aspect = width / height;
-			let f = 1. / (self.fov * 0.5).tan();
-
-			// perspective projection (NDC)
-			let nx = (x / z) * f / aspect;
-			let ny = (y / z) * f;
-
-			// to screen pixels
-			let sx = (nx + 1.) * 0.5 * width;
-			let sy = (1. - (ny + 1.) * 0.5) * height;
-
-			Some(Vec2f { x: sx, y: sy })
-		}
-
-		fn clip_line_near(&self, a: Vec3f, b: Vec3f, near: f32) -> Option<(Vec3f, Vec3f)> {
-			let (_, _, forward) = self.basis();
-			let da = (a - self.pos) * forward;
-			let db = (b - self.pos) * forward;
-			if da >= near && db >= near { return Some((a, b)); }
-			if da < near && db < near { return None; }
-			let t = (near - da) / (db - da);
-			let intersect = Vec3f::new(
-				a.x + (b.x - a.x) * t,
-				a.y + (b.y - a.y) * t,
-				a.z + (b.z - a.z) * t,
-			);
-			if da < near {
-				Some((intersect, b))
-			} else {
-				Some((a, intersect))
-			}
-		}
-
-		fn project_line(
-			&self,
-			line: &(Vec3f, Vec3f),
-			width: f32,
-			height: f32,
-			near: f32,
-		) -> Option<(Vec2f, Vec2f)> {
-			let (a, b) = self.clip_line_near(line.0, line.1, near)?;
-			let pa = self.project_point(a, width, height)?;
-			let pb = self.project_point(b, width, height)?;
-			clip_line_viewport(pa, pb, width, height)
-		}
-	}
-
-	const INSIDE: u8 = 0;
-	const LEFT: u8 = 1;
-	const RIGHT: u8 = 2;
-	const BOTTOM: u8 = 4;
-	const TOP: u8 = 8;
-
-	fn compute_outcode(p: Vec2f, w: f32, h: f32) -> u8 {
-		let mut code = INSIDE;
-		if p.x < 0. { code |= LEFT; } else if p.x > w { code |= RIGHT; }
-		if p.y < 0. { code |= TOP; } else if p.y > h { code |= BOTTOM; }
-		code
-	}
-
-	fn clip_line_viewport(mut a: Vec2f, mut b: Vec2f, w: f32, h: f32) -> Option<(Vec2f, Vec2f)> {
-		let mut out_a = compute_outcode(a, w, h);
-		let mut out_b = compute_outcode(b, w, h);
-		loop {
-			if (out_a | out_b) == 0 { return Some((a, b)); }
-			if (out_a & out_b) != 0 { return None; }
-			let out = if out_a != 0 { out_a } else { out_b };
-			let mut x = 0.;
-			let mut y = 0.;
-			if (out & TOP) != 0 {
-				x = a.x + (b.x - a.x) * (0. - a.y) / (b.y - a.y);
-				y = 0.;
-			} else if (out & BOTTOM) != 0 {
-				x = a.x + (b.x - a.x) * (h - a.y) / (b.y - a.y);
-				y = h;
-			} else if (out & RIGHT) != 0 {
-				y = a.y + (b.y - a.y) * (w - a.x) / (b.x - a.x);
-				x = w;
-			} else if (out & LEFT) != 0 {
-				y = a.y + (b.y - a.y) * (0. - a.x) / (b.x - a.x);
-				x = 0.;
-			}
-			if out == out_a {
-				a = Vec2f::new(x, y);
-				out_a = compute_outcode(a, w, h);
-			} else {
-				b = Vec2f::new(x, y);
-				out_b = compute_outcode(b, w, h);
-			}
-		}
-	}
-
-	fn draw_line(
-		buffer: &mut FrameBuffer,
-		width: u32,
-		height: u32,
-		a: Vec2f,
-		b: Vec2f,
-	) {
-		let mut x0 = a.x as i32;
-		let mut y0 = a.y as i32;
-		let x1 = b.x as i32;
-		let y1 = b.y as i32;
-		let dx = (x1 - x0).abs();
-		let dy = -(y1 - y0).abs();
-		let sx = if x0 < x1 { 1 } else { -1 };
-		let sy = if y0 < y1 { 1 } else { -1 };
-		let mut err = dx + dy;
-		loop {
-			if x0 >= 0 && x0 < width as i32 && y0 >= 0 && y0 < height as i32 {
-				buffer[(x0 as u32, y0 as u32)] = WHITE.0;
-			}
-			if x0 == x1 && y0 == y1 { break; }
-			let e2 = 2 * err;
-			if e2 >= dy {
-				err += dy;
-				x0 += sx;
-			}
-			if e2 <= dx {
-				err += dx;
-				y0 += sy;
-			}
-		}
-	}
 
 
-	// let lines: Vec<(Vec3f, Vec3f)> = vec![
-	// 	(vec3![0,0,0], vec3![1,0,0]),
-	// 	(vec3![0,0,0], vec3![0,1,0]),
-	// 	(vec3![0,0,0], vec3![0,0,1]),
-	// 	(vec3![1,0,0], vec3![0,1,0]),
-	// 	(vec3![1,0,0], vec3![0,0,1]),
-	// 	(vec3![0,1,0], vec3![0,0,1]),
-	// ];
+	let sdl_context = sdl3::init().unwrap();
+	let video_subsystem = sdl_context.video().unwrap();
 
-	// let lines: Vec<(Vec3f, Vec3f)> = {
-	// 	use teapot::*;
-	// 	let lines = VERTICES.chunks(9)
-	// 		.flat_map(|coords| {
-	// 			let [ax,ay,az, bx,by,bz, cx,cy,cz] = *coords else { unreachable!() };
-	// 			let a = Vec3f::new(ax,ay,az);
-	// 			let b = Vec3f::new(bx,by,bz);
-	// 			let c = Vec3f::new(cx,cy,cz);
-	// 			[ (a, b), (b, c), (c, a) ]
-	// 		})
-	// 		.collect();
-	// 	lines
-	// };
+	let window = video_subsystem
+		.window(&format!("Dark Fluxus v{}", env!("CARGO_PKG_VERSION")), 1600, 900) // alt: tenebrous
+		.position_centered()
+		.resizable()
+		// .opengl()
+		.build()
+		.unwrap();
 
+
+	#[allow(unused)]
 	let lines: Vec<(Vec3f, Vec3f)> = {
 		let mut lines = vec![];
 		const N: i32 = 30;
@@ -402,6 +224,13 @@ fn main() {
 		lines
 	};
 
+	// let cubes = todo!();
+	//
+	// let lines: Vec<(Vec3f, Vec3f)> = {
+	//
+	// 	todo!()
+	// };
+
 	let mut camera = Camera {
 		pos: vec3![0., 0.7, -2.],
 		forward: vec3![0., 0., 1.],
@@ -409,143 +238,154 @@ fn main() {
 		fov: 90. * DEG_TO_RAD,
 	};
 
-
-
 	#[allow(unused_variables)]
+	let mut tick_n: u64 = 0;
 	let mut frame_n: u64 = 0;
 	let mut is_paused: bool = false;
+
 	// let mut scale: u32 = 1;
 	// let mut lorenz_attractor = LorenzAttractor::new();//.offset_params(0.01, -0.01, 0.001);
 	// let mut last_points: Vec<Vec3f> = vec![];
 	// let mut zqqx_lang = ZqqxLang::new();
 
 
+	let mut canvas = window.into_canvas();
+	canvas.set_draw_color(Color::RGB(0, 255, 255));
+	canvas.clear();
+	let _ = canvas.present();
+	let mut event_pump = sdl_context.event_pump().unwrap();
 
-	while window.is_open() && !window.is_key_down(Key::Escape) {
-		let frame_begin_timestamp = SystemTime::now();
+	'main_loop: loop {
+		let tick_frame_begin_timestamp = SystemTime::now();
+
+		tick_n += 1;
+
 		let mut is_redraw_needed: bool = frame_n == 0;
 
-		// handle resizing
-		if buffer.resize(window.get_size()) {
-			//if verbose { println!("Resized to {w}x{h}") }
-			is_redraw_needed = true;
+		for event in event_pump.poll_iter() {
+			match event {
+				Event::Quit {..} |
+				Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+					break 'main_loop
+				}
+				Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
+					is_paused = !is_paused;
+				}
+				_ => {}
+			}
 		}
+		let keyboard = event_pump.keyboard_state();
 
-		// handle inputs
-		if window.is_key_pressed_once(Key::Space) {
-			is_paused = !is_paused;
-		}
-		// if window.is_key_pressed_repeat(Key::I) {
-		// 	if scale > 1 {
-		// 		scale -= 1;
-		// 		is_redraw_needed = true;
-		// 	}
-		// }
-		// if window.is_key_pressed_repeat(Key::O) {
-		// 	scale += 1;
-		// 	is_redraw_needed = true;
-		// }
-
+		// handle inputs:
 		const DELTA: float = 0.01; // TODO
 		const MOVE_SPEED: float = 20.;
 		const ROTATION_SPEED: float = 3.;
-		if window.is_key_down(Key::Up) {
+		if keyboard.is_scancode_pressed(Scancode::Up) {
 			camera.pos += camera.forward * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
-		if window.is_key_down(Key::Down) {
+		if keyboard.is_scancode_pressed(Scancode::Down) {
 			camera.pos -= camera.forward * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
-		if window.is_key_down(Key::Left) {
+		if keyboard.is_scancode_pressed(Scancode::Left) {
 			camera.pos -= camera.basis().0 * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
-		if window.is_key_down(Key::Right) {
+		if keyboard.is_scancode_pressed(Scancode::Right) {
 			camera.pos += camera.basis().0 * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
-		if window.is_key_down(Key::Z) {
+		if keyboard.is_scancode_pressed(Scancode::Space) {
 			camera.pos += vec3y!(1) * DELTA * MOVE_SPEED;
 			// camera.pos += camera.basis().1 * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
-		if window.is_key_down(Key::X) {
+		if keyboard.is_scancode_pressed(Scancode::LShift) {
 			camera.pos -= vec3y!(1) * DELTA * MOVE_SPEED;
 			// camera.pos -= camera.basis().1 * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
-		if window.is_key_down(Key::W) {
+		if keyboard.is_scancode_pressed(Scancode::W) {
 			camera.forward += camera.basis().1 * DELTA * ROTATION_SPEED;
 			camera.forward.normlize();
 			is_redraw_needed = true;
 		}
-		if window.is_key_down(Key::S) {
+		if keyboard.is_scancode_pressed(Scancode::S) {
 			camera.forward -= camera.basis().1 * DELTA * ROTATION_SPEED;
 			camera.forward.normlize();
 			is_redraw_needed = true;
 		}
-		if window.is_key_down(Key::A) {
+		if keyboard.is_scancode_pressed(Scancode::A) {
 			camera.forward -= camera.basis().0 * DELTA * ROTATION_SPEED;
 			camera.forward.normlize();
 			is_redraw_needed = true;
 		}
-		if window.is_key_down(Key::D) {
+		if keyboard.is_scancode_pressed(Scancode::D) {
 			camera.forward += camera.basis().0 * DELTA * ROTATION_SPEED;
 			camera.forward.normlize();
 			is_redraw_needed = true;
 		}
-		// if window.is_key_down(Key::Q) {
+		// if keyboard.is_scancode_pressed(Scancode::Q) {
 		// 	camera.up -= camera.basis().0 * DELTA * ROTATION_SPEED;
 		// 	camera.up.normlize();
 		// 	is_redraw_needed = true;
 		// }
-		// if window.is_key_down(Key::E) {
+		// if keyboard.is_scancode_pressed(Scancode::E) {
 		// 	camera.up += camera.basis().0 * DELTA * ROTATION_SPEED;
 		// 	camera.up.normlize();
 		// 	is_redraw_needed = true;
 		// }
-		if window.is_key_down(Key::R) {
-			camera.up = vec3y!(1.);
-			is_redraw_needed = true;
-		}
+		// if keyboard.is_scancode_pressed(Scancode::R) {
+		// 	camera.up = vec3y!(1.);
+		// 	is_redraw_needed = true;
+		// }
+
 		const MIN_FOV: float = 0.01 * PI;
 		const MAX_FOV: float = 0.9 * PI;
 		const FOV_RANGE: float = MAX_FOV - MIN_FOV;
-		if window.is_key_down(Key::I) {
+		if keyboard.is_scancode_pressed(Scancode::I) {
 			// camera.fov -= DELTA;
 			camera.fov = MIN_FOV + FOV_RANGE * sigmoid(asigmoid((camera.fov-MIN_FOV)/FOV_RANGE) - 0.03);
 			is_redraw_needed = true;
 		}
-		if window.is_key_down(Key::O) {
+		if keyboard.is_scancode_pressed(Scancode::O) {
 			// camera.fov += DELTA;
 			camera.fov = MIN_FOV + FOV_RANGE * sigmoid(asigmoid((camera.fov-MIN_FOV)/FOV_RANGE) + 0.03);
 			is_redraw_needed = true;
 		}
 
+		// physics update:
 		// if !is_paused {
 		// 	lorenz_attractor.step(1e-2);
 		// 	is_redraw_needed = true;
 		// }
 
-		// render new frame
+		// render new frame:
 		if is_redraw_needed {
 			frame_n += 1;
-			buffer.clear();
+
+			// canvas.set_draw_color(Color::RGB(((frame_n) % 255) as u8, (((frame_n+64)/2) % 255) as u8, (255 - (frame_n/3) % 255) as u8));
+			canvas.set_draw_color(Color::BLACK);
+			canvas.clear();
 
 			// dbg!(&camera);
 
+			let (w, h) = canvas.window().size();
+			let (wi, _hi) = (w as i32, h as i32);
+			let (wf, hf) = (w as float, h as float);
+
+			canvas.set_draw_color(Color::WHITE);
 			for line in lines.iter() {
-				if let Some((a, b)) = camera.project_line(line, buffer.wf(), buffer.hf(), 0.1) {
-					let (w, h) = buffer.wh();
-					draw_line(&mut buffer, w, h, a, b);
+				if let Some((a, b)) = camera.project_line(line, wf, hf, 0.1) {
+					let _ = canvas.draw_line(a, b);
 				}
 			}
 
 			let text_size = 4;
-
-			buffer.render_text(&format!("XYZ: {:.3}, {:.3}, {:.3}", camera.pos.x, camera.pos.y, camera.pos.z), (5,5), GRAY, text_size);
-			buffer.render_text(&format!("FOV: {:.3}", camera.fov * RAD_TO_DEG), (5,40), GRAY, text_size);
+			canvas.set_draw_color(Color::GRAY);
+			canvas.render_text(&format!("XYZ: {:.3}, {:.3}, {:.3}", camera.pos.x, camera.pos.y, camera.pos.z), (5,5), text_size);
+			canvas.render_text(&format!("FOV: {:.3}", camera.fov * RAD_TO_DEG), (5,40), text_size);
 
 			// buffer.render_text(
 			// 	&format!("LX: {}", lorenz_attractor.x),
@@ -639,25 +479,21 @@ fn main() {
 			// }
 
 			let frame_end_timestamp = SystemTime::now();
-			let frametime = frame_end_timestamp.duration_since(frame_begin_timestamp).unwrap();
+			let frametime = frame_end_timestamp.duration_since(tick_frame_begin_timestamp).unwrap();
 			let fps_text = format!("\"FPS\": {:.1}", 1. / frametime.as_secs_f64());
-			buffer.render_text(&fps_text, (buffer.w as i32 - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), GRAY, text_size);
+			canvas.render_text(&fps_text, (wi - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), text_size);
 
-			window.update_with_my_buffer(&buffer);
+			let _ = canvas.present();
 		} // end of render
-		else {
-			window.update();
+
+		let tick_end_timestamp = SystemTime::now();
+		let ticktime = tick_end_timestamp.duration_since(tick_frame_begin_timestamp).unwrap();
+		let target_fps = 60;
+		if ticktime < Duration::new(0, 1_000_000_000u32 / target_fps) {
+			sleep(Duration::new(0, 1_000_000_000u32 / target_fps) - ticktime);
 		}
-	} // end of main loop
+	}
 }
-
-const UNABLE_TO_UPDATE_WINDOW_BUFFER: &str = "unable to update window buffer";
-
-
-
-
-
-
 
 
 
@@ -670,31 +506,184 @@ type float = f32;
 
 
 
-trait ExtWindowIsKeyPressed {
-	fn is_key_pressed_once(&self, key: Key) -> bool;
-	fn is_key_pressed_repeat(&self, key: Key) -> bool;
+
+
+#[derive(Debug)]
+struct Camera {
+	pos: Vec3f,
+	forward: Vec3f,
+	up: Vec3f,
+	fov: float, // in radians
 }
-impl ExtWindowIsKeyPressed for Window {
-	fn is_key_pressed_once(&self, key: Key) -> bool {
-		self.is_key_pressed(key, minifb::KeyRepeat::No)
+impl Camera {
+	/// returns (right, up, forward) vectors
+	fn basis(&self) -> (Vec3f, Vec3f, Vec3f) {
+		let f = self.forward.normed();
+		let r = f.cross(self.up).normed();
+		let u = r.cross(f);
+		(r, u, f)
 	}
-	fn is_key_pressed_repeat(&self, key: Key) -> bool {
-		self.is_key_pressed(key, minifb::KeyRepeat::Yes)
+
+	fn project_point(&self, p: Vec3f, width: f32, height: f32) -> Option<Vec2f> {
+		let (right, up, forward) = self.basis();
+
+		// world -> camera space
+		let rel = p - self.pos;
+
+		let x = rel * right;
+		let y = rel * up;
+		let z = rel * forward;
+
+		// behind camera
+		if z <= 0. { return None; }
+
+		let aspect = width / height;
+		let f = 1. / (self.fov * 0.5).tan();
+
+		// perspective projection (NDC)
+		let nx = (x / z) * f / aspect;
+		let ny = (y / z) * f;
+
+		// to screen pixels
+		let sx = (nx + 1.) * 0.5 * width;
+		let sy = (1. - (ny + 1.) * 0.5) * height;
+
+		Some(Vec2f { x: sx, y: sy })
+	}
+
+	fn clip_line_near(&self, a: Vec3f, b: Vec3f, near: f32) -> Option<(Vec3f, Vec3f)> {
+		let (_, _, forward) = self.basis();
+		let da = (a - self.pos) * forward;
+		let db = (b - self.pos) * forward;
+		if da >= near && db >= near { return Some((a, b)); }
+		if da < near && db < near { return None; }
+		let t = (near - da) / (db - da);
+		let intersect = Vec3f::new(
+			a.x + (b.x - a.x) * t,
+			a.y + (b.y - a.y) * t,
+			a.z + (b.z - a.z) * t,
+		);
+		if da < near {
+			Some((intersect, b))
+		} else {
+			Some((a, intersect))
+		}
+	}
+
+	fn project_line(
+		&self,
+		line: &(Vec3f, Vec3f),
+		width: f32,
+		height: f32,
+		near: f32,
+	) -> Option<(Vec2f, Vec2f)> {
+		let (a, b) = self.clip_line_near(line.0, line.1, near)?;
+		let pa = self.project_point(a, width, height)?;
+		let pb = self.project_point(b, width, height)?;
+		clip_line_viewport(pa, pb, width, height)
 	}
 }
 
+// TODO: rename
+const _INSIDE: u8 = 0;
+const _LEFT: u8 = 1;
+const _RIGHT: u8 = 2;
+const _BOTTOM: u8 = 4;
+const _TOP: u8 = 8;
 
-
-trait ExtWindowUpdateWithMyBuffer {
-	fn update_with_my_buffer(&mut self, buffer: &FrameBuffer);
+fn compute_outcode(p: Vec2f, w: f32, h: f32) -> u8 {
+	let mut code = _INSIDE;
+	if p.x < 0. { code |= _LEFT; } else if p.x > w { code |= _RIGHT; }
+	if p.y < 0. { code |= _TOP; } else if p.y > h { code |= _BOTTOM; }
+	code
 }
-impl ExtWindowUpdateWithMyBuffer for Window {
-	fn update_with_my_buffer(&mut self, buffer: &FrameBuffer) {
-		self.update_with_buffer(
-			&buffer.buf,
-			buffer.w as usize,
-			buffer.h as usize
-		).expect(UNABLE_TO_UPDATE_WINDOW_BUFFER);
+
+fn clip_line_viewport(mut a: Vec2f, mut b: Vec2f, w: f32, h: f32) -> Option<(Vec2f, Vec2f)> {
+	let mut out_a = compute_outcode(a, w, h);
+	let mut out_b = compute_outcode(b, w, h);
+	loop {
+		if (out_a | out_b) == 0 { return Some((a, b)); }
+		if (out_a & out_b) != 0 { return None; }
+		let out = if out_a != 0 { out_a } else { out_b };
+		let mut x = 0.;
+		let mut y = 0.;
+		if (out & _TOP) != 0 {
+			x = a.x + (b.x - a.x) * (0. - a.y) / (b.y - a.y);
+			y = 0.;
+		} else if (out & _BOTTOM) != 0 {
+			x = a.x + (b.x - a.x) * (h - a.y) / (b.y - a.y);
+			y = h;
+		} else if (out & _RIGHT) != 0 {
+			y = a.y + (b.y - a.y) * (w - a.x) / (b.x - a.x);
+			x = w;
+		} else if (out & _LEFT) != 0 {
+			y = a.y + (b.y - a.y) * (0. - a.x) / (b.x - a.x);
+			x = 0.;
+		}
+		if out == out_a {
+			a = Vec2f::new(x, y);
+			out_a = compute_outcode(a, w, h);
+		} else {
+			b = Vec2f::new(x, y);
+			out_b = compute_outcode(b, w, h);
+		}
 	}
 }
+
+// fn draw_line(
+// 	buffer: &mut FrameBuffer,
+// 	width: u32,
+// 	height: u32,
+// 	a: Vec2f,
+// 	b: Vec2f,
+// ) {
+// 	let mut x0 = a.x as i32;
+// 	let mut y0 = a.y as i32;
+// 	let x1 = b.x as i32;
+// 	let y1 = b.y as i32;
+// 	let dx = (x1 - x0).abs();
+// 	let dy = -(y1 - y0).abs();
+// 	let sx = if x0 < x1 { 1 } else { -1 };
+// 	let sy = if y0 < y1 { 1 } else { -1 };
+// 	let mut err = dx + dy;
+// 	loop {
+// 		if x0 >= 0 && x0 < width as i32 && y0 >= 0 && y0 < height as i32 {
+// 			buffer[(x0 as u32, y0 as u32)] = WHITE.0;
+// 		}
+// 		if x0 == x1 && y0 == y1 { break; }
+// 		let e2 = 2 * err;
+// 		if e2 >= dy {
+// 			err += dy;
+// 			x0 += sx;
+// 		}
+// 		if e2 <= dx {
+// 			err += dx;
+// 			y0 += sy;
+// 		}
+// 	}
+// }
+
+
+// // let lines: Vec<(Vec3f, Vec3f)> = vec![
+// // 	(vec3![0,0,0], vec3![1,0,0]),
+// // 	(vec3![0,0,0], vec3![0,1,0]),
+// // 	(vec3![0,0,0], vec3![0,0,1]),
+// // 	(vec3![1,0,0], vec3![0,1,0]),
+// // 	(vec3![1,0,0], vec3![0,0,1]),
+// // 	(vec3![0,1,0], vec3![0,0,1]),
+// // ];
+//
+// // let lines: Vec<(Vec3f, Vec3f)> = {
+// // 	use teapot::*;
+// // 	let lines = VERTICES.chunks(9)
+// // 		.flat_map(|coords| {
+// // 			let [ax,ay,az, bx,by,bz, cx,cy,cz] = *coords else { unreachable!() };
+// // 			let a = Vec3f::new(ax,ay,az);
+// // 			let b = Vec3f::new(bx,by,bz);
+// // 			let c = Vec3f::new(cx,cy,cz);
+// // 			[ (a, b), (b, c), (c, a) ]
+// // 		})
+// // 		.collect();
+// // 	lines
+// // };
 

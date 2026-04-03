@@ -8,8 +8,9 @@
 	in {
 		devShells.${system}.default = pkgs.mkShell rec {
 			packages = with pkgs; [
-				libxkbcommon # for minifb
+				# libxkbcommon # for minifb
 				# clang llvmPackages.libclang cmake # for llama-cpp-2
+				sdl3
 			];
 			# Environment variables:
 			# RUST_BACKTRACE = "full";

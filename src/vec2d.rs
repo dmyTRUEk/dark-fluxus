@@ -2,11 +2,14 @@
 
 use std::ops::{Add, AddAssign, Div, Mul, MulAssign};
 
+use sdl3::render::FPoint;
+
 use crate::float;
 
 
 
 pub type Vec2f = Vec2d<float>;
+pub type Vec2i = Vec2d<i32>;
 
 #[macro_export] macro_rules! vec2 { ($x:expr, $y:expr) => { Vec2d::new($x, $y) }; }
 #[macro_export] macro_rules! vec2x { ($x:expr) => { Vec2d::new($x, 0) }; }
@@ -93,6 +96,21 @@ impl<T: Div<T, Output=T> + Clone> Div<T> for Vec2d<T> {
 	type Output = Self;
 	fn div(self, rhs: T) -> Self::Output {
 		Self::new(self.x / rhs.clone(), self.y / rhs)
+	}
+}
+
+
+
+
+
+impl From<Vec2f> for FPoint {
+	fn from(v: Vec2f) -> Self {
+		FPoint::new(v.x, v.y)
+	}
+}
+impl From<Vec2i> for FPoint {
+	fn from(v: Vec2i) -> Self {
+		FPoint::new(v.x as float, v.y as float)
 	}
 }
 

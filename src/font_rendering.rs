@@ -1,115 +1,151 @@
 //! simple font rendering
 
-use crate::{colors::Color, frame_buffer::FrameBuffer};
+use sdl3::{render::{Canvas, FPoint}, video::Window};
+
+use crate::vec2d::Vec2i;
 
 
 
-// TODO(refactor): RenderText<W, H>
+pub trait CanvasRenderText {
+	fn render_char(&mut self, char: char, pos: (i32, i32), scale: u8);
+	fn render_text(&mut self, text: &str, pos: (i32, i32), scale: u8);
+	fn render_char_unchecked(&mut self, char: char, pos: (i32, i32), scale: u8);
+	fn render_text_unchecked(&mut self, text: &str, pos: (i32, i32), scale: u8);
+	fn render_custom_char(&mut self, bitmap: [u8; 25], pos: (i32, i32), scale: u8);
+}
+
+impl CanvasRenderText for Canvas<Window> {
+	fn render_char(&mut self, char: char, pos: (i32, i32), scale: u8) {
+		let pixels = calc_char(char, pos, scale, self.window().size());
+		let points: Vec<FPoint> = pixels.into_iter().map(|pixel| pixel.into()).collect();
+		self.draw_points(points.as_slice()).unwrap();
+	}
+	fn render_text(&mut self, text: &str, pos: (i32, i32), scale: u8) {
+		let pixels = calc_text(text, pos, scale, self.window().size());
+		let points: Vec<FPoint> = pixels.into_iter().map(|pixel| pixel.into()).collect();
+		self.draw_points(points.as_slice()).unwrap();
+	}
+	fn render_char_unchecked(&mut self, char: char, pos: (i32, i32), scale: u8) {
+		let pixels = calc_char_unchecked(char, pos, scale);
+		let points: Vec<FPoint> = pixels.into_iter().map(|pixel| pixel.into()).collect();
+		self.draw_points(points.as_slice()).unwrap();
+	}
+	fn render_text_unchecked(&mut self, text: &str, pos: (i32, i32), scale: u8) {
+		let pixels = calc_text_unchecked(text, pos, scale);
+		let points: Vec<FPoint> = pixels.into_iter().map(|pixel| pixel.into()).collect();
+		self.draw_points(points.as_slice()).unwrap();
+	}
+	fn render_custom_char(&mut self, bitmap: [u8; 25], pos: (i32, i32), scale: u8) {
+		let pixels = calc_custom_char(bitmap, pos, scale, self.window().size());
+		let points: Vec<FPoint> = pixels.into_iter().map(|pixel| pixel.into()).collect();
+		self.draw_points(points.as_slice()).unwrap();
+	}
+}
+
+
+
+// TODO(refactor)?: RenderText<W, H>
 const FONT_W: u32 = 5;
 const FONT_H: u32 = 5;
 
-pub trait RenderText {
-	/// render text with top-left corner being `pos`, with Out Of Bounds check
-	fn render_text(&mut self, text: &str, pos: (i32, i32), color: Color, scale: u8);
-	/// render char with top-left corner being `pos`, with Out Of Bounds check
-	fn render_char(&mut self, char: char, pos: (i32, i32), color: Color, scale: u8);
 
-	/// render text with top-left corner being `pos`, NO Out Of Bounds check
-	fn render_text_unchecked(&mut self, text: &str, pos: (i32, i32), color: Color, scale: u8);
-	/// render char with top-left corner being `pos`, NO Out Of Bounds check
-	fn render_char_unchecked(&mut self, char: char, pos: (i32, i32), color: Color, scale: u8);
-
-	fn render_custom_char(&mut self, bitmap: [u8; 25], pos: (i32, i32), color: Color, scale: u8);
+fn calc_text(text: &str, mut pos: (i32, i32), scale: u8, window_wh: (u32, u32)) -> Vec<Vec2i> {
+	assert!(scale > 0);
+	let mut pixels: Vec<Vec2i> = vec![];
+	for c in text.chars() {
+		pixels.extend(calc_char(c, pos, scale, window_wh));
+		pos.0 += ((FONT_W as i32) + 1) * (scale as i32);
+	}
+	pixels
 }
-impl RenderText for FrameBuffer {
-	fn render_text(&mut self, text: &str, mut pos: (i32, i32), color: Color, scale: u8) {
-		assert!(scale > 0);
-		for c in text.chars() {
-			self.render_char(c, pos, color, scale);
-			pos.0 += ((FONT_W as i32) + 1) * (scale as i32);
-		}
-	}
 
-	fn render_char(&mut self, char: char, pos: (i32, i32), color: Color, scale: u8) {
-		assert!(scale > 0);
-		let bitmap: Bitmap = get_bitmap_for(char);
-		for y in 0..FONT_H as i32 {
-			for x in 0..FONT_W as i32 {
-				if bitmap[(y * (FONT_W as i32) + x) as usize] == 1 {
-					// top-left corner of scaled pixel block
-					let base_x = pos.0 + x * (scale as i32);
-					let base_y = pos.1 + y * (scale as i32);
-					// draw scaled block
-					for dy in 0..scale as i32 {
-						let Y = base_y + dy;
-						if Y >= self.h as i32 { break }
-						if Y < 0 { continue }
-						for dx in 0..scale as i32 {
-							let X = base_x + dx;
-							if X >= self.w as i32 { break }
-							if X < 0 { continue }
-							self.buf[(Y * (self.w as i32) + X) as usize] = color.0;
-						}
+fn calc_char(char: char, pos: (i32, i32), scale: u8, window_wh: (u32, u32)) -> Vec<Vec2i> {
+	assert!(scale > 0);
+	let bitmap: Bitmap = get_bitmap_for(char);
+	let mut pixels: Vec<Vec2i> = vec![];
+	for y in 0..FONT_H as i32 {
+		for x in 0..FONT_W as i32 {
+			if bitmap[(y * (FONT_W as i32) + x) as usize] == 1 {
+				// top-left corner of scaled pixel block
+				let base_x = pos.0 + x * (scale as i32);
+				let base_y = pos.1 + y * (scale as i32);
+				// draw scaled block
+				for dy in 0..scale as i32 {
+					let Y = base_y + dy;
+					if Y >= window_wh.1 as i32 { break }
+					if Y < 0 { continue }
+					for dx in 0..scale as i32 {
+						let X = base_x + dx;
+						if X >= window_wh.0 as i32 { break }
+						if X < 0 { continue }
+						pixels.push(Vec2i::new(X, Y));
 					}
 				}
 			}
 		}
 	}
+	pixels
+}
 
-	fn render_text_unchecked(&mut self, text: &str, mut pos: (i32, i32), color: Color, scale: u8) {
-		assert!(scale > 0);
-		for c in text.chars() {
-			self.render_char_unchecked(c, pos, color, scale);
-			pos.0 += ((FONT_W as i32) + 1) * (scale as i32);
-		}
+fn calc_text_unchecked(text: &str, mut pos: (i32, i32), scale: u8) -> Vec<Vec2i> {
+	assert!(scale > 0);
+	let mut pixels: Vec<Vec2i> = vec![];
+	for c in text.chars() {
+		pixels.extend(calc_char_unchecked(c, pos, scale));
+		pos.0 += ((FONT_W as i32) + 1) * (scale as i32);
 	}
+	pixels
+}
 
-	fn render_char_unchecked(&mut self, char: char, pos: (i32, i32), color: Color, scale: u8) {
-		assert!(scale > 0);
-		let bitmap: Bitmap = get_bitmap_for(char);
-		for y in 0..FONT_H as i32 {
-			for x in 0..FONT_W as i32 {
-				if bitmap[(y * (FONT_W as i32) + x) as usize] == 1 {
-					// top-left corner of scaled pixel block
-					let base_x = pos.0 + x * (scale as i32);
-					let base_y = pos.1 + y * (scale as i32);
-					// draw scaled block
-					for dy in 0..scale as i32 {
-						let Y = base_y + dy;
-						for dx in 0..scale as i32 {
-							let X = base_x + dx;
-							self.buf[(Y * (self.w as i32) + X) as usize] = color.0;
-						}
+fn calc_char_unchecked(char: char, pos: (i32, i32), scale: u8) -> Vec<Vec2i> {
+	assert!(scale > 0);
+	let bitmap: Bitmap = get_bitmap_for(char);
+	let mut pixels: Vec<Vec2i> = vec![];
+	for y in 0..FONT_H as i32 {
+		for x in 0..FONT_W as i32 {
+			if bitmap[(y * (FONT_W as i32) + x) as usize] == 1 {
+				// top-left corner of scaled pixel block
+				let base_x = pos.0 + x * (scale as i32);
+				let base_y = pos.1 + y * (scale as i32);
+				// draw scaled block
+				for dy in 0..scale as i32 {
+					let Y = base_y + dy;
+					for dx in 0..scale as i32 {
+						let X = base_x + dx;
+						pixels.push(Vec2i::new(X, Y));
 					}
 				}
 			}
 		}
 	}
+	pixels
+}
 
-	fn render_custom_char(&mut self, bitmap: [u8; 25], pos: (i32, i32), color: Color, scale: u8) {
-		assert!(scale > 0);
-		for y in 0..FONT_H as i32 {
-			for x in 0..FONT_W as i32 {
-				if bitmap[(y * (FONT_W as i32) + x) as usize] == 1 {
-					// top-left corner of scaled pixel block
-					let base_x = pos.0 + x * (scale as i32);
-					let base_y = pos.1 + y * (scale as i32);
-					// draw scaled block
-					for dy in 0..scale as i32 {
-						let Y = base_y + dy;
-						if Y >= self.h as i32 { break }
-						if Y < 0 { continue }
-						for dx in 0..scale as i32 {
-							let X = base_x + dx;
-							if X >= self.w as i32 { break }
-							if X < 0 { continue }
-							self.buf[(Y * (self.w as i32) + X) as usize] = color.0;
-						}
+fn calc_custom_char(bitmap: [u8; 25], pos: (i32, i32), scale: u8, window_wh: (u32, u32)) -> Vec<Vec2i> {
+	assert!(scale > 0);
+	let mut pixels: Vec<Vec2i> = vec![];
+	for y in 0..FONT_H as i32 {
+		for x in 0..FONT_W as i32 {
+			if bitmap[(y * (FONT_W as i32) + x) as usize] == 1 {
+				// top-left corner of scaled pixel block
+				let base_x = pos.0 + x * (scale as i32);
+				let base_y = pos.1 + y * (scale as i32);
+				// draw scaled block
+				for dy in 0..scale as i32 {
+					let Y = base_y + dy;
+					if Y >= window_wh.1 as i32 { break }
+					if Y < 0 { continue }
+					for dx in 0..scale as i32 {
+						let X = base_x + dx;
+						if X >= window_wh.0 as i32 { break }
+						if X < 0 { continue }
+						pixels.push(Vec2i::new(X, Y));
 					}
 				}
 			}
 		}
 	}
+	pixels
 }
 
 

@@ -1,0 +1,5 @@
+- "home" world is a torus (square enclosed on itself simply) - Spinning Black Hole (BH)
+- alt home repr world is a sphere? (square enclosed on itself across the center) - Static Black Hole (BH)
+- from "fishing" can obtain fractals and other things that can be placed at home
+- "lsd" render setting - black -> rgb color, white -> 1 - rgb color
+- hyperbolic space?

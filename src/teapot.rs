@@ -2,6 +2,8 @@
 
 // 3488 // num of triangles
 
+// TODO: make it a data blob, not rs file
+
 pub static VERTICES: &[f32] = &[
 0.000000, 2.250000, 1.500000,
 0.168000, 2.250000, 1.500000,
