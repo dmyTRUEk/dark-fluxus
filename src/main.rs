@@ -190,7 +190,29 @@ fn main() {
 	sdl_context.mouse().set_relative_mouse_mode(&window, true);
 
 
-	#[allow(unused)]
+	// let lines: Vec<(Vec3f, Vec3f)> = vec![
+	// 	(vec3![0,0,0], vec3![1,0,0]),
+	// 	(vec3![0,0,0], vec3![0,1,0]),
+	// 	(vec3![0,0,0], vec3![0,0,1]),
+	// 	(vec3![1,0,0], vec3![0,1,0]),
+	// 	(vec3![1,0,0], vec3![0,0,1]),
+	// 	(vec3![0,1,0], vec3![0,0,1]),
+	// ];
+
+	// let lines: Vec<(Vec3f, Vec3f)> = {
+	// 	use teapot::*;
+	// 	let lines = VERTICES.chunks(9)
+	// 		.flat_map(|coords| {
+	// 			let [ax,ay,az, bx,by,bz, cx,cy,cz] = *coords else { unreachable!() };
+	// 			let a = Vec3f::new(ax,ay,az);
+	// 			let b = Vec3f::new(bx,by,bz);
+	// 			let c = Vec3f::new(cx,cy,cz);
+	// 			[ (a, b), (b, c), (c, a) ]
+	// 		})
+	// 		.collect();
+	// 	lines
+	// };
+
 	let lines: Vec<(Vec3f, Vec3f)> = {
 		let mut lines = vec![];
 		const N: i32 = 30;
@@ -376,6 +398,8 @@ fn main() {
 					let _ = canvas.draw_line(a, b);
 				}
 			}
+			// let lines_projected: Vec<(Vec2f, Vec2f)> = lines.iter().filter_map(|line| camera.project_line(line, wf, hf, 0.1)).collect();
+			// canvas.draw_lines(points);
 
 			let text_size = 4;
 			canvas.set_draw_color(Color::GRAY);
@@ -657,30 +681,6 @@ fn clip_line_viewport(mut a: Vec2f, mut b: Vec2f, w: f32, h: f32) -> Option<(Vec
 // 		}
 // 	}
 // }
-
-
-// // let lines: Vec<(Vec3f, Vec3f)> = vec![
-// // 	(vec3![0,0,0], vec3![1,0,0]),
-// // 	(vec3![0,0,0], vec3![0,1,0]),
-// // 	(vec3![0,0,0], vec3![0,0,1]),
-// // 	(vec3![1,0,0], vec3![0,1,0]),
-// // 	(vec3![1,0,0], vec3![0,0,1]),
-// // 	(vec3![0,1,0], vec3![0,0,1]),
-// // ];
-//
-// // let lines: Vec<(Vec3f, Vec3f)> = {
-// // 	use teapot::*;
-// // 	let lines = VERTICES.chunks(9)
-// // 		.flat_map(|coords| {
-// // 			let [ax,ay,az, bx,by,bz, cx,cy,cz] = *coords else { unreachable!() };
-// // 			let a = Vec3f::new(ax,ay,az);
-// // 			let b = Vec3f::new(bx,by,bz);
-// // 			let c = Vec3f::new(cx,cy,cz);
-// // 			[ (a, b), (b, c), (c, a) ]
-// // 		})
-// // 		.collect();
-// // 	lines
-// // };
 
 
 
