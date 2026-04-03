@@ -16,7 +16,7 @@ use std::{array, f32::consts::PI, thread::sleep, time::{Duration, SystemTime}};
 // use encoding_rs::UTF_8;
 // use llama_cpp_2::{context::params::LlamaContextParams, llama_backend::LlamaBackend, llama_batch::LlamaBatch, model::{AddBos, LlamaModel, params::LlamaModelParams}, sampling::LlamaSampler};
 use rand::{Rng, rng};
-use sdl3::{event::Event, keyboard::{Keycode, Scancode}, pixels::Color, render::FPoint};
+use sdl3::{event::Event, keyboard::{KeyboardState, Keycode, Scancode}, pixels::Color, render::FPoint};
 
 mod colors;
 mod consts;
@@ -179,6 +179,7 @@ fn main() {
 		.window(&format!("Dark Fluxus v{}", env!("CARGO_PKG_VERSION")), 1600, 900) // alt: tenebrous
 		.position_centered()
 		.resizable()
+		.fullscreen()
 		// .input_grabbed() // ?
 		// .opengl()
 		.build()
@@ -246,7 +247,7 @@ fn main() {
 	#[allow(unused_variables)]
 	let mut tick_n: u64 = 0;
 	let mut frame_n: u64 = 0;
-	let mut is_paused: bool = false;
+	// let mut is_paused: bool = false;
 
 	// let mut scale: u32 = 1;
 	// let mut lorenz_attractor = LorenzAttractor::new();//.offset_params(0.01, -0.01, 0.001);
@@ -273,9 +274,6 @@ fn main() {
 				Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
 					break 'main_loop
 				}
-				Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
-					is_paused = !is_paused;
-				}
 				Event::MouseMotion { xrel, yrel, .. } => {
 					// left/right
 					camera.forward += camera.basis().0 * xrel * DELTA * ROTATION_SPEED;
@@ -285,6 +283,9 @@ fn main() {
 					camera.forward.normlize();
 					is_redraw_needed = true;
 				}
+				// Event::KeyDown { keycode: Some(Keycode::todo), .. } => {
+				// 	is_paused = !is_paused;
+				// }
 				_ => {}
 			}
 		}
@@ -294,19 +295,19 @@ fn main() {
 		const DELTA: float = 0.01; // TODO
 		const MOVE_SPEED: float = 20.;
 		const ROTATION_SPEED: float = 1.;
-		if keyboard.is_scancode_pressed(Scancode::Up) {
+		if keyboard.is_scancodes_pressed_any(&[Scancode::Up, Scancode::W]) {
 			camera.pos += camera.forward * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
-		if keyboard.is_scancode_pressed(Scancode::Down) {
+		if keyboard.is_scancodes_pressed_any(&[Scancode::Down, Scancode::S]) {
 			camera.pos -= camera.forward * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
-		if keyboard.is_scancode_pressed(Scancode::Left) {
+		if keyboard.is_scancodes_pressed_any(&[Scancode::Left, Scancode::A]) {
 			camera.pos -= camera.basis().0 * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
-		if keyboard.is_scancode_pressed(Scancode::Right) {
+		if keyboard.is_scancodes_pressed_any(&[Scancode::Right, Scancode::D]) {
 			camera.pos += camera.basis().0 * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
@@ -315,7 +316,7 @@ fn main() {
 			// camera.pos += camera.basis().1 * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
 		}
-		if keyboard.is_scancode_pressed(Scancode::LShift) {
+		if keyboard.is_scancodes_pressed_any(&[Scancode::LShift, Scancode::RShift]) {
 			camera.pos -= vec3y!(1) * DELTA * MOVE_SPEED;
 			// camera.pos -= camera.basis().1 * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
@@ -680,4 +681,31 @@ fn clip_line_viewport(mut a: Vec2f, mut b: Vec2f, w: f32, h: f32) -> Option<(Vec
 // // 		.collect();
 // // 	lines
 // // };
+
+
+
+
+
+trait SdlKeyboardExtIsScancodesPressed {
+	fn is_scancodes_pressed_any(&self, scancodes: &[Scancode]) -> bool;
+	fn is_scancodes_pressed_all(&self, scancodes: &[Scancode]) -> bool;
+}
+impl SdlKeyboardExtIsScancodesPressed for KeyboardState<'_> {
+	fn is_scancodes_pressed_any(&self, scancodes: &[Scancode]) -> bool {
+		for scancode in scancodes {
+			if self.is_scancode_pressed(*scancode) {
+				return true
+			}
+		}
+		false
+	}
+	fn is_scancodes_pressed_all(&self, scancodes: &[Scancode]) -> bool {
+		for scancode in scancodes {
+			if !self.is_scancode_pressed(*scancode) {
+				return false
+			}
+		}
+		true
+	}
+}
 
