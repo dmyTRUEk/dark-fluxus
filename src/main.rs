@@ -175,13 +175,18 @@ fn main() {
 	let sdl_context = sdl3::init().unwrap();
 	let video_subsystem = sdl_context.video().unwrap();
 
-	let window = video_subsystem
+	let mut window = video_subsystem
 		.window(&format!("Dark Fluxus v{}", env!("CARGO_PKG_VERSION")), 1600, 900) // alt: tenebrous
 		.position_centered()
 		.resizable()
+		// .input_grabbed() // ?
 		// .opengl()
 		.build()
 		.unwrap();
+
+	let _ = window.set_mouse_grab(true);
+	sdl_context.mouse().show_cursor(false);
+	sdl_context.mouse().set_relative_mouse_mode(&window, true);
 
 
 	#[allow(unused)]
@@ -271,6 +276,15 @@ fn main() {
 				Event::KeyDown { keycode: Some(Keycode::Space), .. } => {
 					is_paused = !is_paused;
 				}
+				Event::MouseMotion { xrel, yrel, .. } => {
+					// left/right
+					camera.forward += camera.basis().0 * xrel * DELTA * ROTATION_SPEED;
+					camera.forward.normlize();
+					// up/down
+					camera.forward -= camera.basis().1 * yrel * DELTA * ROTATION_SPEED;
+					camera.forward.normlize();
+					is_redraw_needed = true;
+				}
 				_ => {}
 			}
 		}
@@ -279,7 +293,7 @@ fn main() {
 		// handle inputs:
 		const DELTA: float = 0.01; // TODO
 		const MOVE_SPEED: float = 20.;
-		const ROTATION_SPEED: float = 3.;
+		const ROTATION_SPEED: float = 1.;
 		if keyboard.is_scancode_pressed(Scancode::Up) {
 			camera.pos += camera.forward * DELTA * MOVE_SPEED;
 			is_redraw_needed = true;
@@ -304,26 +318,6 @@ fn main() {
 		if keyboard.is_scancode_pressed(Scancode::LShift) {
 			camera.pos -= vec3y!(1) * DELTA * MOVE_SPEED;
 			// camera.pos -= camera.basis().1 * DELTA * MOVE_SPEED;
-			is_redraw_needed = true;
-		}
-		if keyboard.is_scancode_pressed(Scancode::W) {
-			camera.forward += camera.basis().1 * DELTA * ROTATION_SPEED;
-			camera.forward.normlize();
-			is_redraw_needed = true;
-		}
-		if keyboard.is_scancode_pressed(Scancode::S) {
-			camera.forward -= camera.basis().1 * DELTA * ROTATION_SPEED;
-			camera.forward.normlize();
-			is_redraw_needed = true;
-		}
-		if keyboard.is_scancode_pressed(Scancode::A) {
-			camera.forward -= camera.basis().0 * DELTA * ROTATION_SPEED;
-			camera.forward.normlize();
-			is_redraw_needed = true;
-		}
-		if keyboard.is_scancode_pressed(Scancode::D) {
-			camera.forward += camera.basis().0 * DELTA * ROTATION_SPEED;
-			camera.forward.normlize();
 			is_redraw_needed = true;
 		}
 		// if keyboard.is_scancode_pressed(Scancode::Q) {
