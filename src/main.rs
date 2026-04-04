@@ -7,6 +7,7 @@
 )]
 
 #![deny(
+	irrefutable_let_patterns,
 	unreachable_patterns,
 	unused_must_use,
 	unused_results,
@@ -436,11 +437,15 @@ fn main() {
 					_5 => vec![(
 						Vec3f::from_y(rng.random_range(1. ..= 5.)),
 						RenderableObject::RotatingSimplex {
-							points_rotplanes_rotvels: (0..rng.random_range(4 ..= 10)).map(|_i| (
-								Vec3f::random_unit(&mut rng) * rng.random_range(0.8 ..= 2.3_f32).powi(2),
-								Vec3f::random_unit(&mut rng),
-								rng.random_range(0.5 ..= 1.4_f32).powi(2)
-							)).collect(),
+							points_rotplanes_rotvels: {
+								macro_rules! random_r { () => { rng.random_range(0.8 ..= 2.3_f32).powi(2) }; }
+								let equidistant_from_center = rng.random_bool(0.5).then(|| random_r!());
+								(0..rng.random_range(4 ..= 10)).map(|_i| (
+									Vec3f::random_unit(&mut rng) * if let Some(s) = equidistant_from_center { s } else { random_r!() },
+									Vec3f::random_unit(&mut rng),
+									rng.random_range(0.5 ..= 1.4_f32).powi(2)
+								)).collect()
+							},
 						}
 					)]
 				}
@@ -727,7 +732,6 @@ fn main() {
 			for (dx, dz, _x, _z, chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
 				canvas.set_draw_color(chunk.color);
 				const STEP: float = 1.;
-				{
 				let mut x = -CHUNK_SIZE_HALF * (1. - 1e-2);
 				while x < CHUNK_SIZE_HALF {
 					let mut z = -CHUNK_SIZE_HALF * (1. - 1e-2);
@@ -747,7 +751,9 @@ fn main() {
 					}
 					x += STEP;
 				}
-				}
+			}
+			for (dx, dz, _x, _z, chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
+				canvas.set_draw_color(chunk.color);
 				for (pos, ro) in chunk.renderable_objects.iter() {
 					use SdlRenderableShape::*;
 					let shift: Vec3f = *pos + Vec3f::from_xz((dx as float)*CHUNK_SIZE, (dz as float)*CHUNK_SIZE);
