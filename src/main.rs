@@ -276,12 +276,15 @@ fn main() {
 		LorenzAttractor { size: float, la: LorenzAttractor, last_points: Vec<Vec3f>, max_len: u32 },
 		// SpinningText?
 		Monolith { sizes: Vec<float> },
+		RotatingSimplex { points_rotplanes_rotvels: Vec<(Vec3f, Vec3f, float)> },
 	}
 	impl RenderableObject {
 		fn is_need_update(&self) -> bool {
 			use RenderableObject::*;
 			match self {
-				LorenzAttractor { .. } => true,
+				| LorenzAttractor { .. }
+				| RotatingSimplex { .. }
+				=> true,
 				| Cube { .. }
 				| Monolith { .. }
 				=> false,
@@ -290,13 +293,15 @@ fn main() {
 		fn is_time_dependent(&self) -> bool {
 			use RenderableObject::*;
 			match self {
-				LorenzAttractor { .. } => true,
+				| LorenzAttractor { .. }
+				| RotatingSimplex { .. }
+				=> true,
 				| Cube { .. }
 				| Monolith { .. }
 				=> false,
 			}
 		}
-		fn update(&mut self) {
+		fn update(&mut self, delta_time: float) {
 			use RenderableObject::*;
 			match self {
 				LorenzAttractor { la, last_points, max_len, .. } => {
@@ -305,6 +310,11 @@ fn main() {
 						let _ = last_points.remove(0);
 					}
 					la.step(1e-2);
+				}
+				RotatingSimplex { points_rotplanes_rotvels } => {
+					for (point, rotation_plane, rotation_velocity) in points_rotplanes_rotvels.iter_mut() {
+						*point += point.cross(*rotation_plane) * *rotation_velocity * delta_time;
+					}
 				}
 				| Cube { .. }
 				| Monolith { .. }
@@ -358,6 +368,17 @@ fn main() {
 						]
 					}).flatten().collect())
 				}
+				RotatingSimplex { points_rotplanes_rotvels } => {
+					let mut lines = vec![];
+					for i in 0 .. points_rotplanes_rotvels.len() {
+						for j in i+1 .. points_rotplanes_rotvels.len() {
+							let a = points_rotplanes_rotvels[i].0;
+							let b = points_rotplanes_rotvels[j].0;
+							lines.push((a, b));
+						}
+					}
+					Lines(lines)
+				}
 			}
 		}
 	}
@@ -376,8 +397,8 @@ fn main() {
 			// color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0), // for dbg
 			color: Color::RGB(rng.random(), rng.random(), rng.random()),
 			renderable_objects: {
-				use V4::*;
-				match rng.random_variant_weighted([3., 1., 0.5, 0.1]) {
+				use V5::*;
+				match rng.random_variant_weighted([3., 1., 0.5, 0.1, 0.5]) {
 					_1 => vec![],
 					_2 => Vec::from_fn(
 						rng.random_range(0 ..= 5),
@@ -394,16 +415,10 @@ fn main() {
 						Vec3f::new(-0.5, rng.random_range(1. ..= 9.), -4.),
 						RenderableObject::LorenzAttractor {
 							size: rng.random_range(0.1 ..= 0.2),
-							la: LorenzAttractor::new().offset_params(
-								rng.random_range(-0.1 ..= 0.1),
-								rng.random_range(-0.1 ..= 0.1),
-								rng.random_range(-0.1 ..= 0.1),
+							la: LorenzAttractor::new().offset_params_as_vec3d(
+								Vec3f::random_unit_cube(&mut rng) * 0.1,
 							).set_xyz_as_vec3d(
-							Vec3f::new(
-								rng.random_range(-1. ..= 1.),
-								rng.random_range(-1. ..= 1.),
-								rng.random_range(-1. ..= 1.),
-							).normed() * rng.random_range(0.1 ..= 0.2)
+								Vec3f::random_unit(&mut rng) * rng.random_range(0.1 ..= 0.2),
 							),
 							last_points: vec![],
 							max_len: 10_f32.powf(rng.random_range(2. ..= 4.)).round() as u32,
@@ -418,6 +433,16 @@ fn main() {
 							),
 						}
 					)],
+					_5 => vec![(
+						Vec3f::from_y(rng.random_range(1. ..= 5.)),
+						RenderableObject::RotatingSimplex {
+							points_rotplanes_rotvels: (0..rng.random_range(4 ..= 10)).map(|_i| (
+								Vec3f::random_unit(&mut rng) * rng.random_range(0.8 ..= 2.3_f32).powi(2),
+								Vec3f::random_unit(&mut rng),
+								rng.random_range(0.5 ..= 1.4_f32).powi(2)
+							)).collect(),
+						}
+					)]
 				}
 			}
 		}
@@ -487,7 +512,7 @@ fn main() {
 
 		let mut is_redraw_needed: bool = frame_n == 0; // TODO: or `renderable_objects.is_time_dependent` exists
 
-		const DELTA: float = 0.01; // TODO
+		const DELTA_TIME: float = 0.01; // TODO
 
 		for event in event_pump.poll_iter() {
 			match event {
@@ -498,10 +523,10 @@ fn main() {
 				Event::MouseMotion { xrel, yrel, .. } => {
 					const ROTATION_SPEED: float = 0.6;
 					// left/right
-					camera.forward += camera.basis().0 * xrel * camera.fov * DELTA * ROTATION_SPEED;
+					camera.forward += camera.basis().0 * xrel * camera.fov * DELTA_TIME * ROTATION_SPEED;
 					camera.forward.normlize();
 					// up/down
-					camera.forward -= camera.basis().1 * yrel * camera.fov * DELTA * ROTATION_SPEED;
+					camera.forward -= camera.basis().1 * yrel * camera.fov * DELTA_TIME * ROTATION_SPEED;
 					camera.forward.normlize();
 					is_redraw_needed = true;
 				}
@@ -541,11 +566,11 @@ fn main() {
 				MovementType::Grounded |
 				MovementType::FlyingMClike => {
 					let forward_in_xz_plane = camera.forward.x0z().normed();
-					camera.pos += forward_in_xz_plane * DELTA * move_speed;
+					camera.pos += forward_in_xz_plane * DELTA_TIME * move_speed;
 				}
 				MovementType::FlyingGMlike |
 				MovementType::FpvLike => {
-					camera.pos += camera.forward * DELTA * move_speed;
+					camera.pos += camera.forward * DELTA_TIME * move_speed;
 				}
 			}
 			is_redraw_needed = true;
@@ -555,21 +580,21 @@ fn main() {
 				MovementType::Grounded |
 				MovementType::FlyingMClike => {
 					let forward_in_xz_plane = camera.forward.x0z().normed();
-					camera.pos -= forward_in_xz_plane * DELTA * move_speed;
+					camera.pos -= forward_in_xz_plane * DELTA_TIME * move_speed;
 				}
 				MovementType::FlyingGMlike |
 				MovementType::FpvLike => {
-					camera.pos -= camera.forward * DELTA * move_speed;
+					camera.pos -= camera.forward * DELTA_TIME * move_speed;
 				}
 			}
 			is_redraw_needed = true;
 		}
 		if keyboard.is_scancodes_pressed_any(&[Scancode::Left, Scancode::A, Scancode::L]) {
-			camera.pos -= camera.basis().0 * DELTA * move_speed;
+			camera.pos -= camera.basis().0 * DELTA_TIME * move_speed;
 			is_redraw_needed = true;
 		}
 		if keyboard.is_scancodes_pressed_any(&[Scancode::Right, Scancode::D, Scancode::Apostrophe]) {
-			camera.pos += camera.basis().0 * DELTA * move_speed;
+			camera.pos += camera.basis().0 * DELTA_TIME * move_speed;
 			is_redraw_needed = true;
 		}
 		if keyboard.is_scancode_pressed(Scancode::Space) {
@@ -579,10 +604,10 @@ fn main() {
 				}
 				MovementType::FlyingMClike |
 				MovementType::FlyingGMlike => {
-					camera.pos += vec3y!(1) * DELTA * move_speed;
+					camera.pos += vec3y!(1) * DELTA_TIME * move_speed;
 				}
 				MovementType::FpvLike => {
-					camera.pos += camera.basis().1 * DELTA * move_speed;
+					camera.pos += camera.basis().1 * DELTA_TIME * move_speed;
 				}
 			}
 			is_redraw_needed = true;
@@ -594,10 +619,10 @@ fn main() {
 				}
 				MovementType::FlyingMClike |
 				MovementType::FlyingGMlike => {
-					camera.pos -= vec3y!(1) * DELTA * move_speed;
+					camera.pos -= vec3y!(1) * DELTA_TIME * move_speed;
 				}
 				MovementType::FpvLike => {
-					camera.pos -= camera.basis().1 * DELTA * move_speed;
+					camera.pos -= camera.basis().1 * DELTA_TIME * move_speed;
 				}
 			}
 			is_redraw_needed = true;
@@ -609,7 +634,7 @@ fn main() {
 				MovementType::FlyingMClike => {}
 				MovementType::FlyingGMlike => {}
 				MovementType::FpvLike => {
-					camera.up -= camera.basis().0 * DELTA * ROLL_SPEED;
+					camera.up -= camera.basis().0 * DELTA_TIME * ROLL_SPEED;
 					camera.up.normlize();
 					is_redraw_needed = true;
 				}
@@ -621,7 +646,7 @@ fn main() {
 				MovementType::FlyingMClike => {}
 				MovementType::FlyingGMlike => {}
 				MovementType::FpvLike => {
-					camera.up += camera.basis().0 * DELTA * ROLL_SPEED;
+					camera.up += camera.basis().0 * DELTA_TIME * ROLL_SPEED;
 					camera.up.normlize();
 					is_redraw_needed = true;
 				}
@@ -659,7 +684,7 @@ fn main() {
 		if !is_paused /* TODO: && exist what needs to be updated */ {
 			for (_x, _z, chunk) in chunks.iter_mut() {
 				for (_pos, ro) in chunk.renderable_objects.iter_mut() {
-					ro.update();
+					ro.update(DELTA_TIME);
 				}
 			}
 			is_redraw_needed = true;

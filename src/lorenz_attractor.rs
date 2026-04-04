@@ -23,8 +23,14 @@ impl LorenzAttractor {
 
 	pub fn offset_params(mut self, s: float, r: float, b: float) -> Self {
 		self.sigma += s;
-		self.rho += r;
-		self.beta += b;
+		self.rho   += r;
+		self.beta  += b;
+		self
+	}
+	pub fn offset_params_as_vec3d(mut self, delta_srb: Vec3f) -> Self {
+		self.sigma += delta_srb.x;
+		self.rho   += delta_srb.y;
+		self.beta  += delta_srb.z;
 		self
 	}
 	pub fn set_xyz(mut self, x: float, y: float, z: float) -> Self {
