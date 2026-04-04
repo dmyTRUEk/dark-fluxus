@@ -4,7 +4,7 @@ use std::ops::{Add, AddAssign, Div, Mul, MulAssign};
 
 use sdl3::render::FPoint;
 
-use crate::float;
+use crate::{extensions::Into_, float, vec3d::Vec3f};
 
 
 
@@ -27,9 +27,35 @@ impl<T> Vec2d<T> {
 	pub const fn new(x: T, y: T) -> Self {
 		Self { x, y }
 	}
-	pub fn from(x: impl Into<T>, y: impl Into<T>) -> Self {
-		Self { x: x.into(), y: y.into() }
+	pub fn from(x: impl Into_<T>, y: impl Into_<T>) -> Self {
+		Self { x: x.into_(), y: y.into_() }
 	}
+}
+impl<T> Vec2d<T> where T: Copy + Add<T,Output=T> + Mul<T,Output=T> {
+	pub fn dot(self, other: Self) -> T {
+		self.x*other.x + self.y*other.y
+	}
+}
+
+
+
+impl Vec2f {
+	pub fn norm2(self) -> float { self.dot(self) }
+	pub fn norm(self) -> float { self.norm2().sqrt() }
+	pub fn normed(self) -> Self { self / self.norm() }
+	pub fn normlize(&mut self) { *self = self.normed() }
+	pub const fn txy(self, t: float) -> Vec3f { Vec3f { x: t, y: self.x, z: self.y } }
+	pub const fn tyx(self, t: float) -> Vec3f { Vec3f { x: t, y: self.y, z: self.x } }
+	pub const fn xty(self, t: float) -> Vec3f { Vec3f { x: self.x, y: t, z: self.y } }
+	pub const fn ytx(self, t: float) -> Vec3f { Vec3f { x: self.y, y: t, z: self.x } }
+	pub const fn xyt(self, t: float) -> Vec3f { Vec3f { x: self.x, y: self.y, z: t } }
+	pub const fn yxt(self, t: float) -> Vec3f { Vec3f { x: self.y, y: self.x, z: t } }
+	pub const fn _0xy(self) -> Vec3f { self.txy(0.) }
+	pub const fn _0yx(self) -> Vec3f { self.tyx(0.) }
+	pub const fn x0y(self) -> Vec3f { self.xty(0.) }
+	pub const fn y0x(self) -> Vec3f { self.ytx(0.) }
+	pub const fn xy0(self) -> Vec3f { self.xyt(0.) }
+	pub const fn yx0(self) -> Vec3f { self.yxt(0.) }
 }
 
 
