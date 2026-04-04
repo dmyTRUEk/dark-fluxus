@@ -2,6 +2,7 @@
 
 #![allow(
 	clippy::collapsible_if,
+	clippy::just_underscores_and_digits,
 	clippy::let_and_return,
 )]
 
@@ -274,27 +275,30 @@ fn main() {
 		Cube { size: float },
 		LorenzAttractor { size: float, la: LorenzAttractor, last_points: Vec<Vec3f>, max_len: u32 },
 		// SpinningText?
-		// Monolith: 2n vertical squares (rectangles?) without horizontal connections
+		Monolith { sizes: Vec<float> },
 	}
 	impl RenderableObject {
 		fn is_need_update(&self) -> bool {
 			use RenderableObject::*;
 			match self {
-				Cube { .. } => false,
 				LorenzAttractor { .. } => true,
+				| Cube { .. }
+				| Monolith { .. }
+				=> false,
 			}
 		}
 		fn is_time_dependent(&self) -> bool {
 			use RenderableObject::*;
 			match self {
-				Cube { .. } => false,
 				LorenzAttractor { .. } => true,
+				| Cube { .. }
+				| Monolith { .. }
+				=> false,
 			}
 		}
 		fn update(&mut self) {
 			use RenderableObject::*;
 			match self {
-				Cube { .. } => {}
 				LorenzAttractor { la, last_points, max_len, .. } => {
 					last_points.push(la.get_xyz_as_vec3d());
 					if last_points.len() as u32 > *max_len {
@@ -302,6 +306,9 @@ fn main() {
 					}
 					la.step(1e-2);
 				}
+				| Cube { .. }
+				| Monolith { .. }
+				=> {}
 			}
 		}
 		fn get_renderable_shape(&self) -> SdlRenderableShape {
@@ -330,6 +337,27 @@ fn main() {
 				LorenzAttractor { size, last_points, .. } => {
 					Chain(last_points.iter().map(|&p| p * *size).collect())
 				}
+				Monolith { sizes } => {
+					Lines(sizes.iter().map(|size| {
+						let s = size / 2.;
+						vec![
+							(vec3!(-s,-s,-s), vec3!(-s,-s, s)),
+							(vec3!(-s,-s,-s), vec3!(-s, s,-s)),
+							(vec3!(-s, s, s), vec3!(-s,-s, s)),
+							(vec3!(-s, s, s), vec3!(-s, s,-s)),
+							//
+							(vec3!( s,-s,-s), vec3!( s,-s, s)),
+							(vec3!( s,-s,-s), vec3!( s, s,-s)),
+							(vec3!( s, s, s), vec3!( s,-s, s)),
+							(vec3!( s, s, s), vec3!( s, s,-s)),
+							//
+							// (vec3!(-s,-s,-s), vec3!( s,-s,-s)),
+							// (vec3!( s, s, s), vec3!(-s, s, s)),
+							// (vec3!(-s,-s, s), vec3!( s,-s, s)),
+							// (vec3!(-s, s,-s), vec3!( s, s,-s)),
+						]
+					}).flatten().collect())
+				}
 			}
 		}
 	}
@@ -347,38 +375,50 @@ fn main() {
 		Chunk {
 			// color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0), // for dbg
 			color: Color::RGB(rng.random(), rng.random(), rng.random()),
-			renderable_objects: match rng.random_variant_weighted([3., 1., 0.5]) {
-				V3::_1 => vec![],
-				V3::_2 => Vec::from_fn(
-					rng.random_range(0 ..= 5),
-					|_i| (
-						Vec3f::new(
-							rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
-							rng.random_range(1. ..= 9.),
-							rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
-						),
-						RenderableObject::Cube { size: rng.random_range(0.3 ..= 3.) }
-					)
-				),
-				V3::_3 => vec![(
-					Vec3f::from_y(rng.random_range(1. ..= 9.)),
-					RenderableObject::LorenzAttractor {
-						size: rng.random_range(0.1 ..= 0.2),
-						la: LorenzAttractor::new().offset_params(
-							rng.random_range(-0.1 ..= 0.1),
-							rng.random_range(-0.1 ..= 0.1),
-							rng.random_range(-0.1 ..= 0.1),
-						).set_xyz_as_vec3d(
+			renderable_objects: {
+				use V4::*;
+				match rng.random_variant_weighted([3., 1., 0.5, 0.1]) {
+					_1 => vec![],
+					_2 => Vec::from_fn(
+						rng.random_range(0 ..= 5),
+						|_i| (
+							Vec3f::new(
+								rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
+								rng.random_range(1. ..= 9.),
+								rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
+							),
+							RenderableObject::Cube { size: rng.random_range(0.3 ..= 3.) }
+						)
+					),
+					_3 => vec![(
+						Vec3f::new(-0.5, rng.random_range(1. ..= 9.), -4.),
+						RenderableObject::LorenzAttractor {
+							size: rng.random_range(0.1 ..= 0.2),
+							la: LorenzAttractor::new().offset_params(
+								rng.random_range(-0.1 ..= 0.1),
+								rng.random_range(-0.1 ..= 0.1),
+								rng.random_range(-0.1 ..= 0.1),
+							).set_xyz_as_vec3d(
 							Vec3f::new(
 								rng.random_range(-1. ..= 1.),
 								rng.random_range(-1. ..= 1.),
 								rng.random_range(-1. ..= 1.),
 							).normed() * rng.random_range(0.1 ..= 0.2)
-						),
-						last_points: vec![],
-						max_len: 10_f32.powf(rng.random_range(2. ..= 4.)).round() as u32,
-					}
-				)]
+							),
+							last_points: vec![],
+							max_len: 10_f32.powf(rng.random_range(2. ..= 4.)).round() as u32,
+						}
+					)],
+					_4 => vec![(
+						Vec3f::from_y(rng.random_range(1. ..= 3.)),
+						RenderableObject::Monolith {
+							sizes: Vec::from_fn(
+								rng.random_range(5 ..= 20),
+								|_i| rng.random_range(0.5 ..= 2.7_f32).powi(2)
+							),
+						}
+					)],
+				}
 			}
 		}
 	});
