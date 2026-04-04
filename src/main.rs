@@ -15,7 +15,7 @@ use std::{f32::consts::PI, thread::sleep, time::{Duration, SystemTime}};
 
 // use encoding_rs::UTF_8;
 // use llama_cpp_2::{context::params::LlamaContextParams, llama_backend::LlamaBackend, llama_batch::LlamaBatch, model::{AddBos, LlamaModel, params::LlamaModelParams}, sampling::LlamaSampler};
-use rand::{Rng, rng};
+use rand::{Rng, RngExt, rng};
 use sdl3::{event::Event, keyboard::{KeyboardState, Keycode, Scancode}, pixels::Color};
 
 // mod colors;
@@ -261,8 +261,11 @@ fn main() {
 	}
 
 	const CHUNKS_N: u32 = 5;
-	let chunks = Vec2D::<Chunk>::from_fn(CHUNKS_N, CHUNKS_N, |x, z| {
-		Chunk { color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0) }
+	let chunks = Vec2D::<Chunk>::from_fn(CHUNKS_N, CHUNKS_N, |_x, _z| {
+		Chunk {
+			// color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0), // for dbg
+			color: Color::RGB(rng.random(), rng.random(), rng.random()),
+		}
 	});
 	// println!("chunks.len = {}", chunks.iter().count());
 
@@ -368,17 +371,20 @@ fn main() {
 
 		// handle inputs:
 		const DELTA: float = 0.01; // TODO
-		const MOVE_SPEED: float = 20.;
+		let mut move_speed: float = 20.;
 		const ROTATION_SPEED: float = 1.;
+		if keyboard.is_scancodes_pressed_any(&[Scancode::LShift, Scancode::RShift]) {
+			move_speed *= 3.;
+		}
 		if keyboard.is_scancodes_pressed_any(&[Scancode::Up, Scancode::W]) {
 			match movement_type {
 				MovementType::Grounded |
 				MovementType::FlyingMClike => {
 					let forward_in_xz_plane = camera.forward.x0z().normed();
-					camera.pos += forward_in_xz_plane * DELTA * MOVE_SPEED;
+					camera.pos += forward_in_xz_plane * DELTA * move_speed;
 				}
 				MovementType::FlyingGMlike => {
-					camera.pos += camera.forward * DELTA * MOVE_SPEED;
+					camera.pos += camera.forward * DELTA * move_speed;
 				}
 			}
 			is_redraw_needed = true;
@@ -388,20 +394,20 @@ fn main() {
 				MovementType::Grounded |
 				MovementType::FlyingMClike => {
 					let forward_in_xz_plane = camera.forward.x0z().normed();
-					camera.pos -= forward_in_xz_plane * DELTA * MOVE_SPEED;
+					camera.pos -= forward_in_xz_plane * DELTA * move_speed;
 				}
 				MovementType::FlyingGMlike => {
-					camera.pos -= camera.forward * DELTA * MOVE_SPEED;
+					camera.pos -= camera.forward * DELTA * move_speed;
 				}
 			}
 			is_redraw_needed = true;
 		}
 		if keyboard.is_scancodes_pressed_any(&[Scancode::Left, Scancode::A]) {
-			camera.pos -= camera.basis().0 * DELTA * MOVE_SPEED;
+			camera.pos -= camera.basis().0 * DELTA * move_speed;
 			is_redraw_needed = true;
 		}
 		if keyboard.is_scancodes_pressed_any(&[Scancode::Right, Scancode::D]) {
-			camera.pos += camera.basis().0 * DELTA * MOVE_SPEED;
+			camera.pos += camera.basis().0 * DELTA * move_speed;
 			is_redraw_needed = true;
 		}
 		if keyboard.is_scancode_pressed(Scancode::Space) {
@@ -411,20 +417,20 @@ fn main() {
 				}
 				MovementType::FlyingMClike |
 				MovementType::FlyingGMlike => {
-					camera.pos += vec3y!(1) * DELTA * MOVE_SPEED;
+					camera.pos += vec3y!(1) * DELTA * move_speed;
 					// camera.pos += camera.basis().1 * DELTA * MOVE_SPEED;
 				}
 			}
 			is_redraw_needed = true;
 		}
-		if keyboard.is_scancodes_pressed_any(&[Scancode::LShift, Scancode::RShift]) {
+		if keyboard.is_scancodes_pressed_any(&[Scancode::LCtrl, Scancode::LAlt, Scancode::RCtrl, Scancode::RAlt]) {
 			match movement_type {
 				MovementType::Grounded => {
 					// TODO?
 				}
 				MovementType::FlyingMClike |
 				MovementType::FlyingGMlike => {
-					camera.pos -= vec3y!(1) * DELTA * MOVE_SPEED;
+					camera.pos -= vec3y!(1) * DELTA * move_speed;
 					// camera.pos -= camera.basis().1 * DELTA * MOVE_SPEED;
 				}
 			}

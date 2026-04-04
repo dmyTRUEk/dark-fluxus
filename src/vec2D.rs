@@ -15,7 +15,7 @@ impl<T> Vec2D<T> {
 	pub fn new() -> Self {
 		Self { x_size: 0, y_size: 0, elems: Vec::new() }
 	}
-	pub fn from_fn(x_size: u32, y_size: u32, f: fn(u32, u32) -> T) -> Self {
+	pub fn from_fn(x_size: u32, y_size: u32, mut f: impl FnMut(u32, u32) -> T) -> Self {
 		Self {
 			x_size, y_size,
 			elems: (0..y_size).map(|y| {
