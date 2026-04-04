@@ -6,9 +6,14 @@
 )]
 
 #![deny(
+	unreachable_patterns,
 	unused_must_use,
 	unused_results,
 	unused_variables,
+)]
+
+#![feature(
+	vec_from_fn,
 )]
 
 use std::{f32::consts::PI, thread::sleep, time::{Duration, SystemTime}};
@@ -16,7 +21,7 @@ use std::{f32::consts::PI, thread::sleep, time::{Duration, SystemTime}};
 // use encoding_rs::UTF_8;
 // use llama_cpp_2::{context::params::LlamaContextParams, llama_backend::LlamaBackend, llama_batch::LlamaBatch, model::{AddBos, LlamaModel, params::LlamaModelParams}, sampling::LlamaSampler};
 use rand::{Rng, RngExt, rng};
-use sdl3::{event::Event, keyboard::{KeyboardState, Keycode, Scancode}, pixels::Color};
+use sdl3::{event::Event, keyboard::{KeyboardState, Keycode, Scancode}, pixels::Color, render::FPoint};
 
 // mod colors;
 mod consts;
@@ -254,17 +259,76 @@ fn main() {
 	// 	lines
 	// };
 
+	#[derive(Debug)]
+	enum RenderableShape {
+		Points(Vec<Vec3f>),
+		Lines(Vec<(Vec3f, Vec3f)>),
+		Chain(Vec<Vec3f>),
+	}
+
+	#[derive(Debug)]
+	enum RenderableObject {
+		Cube { size: float },
+		// SpinningText?
+	}
+	impl RenderableObject {
+		fn is_time_dependent(&self) -> bool {
+			use RenderableObject::*;
+			match self {
+				Cube { .. } => false,
+			}
+		}
+		fn get_renderable_shape(&self) -> RenderableShape {
+			use RenderableObject::*;
+			use RenderableShape::*;
+			match self {
+				Cube { size } => {
+					let s = size / 2.;
+					Lines(vec![
+						(vec3!(-s,-s,-s), vec3!(-s,-s, s)),
+						(vec3!(-s,-s,-s), vec3!(-s, s,-s)),
+						(vec3!(-s, s, s), vec3!(-s,-s, s)),
+						(vec3!(-s, s, s), vec3!(-s, s,-s)),
+						//
+						(vec3!( s,-s,-s), vec3!( s,-s, s)),
+						(vec3!( s,-s,-s), vec3!( s, s,-s)),
+						(vec3!( s, s, s), vec3!( s,-s, s)),
+						(vec3!( s, s, s), vec3!( s, s,-s)),
+						//
+						(vec3!(-s,-s,-s), vec3!( s,-s,-s)),
+						(vec3!( s, s, s), vec3!(-s, s, s)),
+						(vec3!(-s,-s, s), vec3!( s,-s, s)),
+						(vec3!(-s, s,-s), vec3!( s, s,-s)),
+					])
+				}
+			}
+		}
+	}
+
 	const CHUNK_SIZE: float = 10.;
 	const CHUNK_SIZE_HALF: float = CHUNK_SIZE / 2.;
 	struct Chunk {
 		color: Color,
+		objects: Vec<(Vec3f, RenderableObject)>,
 	}
 
 	const CHUNKS_N: u32 = 5;
+	let render_distance: u32 = 2;
 	let chunks = Vec2D::<Chunk>::from_fn(CHUNKS_N, CHUNKS_N, |_x, _z| {
 		Chunk {
 			// color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0), // for dbg
 			color: Color::RGB(rng.random(), rng.random(), rng.random()),
+			objects: Vec::from_fn(
+				rng.random_range(0 ..= 5),
+				|_i| (
+					Vec3f::new(
+						rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
+						rng.random_range(1. ..= 9.),
+						rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
+					),
+					RenderableObject::Cube { size: rng.random_range(0.3 ..= 3.) }
+				)
+			)
 		}
 	});
 	// println!("chunks.len = {}", chunks.iter().count());
@@ -506,9 +570,10 @@ fn main() {
 
 			// let current_chunk_x = (camera.pos.x / CHUNK_SIZE).round() as i32;
 			// let current_chunk_z = (camera.pos.z / CHUNK_SIZE).round() as i32;
-			for (dx, dz, _x, _z, chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, 2) {
+			for (dx, dz, _x, _z, chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
 				canvas.set_draw_color(chunk.color);
 				const STEP: float = 1.;
+				{
 				let mut x = -CHUNK_SIZE_HALF * (1. - 1e-2);
 				while x < CHUNK_SIZE_HALF {
 					let mut z = -CHUNK_SIZE_HALF * (1. - 1e-2);
@@ -520,13 +585,44 @@ fn main() {
 							 Vec3f::new((dx as float)*CHUNK_SIZE+x+STEP/3., 0., (dz as float)*CHUNK_SIZE+z-STEP/3.)),
 						];
 						for line in lines.iter() {
-							if let Some((a,b)) = camera.project_line(line, wf, hf, 0.1) {
+							if let Some((a,b)) = camera.project_line(line, wf, hf) {
 								let _ = canvas.draw_line(a,b);
 							}
 						}
 						z += STEP;
 					}
 					x += STEP;
+				}
+				}
+				for (pos, object) in chunk.objects.iter() {
+					use RenderableShape::*;
+					let shift: Vec3f = *pos + Vec3f::from_xz((dx as float)*CHUNK_SIZE, (dz as float)*CHUNK_SIZE);
+					match object.get_renderable_shape() {
+						Points(points) => {
+							let projected_points: Vec<FPoint> = points.iter()
+								.map(|&p| p + shift)
+								.flat_map(|p| {
+									camera.project_point(p, wf, hf).map(|p| p.into())
+								}).collect::<Vec<_>>();
+							canvas.draw_points(projected_points.as_slice()).unwrap();
+						}
+						Lines(lines) => {
+							for line in lines.iter() {
+								let line = (line.0 + shift, line.1 + shift);
+								if let Some((a,b)) = camera.project_line(&line, wf, hf) {
+									let _ = canvas.draw_line(a,b);
+								}
+							}
+						}
+						Chain(chain) => {
+							let projected_chain: Vec<FPoint> = chain.iter()
+								.map(|&p| p + shift)
+								.flat_map(|p| {
+									camera.project_point(p, wf, hf).map(|p| p.into())
+								}).collect::<Vec<_>>();
+							canvas.draw_lines(projected_chain.as_slice()).unwrap();
+						}
+					}
 				}
 			}
 
@@ -602,6 +698,7 @@ struct Camera {
 	up: Vec3f,
 	fov: float, // in radians
 }
+const NEAR: float = 0.1;
 impl Camera {
 	/// returns (right, up, forward) vectors
 	fn basis(&self) -> (Vec3f, Vec3f, Vec3f) {
@@ -616,9 +713,9 @@ impl Camera {
 		line: &(Vec3f, Vec3f),
 		width: float,
 		height: float,
-		near: float,
+		// near: float,
 	) -> Option<(Vec2f, Vec2f)> {
-		let (a, b) = self.clip_line_near(line.0, line.1, near)?;
+		let (a, b) = self.clip_line_near(line.0, line.1, NEAR)?;
 		let pa = self.project_point(a, width, height)?;
 		let pb = self.project_point(b, width, height)?;
 		clip_line_viewport(pa, pb, width, height)

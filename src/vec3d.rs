@@ -59,6 +59,12 @@ impl<T> Vec3d<T> where T: Copy + Mul<T,Output=T> + Sub<T,Output=T> + Into_<T> {
 }
 
 impl Vec3f {
+	pub fn from_x(x: float) -> Self { Self { x, y: 0., z: 0. } }
+	pub fn from_y(y: float) -> Self { Self { x: 0., y, z: 0. } }
+	pub fn from_z(z: float) -> Self { Self { x: 0., y: 0., z } }
+	pub fn from_yz(y: float, z: float) -> Self { Self { x: 0., y, z } }
+	pub fn from_xz(x: float, z: float) -> Self { Self { x, y: 0., z } }
+	pub fn from_xy(x: float, y: float) -> Self { Self { x, y, z: 0. } }
 	pub fn norm2(self) -> float { self.dot(self) }
 	pub fn norm(self) -> float { self.norm2().sqrt() }
 	pub fn normed(self) -> Self { self / self.norm() }
