@@ -1,0 +1,46 @@
+//! Typesafe RNG
+
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use rand::{Rng, RngExt, distr::weighted::WeightedIndex, prelude::Distribution};
+
+
+
+pub trait TypesafeRNG<const N: usize, T> {
+	fn random_variant(&mut self) -> T;
+	fn random_variant_weighted(&mut self, weights: [f32; N]) -> T;
+}
+
+macro_rules! impl_gen_with_weights {
+	($num:literal, $name:ident, $elems:tt) => {
+		#[derive(Debug, Clone, Copy, IntoPrimitive, TryFromPrimitive)]
+		#[repr(u8)]
+		pub enum $name $elems
+		impl<R: Rng> TypesafeRNG<$num, $name> for R {
+			fn random_variant(&mut self) -> $name {
+				let n: u8 = self.random_range(0..$num);
+				$name::try_from(n).unwrap()
+			}
+			fn random_variant_weighted(&mut self, weights: [f32; $num]) -> $name {
+				let n = WeightedIndex::new(weights).unwrap().sample(self);
+				// `u8` because #[repr(u8)]
+				let n: u8 = n.try_into().unwrap();
+				$name::try_from(n).unwrap()
+			}
+		}
+	}
+}
+
+// TODO: somehow use `cargo expand` to see the output of only this file/macro?
+impl_gen_with_weights!(1, V1, { _1 });
+impl_gen_with_weights!(2, V2, { _1, _2 });
+impl_gen_with_weights!(3, V3, { _1, _2, _3 });
+impl_gen_with_weights!(4, V4, { _1, _2, _3, _4 });
+impl_gen_with_weights!(5, V5, { _1, _2, _3, _4, _5 });
+impl_gen_with_weights!(6, V6, { _1, _2, _3, _4, _5, _6 });
+impl_gen_with_weights!(7, V7, { _1, _2, _3, _4, _5, _6, _7 });
+impl_gen_with_weights!(8, V8, { _1, _2, _3, _4, _5, _6, _7, _8 });
+impl_gen_with_weights!(9, V9, { _1, _2, _3, _4, _5, _6, _7, _8, _9 });
+impl_gen_with_weights!(10, V10, { _1, _2, _3, _4, _5, _6, _7, _8, _9, _10 });
+impl_gen_with_weights!(11, V11, { _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11 });
+impl_gen_with_weights!(12, V12, { _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12 });
+

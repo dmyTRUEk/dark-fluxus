@@ -31,6 +31,7 @@ mod font_rendering;
 mod lorenz_attractor;
 mod math_aliases;
 // mod teapot;
+mod typesafe_rng;
 mod utils_io;
 mod vec2d;
 mod vec2D;
@@ -43,9 +44,10 @@ use extensions::*;
 use font_rendering::CanvasRenderText;
 use lorenz_attractor::*;
 use math_aliases::*;
+use typesafe_rng::*;
 use utils_io::*;
-use vec2d::*;
 use vec2D::*;
+use vec2d::*;
 use vec3d::*;
 use zqqx_lang::*;
 
@@ -189,6 +191,7 @@ fn main() {
 		.fullscreen()
 		// .input_grabbed() // ?
 		// .opengl()
+		// .vulkan()
 		.build()
 		.unwrap();
 
@@ -260,7 +263,7 @@ fn main() {
 	// };
 
 	#[derive(Debug)]
-	enum RenderableShape {
+	enum SdlRenderableShape {
 		Points(Vec<Vec3f>),
 		Lines(Vec<(Vec3f, Vec3f)>),
 		Chain(Vec<Vec3f>),
@@ -269,18 +272,41 @@ fn main() {
 	#[derive(Debug)]
 	enum RenderableObject {
 		Cube { size: float },
+		LorenzAttractor { size: float, la: LorenzAttractor, last_points: Vec<Vec3f>, max_len: u32 },
 		// SpinningText?
+		// Monolith: 2n vertical squares (rectangles?) without horizontal connections
 	}
 	impl RenderableObject {
+		fn is_need_update(&self) -> bool {
+			use RenderableObject::*;
+			match self {
+				Cube { .. } => false,
+				LorenzAttractor { .. } => true,
+			}
+		}
 		fn is_time_dependent(&self) -> bool {
 			use RenderableObject::*;
 			match self {
 				Cube { .. } => false,
+				LorenzAttractor { .. } => true,
 			}
 		}
-		fn get_renderable_shape(&self) -> RenderableShape {
+		fn update(&mut self) {
 			use RenderableObject::*;
-			use RenderableShape::*;
+			match self {
+				Cube { .. } => {}
+				LorenzAttractor { la, last_points, max_len, .. } => {
+					last_points.push(la.get_xyz_as_vec3d());
+					if last_points.len() as u32 > *max_len {
+						let _ = last_points.remove(0);
+					}
+					la.step(1e-2);
+				}
+			}
+		}
+		fn get_renderable_shape(&self) -> SdlRenderableShape {
+			use RenderableObject::*;
+			use SdlRenderableShape::*;
 			match self {
 				Cube { size } => {
 					let s = size / 2.;
@@ -301,6 +327,9 @@ fn main() {
 						(vec3!(-s, s,-s), vec3!( s, s,-s)),
 					])
 				}
+				LorenzAttractor { size, last_points, .. } => {
+					Chain(last_points.iter().map(|&p| p * *size).collect())
+				}
 			}
 		}
 	}
@@ -309,26 +338,48 @@ fn main() {
 	const CHUNK_SIZE_HALF: float = CHUNK_SIZE / 2.;
 	struct Chunk {
 		color: Color,
-		objects: Vec<(Vec3f, RenderableObject)>,
+		renderable_objects: Vec<(Vec3f, RenderableObject)>,
 	}
 
 	const CHUNKS_N: u32 = 5;
 	let render_distance: u32 = 2;
-	let chunks = Vec2D::<Chunk>::from_fn(CHUNKS_N, CHUNKS_N, |_x, _z| {
+	let mut chunks = Vec2D::<Chunk>::from_fn(CHUNKS_N, CHUNKS_N, |_x, _z| {
 		Chunk {
 			// color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0), // for dbg
 			color: Color::RGB(rng.random(), rng.random(), rng.random()),
-			objects: Vec::from_fn(
-				rng.random_range(0 ..= 5),
-				|_i| (
-					Vec3f::new(
-						rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
-						rng.random_range(1. ..= 9.),
-						rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
-					),
-					RenderableObject::Cube { size: rng.random_range(0.3 ..= 3.) }
-				)
-			)
+			renderable_objects: match rng.random_variant_weighted([3., 1., 0.5]) {
+				V3::_1 => vec![],
+				V3::_2 => Vec::from_fn(
+					rng.random_range(0 ..= 5),
+					|_i| (
+						Vec3f::new(
+							rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
+							rng.random_range(1. ..= 9.),
+							rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
+						),
+						RenderableObject::Cube { size: rng.random_range(0.3 ..= 3.) }
+					)
+				),
+				V3::_3 => vec![(
+					Vec3f::from_y(rng.random_range(1. ..= 9.)),
+					RenderableObject::LorenzAttractor {
+						size: rng.random_range(0.1 ..= 0.2),
+						la: LorenzAttractor::new().offset_params(
+							rng.random_range(-0.1 ..= 0.1),
+							rng.random_range(-0.1 ..= 0.1),
+							rng.random_range(-0.1 ..= 0.1),
+						).set_xyz_as_vec3d(
+							Vec3f::new(
+								rng.random_range(-1. ..= 1.),
+								rng.random_range(-1. ..= 1.),
+								rng.random_range(-1. ..= 1.),
+							).normed() * rng.random_range(0.1 ..= 0.2)
+						),
+						last_points: vec![],
+						max_len: 10_f32.powf(rng.random_range(2. ..= 4.)).round() as u32,
+					}
+				)]
+			}
 		}
 	});
 	// println!("chunks.len = {}", chunks.iter().count());
@@ -345,17 +396,21 @@ fn main() {
 
 	#[derive(Debug)]
 	enum MovementType {
+		// order is important, check #bqooaj
 		Grounded,
 		FlyingMClike,
 		FlyingGMlike,
+		FpvLike,
 	}
 	impl MovementType {
 		fn next(&mut self) {
 			use MovementType::*;
 			*self = match self {
+				// order is important, check #bqooaj
 				Grounded => FlyingMClike,
 				FlyingMClike => FlyingGMlike,
-				FlyingGMlike => Grounded,
+				FlyingGMlike => FpvLike,
+				FpvLike => Grounded,
 			};
 		}
 		fn to_str_uppercase(&self) -> &'static str {
@@ -364,6 +419,7 @@ fn main() {
 				Grounded => "GROUNDED",
 				FlyingMClike => "FLYING MC LIKE",
 				FlyingGMlike => "FLYING GM LIKE",
+				FpvLike => "FPV LIKE",
 			}
 		}
 	}
@@ -372,12 +428,9 @@ fn main() {
 	#[allow(unused_variables)]
 	let mut tick_n: u64 = 0;
 	let mut frame_n: u64 = 0;
-	// let mut is_paused: bool = false;
+	let mut is_paused: bool = false;
 	let mut is_extra_info_shown = true;
 
-	// let mut scale: u32 = 1;
-	// let mut lorenz_attractor = LorenzAttractor::new();//.offset_params(0.01, -0.01, 0.001);
-	// let mut la_last_points: Vec<Vec3f> = vec![];
 	// let mut zqqx_lang = ZqqxLang::new();
 
 
@@ -392,7 +445,9 @@ fn main() {
 
 		tick_n += 1;
 
-		let mut is_redraw_needed: bool = frame_n == 0;
+		let mut is_redraw_needed: bool = frame_n == 0; // TODO: or `renderable_objects.is_time_dependent` exists
+
+		const DELTA: float = 0.01; // TODO
 
 		for event in event_pump.poll_iter() {
 			match event {
@@ -401,11 +456,12 @@ fn main() {
 					break 'main_loop
 				}
 				Event::MouseMotion { xrel, yrel, .. } => {
+					const ROTATION_SPEED: float = 0.6;
 					// left/right
-					camera.forward += camera.basis().0 * xrel * DELTA * ROTATION_SPEED;
+					camera.forward += camera.basis().0 * xrel * camera.fov * DELTA * ROTATION_SPEED;
 					camera.forward.normlize();
 					// up/down
-					camera.forward -= camera.basis().1 * yrel * DELTA * ROTATION_SPEED;
+					camera.forward -= camera.basis().1 * yrel * camera.fov * DELTA * ROTATION_SPEED;
 					camera.forward.normlize();
 					is_redraw_needed = true;
 				}
@@ -415,14 +471,16 @@ fn main() {
 				// }
 				Event::KeyDown { keycode: Some(Keycode::F5), .. } => {
 					movement_type.next();
-					match movement_type {
+					match movement_type { // #bqooaj
 						MovementType::Grounded => {
 							camera.pos.y = GROUNDED_CAMERA_Y;
+							camera.reset_roll();
+							is_redraw_needed = true;
 						}
 						MovementType::FlyingMClike => {}
 						MovementType::FlyingGMlike => {}
+						MovementType::FpvLike => {}
 					}
-					is_redraw_needed = true;
 				}
 				Event::KeyDown { keycode: Some(Keycode::F3), .. } => {
 					is_extra_info_shown = !is_extra_info_shown;
@@ -434,43 +492,43 @@ fn main() {
 		let keyboard = event_pump.keyboard_state();
 
 		// handle inputs:
-		const DELTA: float = 0.01; // TODO
 		let mut move_speed: float = 20.;
-		const ROTATION_SPEED: float = 1.;
 		if keyboard.is_scancodes_pressed_any(&[Scancode::LShift, Scancode::RShift]) {
 			move_speed *= 3.;
 		}
-		if keyboard.is_scancodes_pressed_any(&[Scancode::Up, Scancode::W]) {
+		if keyboard.is_scancodes_pressed_any(&[Scancode::Up, Scancode::W, Scancode::P]) {
 			match movement_type {
 				MovementType::Grounded |
 				MovementType::FlyingMClike => {
 					let forward_in_xz_plane = camera.forward.x0z().normed();
 					camera.pos += forward_in_xz_plane * DELTA * move_speed;
 				}
-				MovementType::FlyingGMlike => {
+				MovementType::FlyingGMlike |
+				MovementType::FpvLike => {
 					camera.pos += camera.forward * DELTA * move_speed;
 				}
 			}
 			is_redraw_needed = true;
 		}
-		if keyboard.is_scancodes_pressed_any(&[Scancode::Down, Scancode::S]) {
+		if keyboard.is_scancodes_pressed_any(&[Scancode::Down, Scancode::S, Scancode::Semicolon]) {
 			match movement_type {
 				MovementType::Grounded |
 				MovementType::FlyingMClike => {
 					let forward_in_xz_plane = camera.forward.x0z().normed();
 					camera.pos -= forward_in_xz_plane * DELTA * move_speed;
 				}
-				MovementType::FlyingGMlike => {
+				MovementType::FlyingGMlike |
+				MovementType::FpvLike => {
 					camera.pos -= camera.forward * DELTA * move_speed;
 				}
 			}
 			is_redraw_needed = true;
 		}
-		if keyboard.is_scancodes_pressed_any(&[Scancode::Left, Scancode::A]) {
+		if keyboard.is_scancodes_pressed_any(&[Scancode::Left, Scancode::A, Scancode::L]) {
 			camera.pos -= camera.basis().0 * DELTA * move_speed;
 			is_redraw_needed = true;
 		}
-		if keyboard.is_scancodes_pressed_any(&[Scancode::Right, Scancode::D]) {
+		if keyboard.is_scancodes_pressed_any(&[Scancode::Right, Scancode::D, Scancode::Apostrophe]) {
 			camera.pos += camera.basis().0 * DELTA * move_speed;
 			is_redraw_needed = true;
 		}
@@ -482,7 +540,9 @@ fn main() {
 				MovementType::FlyingMClike |
 				MovementType::FlyingGMlike => {
 					camera.pos += vec3y!(1) * DELTA * move_speed;
-					// camera.pos += camera.basis().1 * DELTA * MOVE_SPEED;
+				}
+				MovementType::FpvLike => {
+					camera.pos += camera.basis().1 * DELTA * move_speed;
 				}
 			}
 			is_redraw_needed = true;
@@ -495,46 +555,75 @@ fn main() {
 				MovementType::FlyingMClike |
 				MovementType::FlyingGMlike => {
 					camera.pos -= vec3y!(1) * DELTA * move_speed;
-					// camera.pos -= camera.basis().1 * DELTA * MOVE_SPEED;
+				}
+				MovementType::FpvLike => {
+					camera.pos -= camera.basis().1 * DELTA * move_speed;
 				}
 			}
 			is_redraw_needed = true;
 		}
-		// if keyboard.is_scancode_pressed(Scancode::Q) {
-		// 	camera.up -= camera.basis().0 * DELTA * ROTATION_SPEED;
-		// 	camera.up.normlize();
-		// 	is_redraw_needed = true;
-		// }
-		// if keyboard.is_scancode_pressed(Scancode::E) {
-		// 	camera.up += camera.basis().0 * DELTA * ROTATION_SPEED;
-		// 	camera.up.normlize();
-		// 	is_redraw_needed = true;
-		// }
-		// if keyboard.is_scancode_pressed(Scancode::R) {
-		// 	camera.up = vec3y!(1.);
-		// 	is_redraw_needed = true;
-		// }
+		const ROLL_SPEED: float = 1.;
+		if keyboard.is_scancode_pressed(Scancode::Q) {
+			match movement_type {
+				MovementType::Grounded => {}
+				MovementType::FlyingMClike => {}
+				MovementType::FlyingGMlike => {}
+				MovementType::FpvLike => {
+					camera.up -= camera.basis().0 * DELTA * ROLL_SPEED;
+					camera.up.normlize();
+					is_redraw_needed = true;
+				}
+			}
+		}
+		if keyboard.is_scancode_pressed(Scancode::E) {
+			match movement_type {
+				MovementType::Grounded => {}
+				MovementType::FlyingMClike => {}
+				MovementType::FlyingGMlike => {}
+				MovementType::FpvLike => {
+					camera.up += camera.basis().0 * DELTA * ROLL_SPEED;
+					camera.up.normlize();
+					is_redraw_needed = true;
+				}
+			}
+		}
+		if keyboard.is_scancode_pressed(Scancode::R) {
+			// reset camera roll
+			match movement_type {
+				MovementType::Grounded => {}
+				MovementType::FlyingMClike => {}
+				MovementType::FlyingGMlike => {}
+				MovementType::FpvLike => {
+					camera.reset_roll();
+					is_redraw_needed = true;
+				}
+			}
+		}
 
-		const MIN_FOV: float = 0.01 * PI;
-		const MAX_FOV: float = 0.9 * PI;
+		const MIN_FOV: float = 1e-1 * DEG_TO_RAD;
+		const MAX_FOV: float = 170. * DEG_TO_RAD;
 		const FOV_RANGE: float = MAX_FOV - MIN_FOV;
+		const FOV_CHANGE_SPEED: float = 0.03;
 		if keyboard.is_scancode_pressed(Scancode::I) {
 			// camera.fov -= DELTA;
-			camera.fov = MIN_FOV + FOV_RANGE * sigmoid(asigmoid((camera.fov-MIN_FOV)/FOV_RANGE) - 0.03);
+			camera.fov = MIN_FOV + FOV_RANGE * sigmoid(asigmoid((camera.fov-MIN_FOV)/FOV_RANGE) - FOV_CHANGE_SPEED);
 			is_redraw_needed = true;
 		}
 		if keyboard.is_scancode_pressed(Scancode::O) {
 			// camera.fov += DELTA;
-			camera.fov = MIN_FOV + FOV_RANGE * sigmoid(asigmoid((camera.fov-MIN_FOV)/FOV_RANGE) + 0.03);
+			camera.fov = MIN_FOV + FOV_RANGE * sigmoid(asigmoid((camera.fov-MIN_FOV)/FOV_RANGE) + FOV_CHANGE_SPEED);
 			is_redraw_needed = true;
 		}
 
 		// physics update:
-		// if !is_paused {
-		// 	lorenz_attractor.step(1e-2);
-		// 	la_last_points.push(lorenz_attractor.get_xyz_as_vec3d());
-		// 	is_redraw_needed = true;
-		// }
+		if !is_paused /* TODO: && exist what needs to be updated */ {
+			for (_x, _z, chunk) in chunks.iter_mut() {
+				for (_pos, ro) in chunk.renderable_objects.iter_mut() {
+					ro.update();
+				}
+			}
+			is_redraw_needed = true;
+		}
 		{
 			if camera.pos.x < -CHUNK_SIZE_HALF {
 				camera.pos.x += CHUNK_SIZE;
@@ -594,10 +683,10 @@ fn main() {
 					x += STEP;
 				}
 				}
-				for (pos, object) in chunk.objects.iter() {
-					use RenderableShape::*;
+				for (pos, ro) in chunk.renderable_objects.iter() {
+					use SdlRenderableShape::*;
 					let shift: Vec3f = *pos + Vec3f::from_xz((dx as float)*CHUNK_SIZE, (dz as float)*CHUNK_SIZE);
-					match object.get_renderable_shape() {
+					match ro.get_renderable_shape() {
 						Points(points) => {
 							let projected_points: Vec<FPoint> = points.iter()
 								.map(|&p| p + shift)
@@ -627,15 +716,11 @@ fn main() {
 			}
 
 			if is_extra_info_shown {
-				let text_size = 4;
+				let text_size = 3;
 				canvas.set_draw_color(Color::GRAY);
 				canvas.render_text(&format!("XYZ: {:.3}, {:.3}, {:.3}", camera.pos.x, camera.pos.y, camera.pos.z), (5,5), text_size);
 				canvas.render_text(&format!("FOV: {:.3}", camera.fov * RAD_TO_DEG), (5,5+35), text_size);
 				canvas.render_text(&format!("MOVE TYPE: {}", movement_type.to_str_uppercase()), (5,5+35*2), text_size);
-
-				// canvas.render_text(&format!("LX: {}", lorenz_attractor.x), (0, 10), 3);
-				// canvas.render_text(&format!("LY: {}", lorenz_attractor.y), (0, 40), 3);
-				// canvas.render_text(&format!("LZ: {}", lorenz_attractor.z), (0, 70), 3);
 
 				// // zqqx lang
 				// for char_n in 0..5 {
@@ -662,7 +747,9 @@ fn main() {
 
 				let frame_end_timestamp = SystemTime::now();
 				let frametime = frame_end_timestamp.duration_since(tick_frame_begin_timestamp).unwrap();
-				let fps_text = format!("\"FPS\": {:.1}", 1. / frametime.as_secs_f64());
+				let fps = 1. / frametime.as_secs_f64();
+				// if fps < 60. { panic!() }
+				let fps_text = format!("\"FPS\": {fps:.1}");
 				canvas.render_text(&fps_text, (wi - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), text_size);
 			}
 
@@ -700,6 +787,10 @@ struct Camera {
 }
 const NEAR: float = 0.1;
 impl Camera {
+	fn reset_roll(&mut self) {
+		self.up = vec3y!(1.);
+	}
+
 	/// returns (right, up, forward) vectors
 	fn basis(&self) -> (Vec3f, Vec3f, Vec3f) {
 		let f = self.forward.normed();

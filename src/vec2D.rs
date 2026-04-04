@@ -42,6 +42,16 @@ impl<T> Vec2D<T> {
 				(x, y, elem)
 			})
 	}
+	pub fn iter_mut(&mut self) -> impl Iterator<Item = (u32, u32, &mut T)> {
+		self.elems.iter_mut()
+			.enumerate()
+			.map(|(i, elem)| {
+				let i = i as u32;
+				let x = i % self.x_size;
+				let y = i / self.x_size;
+				(x, y, elem)
+			})
+	}
 	pub fn iter_around_wrapping(&self, x: i32, y: i32, r: u32) -> impl Iterator<Item = (i32, i32, u32, u32, &T)> {
 		(-(r as i32) ..= (r as i32)).map(move |dy| {
 			(-(r as i32) ..= (r as i32)).map(move |dx| {
@@ -51,6 +61,15 @@ impl<T> Vec2D<T> {
 			})
 		}).flatten()
 	}
+	// pub fn iter_mut_around_wrapping(&mut self, x: i32, y: i32, r: u32) -> impl Iterator<Item = (i32, i32, u32, u32, &mut T)> {
+	// 	(-(r as i32) ..= (r as i32)).map(move |dy| {
+	// 		(-(r as i32) ..= (r as i32)).map(move |dx| {
+	// 			let x_global = (x + dx).rem_euclid(self.x_size as i32) as u32;
+	// 			let y_global = (y + dy).rem_euclid(self.y_size as i32) as u32;
+	// 			(dx, dy, x_global, y_global, &mut self[(x_global,y_global)])
+	// 		})
+	// 	}).flatten()
+	// }
 	// pub fn iter_around_wrapping_complex(&self, _x: u32, _y: u32, _r: u32) -> impl Iterator<Item = (i32, i32, u32, u32, &T)> { todo!() }
 }
 
