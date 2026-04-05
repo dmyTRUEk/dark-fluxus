@@ -963,7 +963,7 @@ impl Chunk {
 								)).collect()
 							},
 						}
-					)]
+					)],
 				}
 			}
 		}

@@ -25,6 +25,7 @@ pub fn tan(x: float) -> float { x.tan() }
 pub fn atan(x: float) -> float { x.atan() }
 pub fn tanh(x: float) -> float { x.tanh() }
 pub fn atanh(x: float) -> float { x.atanh() }
+pub fn sqrt(x: float) -> float { x.sqrt() }
 pub fn exp(x: float) -> float { x.exp() }
 pub fn ln(x: float) -> float { x.ln() }
 // pub fn log(x: float) -> float { x.log() }

@@ -1,6 +1,6 @@
 //! math vector 2d
 
-use std::ops::{Add, AddAssign, Div, Mul, MulAssign};
+use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign};
 
 use rand::{RngExt, rngs::ThreadRng};
 use sdl3::render::FPoint;
@@ -32,7 +32,7 @@ impl<T> Vec2d<T> {
 		Self { x: x.into_(), y: y.into_() }
 	}
 }
-impl<T> Vec2d<T> where T: Copy + Add<T,Output=T> + Mul<T,Output=T> {
+impl<T> Vec2d<T> where T: Add<T,Output=T> + Mul<T,Output=T> + Copy {
 	pub fn dot(self, other: Self) -> T {
 		self.x*other.x + self.y*other.y
 	}
@@ -73,68 +73,106 @@ impl Vec2f {
 
 
 
-impl<T: Add<T, Output=T>> Add<Self> for Vec2d<T> {
+impl<T> Add<Self> for Vec2d<T> where T: Add<T,Output=T> {
 	type Output = Self;
 	fn add(self, rhs: Self) -> Self::Output {
 		Self::new(self.x + rhs.x, self.y + rhs.y)
 	}
 }
-impl<T: Add<T, Output=T> + Clone> Add<T> for Vec2d<T> {
+impl<T> Add<T> for Vec2d<T> where T: Add<T,Output=T> + Copy {
 	type Output = Self;
 	fn add(self, rhs: T) -> Self::Output {
-		Self::new(self.x + rhs.clone(), self.y + rhs)
+		Self::new(self.x + rhs, self.y + rhs)
 	}
 }
 
-impl<T: AddAssign<T>> AddAssign<Self> for Vec2d<T> {
+impl<T> AddAssign<Self> for Vec2d<T> where T: AddAssign<T> {
 	fn add_assign(&mut self, rhs: Self) {
 		self.x += rhs.x;
 		self.y += rhs.y;
 	}
 }
-impl<T: AddAssign<T> + Clone> AddAssign<T> for Vec2d<T> {
+impl<T> AddAssign<T> for Vec2d<T> where T: AddAssign<T> + Copy {
 	fn add_assign(&mut self, rhs: T) {
-		self.x += rhs.clone();
+		self.x += rhs;
 		self.y += rhs;
 	}
 }
 
-// impl<T: Mul<T, Output=T>> Mul<Self> for Vec2d<T> {
+impl<T> Sub<Self> for Vec2d<T> where T: Sub<T,Output=T> {
+	type Output = Self;
+	fn sub(self, rhs: Self) -> Self::Output {
+		Self::new(self.x - rhs.x, self.y - rhs.y)
+	}
+}
+impl<T> Sub<T> for Vec2d<T> where T: Sub<T,Output=T> + Copy {
+	type Output = Self;
+	fn sub(self, rhs: T) -> Self::Output {
+		Self::new(self.x - rhs, self.y - rhs)
+	}
+}
+
+impl<T> SubAssign<Self> for Vec2d<T> where T: SubAssign<T> {
+	fn sub_assign(&mut self, rhs: Self) {
+		self.x -= rhs.x;
+		self.y -= rhs.y;
+	}
+}
+impl<T> SubAssign<T> for Vec2d<T> where T: SubAssign<T> + Copy {
+	fn sub_assign(&mut self, rhs: T) {
+		self.x -= rhs;
+		self.y -= rhs;
+	}
+}
+
+impl<T> Mul<Self> for Vec2d<T> where T: Add<T,Output=T> + Mul<T,Output=T> + Copy {
+	type Output = T;
+	fn mul(self, rhs: Self) -> Self::Output {
+		self.dot(rhs)
+	}
+}
+// impl<T> Mul<Self> for Vec2d<T> where T: Sub<T,Output=T> + Mul<T,Output=T> + Copy {
 // 	type Output = Self;
 // 	fn mul(self, rhs: Self) -> Self::Output {
 // 		Self::new(self.x * rhs.x, self.y * rhs.y)
 // 	}
 // }
-impl<T: Mul<T, Output=T> + Clone> Mul<T> for Vec2d<T> {
+impl<T> Mul<T> for Vec2d<T> where T: Mul<T,Output=T> + Copy {
 	type Output = Self;
 	fn mul(self, rhs: T) -> Self::Output {
-		Self::new(self.x * rhs.clone(), self.y * rhs)
+		Self::new(self.x * rhs, self.y * rhs)
 	}
 }
+// impl<T> Mul<Vec2d<T>> for T where T: Mul<T,Output=T> {
+// 	type Output = Vec2d<T>;
+// 	fn mul(self, rhs: Vec2d<T>) -> Self::Output {
+// 		todo!()
+// 	}
+// }
 
-// impl<T: MulAssign<T>> MulAssign<Self> for Vec2d<T> {
+// impl<T> MulAssign<Self> for Vec2d<T> where: MulAssign<T> {
 // 	fn mul_assign(&mut self, rhs: Self) {
 // 		self.x *= rhs.x;
 // 		self.y *= rhs.y;
 // 	}
 // }
-impl<T: MulAssign<T> + Clone> MulAssign<T> for Vec2d<T> {
+impl<T> MulAssign<T> for Vec2d<T> where T: MulAssign<T> + Copy {
 	fn mul_assign(&mut self, rhs: T) {
-		self.x *= rhs.clone();
+		self.x *= rhs;
 		self.y *= rhs;
 	}
 }
 
-// impl<T: Div<T, Output=T>> Div<Self> for Vec2d<T> {
+// impl<T> Div<Self> for Vec2d<T> where T: Div<T,Output=T> {
 // 	type Output = Self;
 // 	fn div(self, rhs: Self) -> Self::Output {
 // 		Self::new(self.x / rhs.x, self.y / rhs.y)
 // 	}
 // }
-impl<T: Div<T, Output=T> + Clone> Div<T> for Vec2d<T> {
+impl<T> Div<T> for Vec2d<T> where T: Div<T,Output=T> + Copy {
 	type Output = Self;
 	fn div(self, rhs: T) -> Self::Output {
-		Self::new(self.x / rhs.clone(), self.y / rhs)
+		Self::new(self.x / rhs, self.y / rhs)
 	}
 }
 

@@ -1,6 +1,6 @@
 //! math vector 3d
 
-use std::{ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign}, process::Output};
+use std::{ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign}};
 
 use rand::{RngExt, rngs::ThreadRng};
 
@@ -35,11 +35,14 @@ impl<T> Vec3d<T> {
 		Self { x: x.into_(), y: y.into_(), z: z.into_() }
 	}
 	pub fn yz(self) -> Vec2d<T> { Vec2d::new(self.y, self.z) }
+	pub fn zy(self) -> Vec2d<T> { Vec2d::new(self.z, self.y) }
 	pub fn xz(self) -> Vec2d<T> { Vec2d::new(self.x, self.z) }
+	pub fn zx(self) -> Vec2d<T> { Vec2d::new(self.z, self.x) }
 	pub fn xy(self) -> Vec2d<T> { Vec2d::new(self.x, self.y) }
+	pub fn yx(self) -> Vec2d<T> { Vec2d::new(self.y, self.x) }
 }
 
-impl<T> Vec3d<T> where T: Copy + Add<T,Output=T> + Mul<T,Output=T> {
+impl<T> Vec3d<T> where T: Add<T,Output=T> + Mul<T,Output=T> + Copy {
 	pub fn dot(self, other: Self) -> T {
 		self.x*other.x + self.y*other.y + self.z*other.z
 	}
@@ -50,7 +53,7 @@ impl<T> Vec3d<T> where T: Copy + Add<T,Output=T> + Mul<T,Output=T> {
 		Self::new(self.dot(a), self.dot(b), self.dot(c))
 	}
 }
-impl<T> Vec3d<T> where T: Copy + Mul<T,Output=T> + Sub<T,Output=T> + Into_<T> {
+impl<T> Vec3d<T> where T: Mul<T,Output=T> + Sub<T,Output=T> + Into_<T> + Copy {
 	pub fn cross(self, other: Self) -> Self {
 		Self::new(
 			self.y * other.z - self.z * other.y,
@@ -95,7 +98,7 @@ impl<T> Add<Self> for Vec3d<T> where T: Add<T,Output=T> {
 		Self::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
 	}
 }
-impl<T> Add<T> for Vec3d<T> where T: Copy + Add<T,Output=T> {
+impl<T> Add<T> for Vec3d<T> where T: Add<T,Output=T> + Copy {
 	type Output = Self;
 	fn add(self, rhs: T) -> Self::Output {
 		Self::new(self.x + rhs, self.y + rhs, self.z + rhs)
@@ -109,7 +112,7 @@ impl<T> AddAssign<Self> for Vec3d<T> where T: AddAssign<T> {
 		self.z += rhs.z;
 	}
 }
-impl<T> AddAssign<T> for Vec3d<T> where T: Copy + AddAssign<T> {
+impl<T> AddAssign<T> for Vec3d<T> where T: AddAssign<T> + Copy {
 	fn add_assign(&mut self, rhs: T) {
 		self.x += rhs;
 		self.y += rhs;
@@ -123,7 +126,7 @@ impl<T> Sub<Self> for Vec3d<T> where T: Sub<T,Output=T> {
 		Self::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
 	}
 }
-impl<T> Sub<T> for Vec3d<T> where T: Copy + Sub<T,Output=T> {
+impl<T> Sub<T> for Vec3d<T> where T: Sub<T,Output=T> + Copy {
 	type Output = Self;
 	fn sub(self, rhs: T) -> Self::Output {
 		Self::new(self.x - rhs, self.y - rhs, self.z - rhs)
@@ -137,7 +140,7 @@ impl<T> SubAssign<Self> for Vec3d<T> where T: SubAssign<T> {
 		self.z -= rhs.z;
 	}
 }
-impl<T> SubAssign<T> for Vec3d<T> where T: Copy + SubAssign<T> {
+impl<T> SubAssign<T> for Vec3d<T> where T: SubAssign<T> + Copy {
 	fn sub_assign(&mut self, rhs: T) {
 		self.x -= rhs;
 		self.y -= rhs;
@@ -145,19 +148,19 @@ impl<T> SubAssign<T> for Vec3d<T> where T: Copy + SubAssign<T> {
 	}
 }
 
-impl<T> Mul<Self> for Vec3d<T> where T: Copy + Add<T,Output=T> + Mul<T,Output=T> {
+impl<T> Mul<Self> for Vec3d<T> where T: Add<T,Output=T> + Mul<T,Output=T> + Copy {
 	type Output = T;
 	fn mul(self, rhs: Self) -> Self::Output {
 		self.dot(rhs)
 	}
 }
-// impl<T> Mul<Self> for Vec3d<T> where T: Copy + Mul<T,Output=T> + Sub<T,Output=T> {
+// impl<T> Mul<Self> for Vec3d<T> where T: Sub<T,Output=T> + Mul<T,Output=T> + Copy {
 // 	type Output = Self;
 // 	fn mul(self, rhs: Self) -> Self::Output {
 // 		self.cross(rhs)
 // 	}
 // }
-impl<T> Mul<T> for Vec3d<T> where T: Copy + Mul<T,Output=T> {
+impl<T> Mul<T> for Vec3d<T> where T: Mul<T,Output=T> + Copy {
 	type Output = Self;
 	fn mul(self, rhs: T) -> Self::Output {
 		Self::new(self.x * rhs, self.y * rhs, self.z * rhs)
@@ -177,7 +180,7 @@ impl<T> Mul<T> for Vec3d<T> where T: Copy + Mul<T,Output=T> {
 // 		self.z *= rhs.z;
 // 	}
 // }
-impl<T> MulAssign<T> for Vec3d<T> where T: Copy + MulAssign<T> {
+impl<T> MulAssign<T> for Vec3d<T> where T: MulAssign<T> + Copy {
 	fn mul_assign(&mut self, rhs: T) {
 		self.x *= rhs;
 		self.y *= rhs;
@@ -191,7 +194,7 @@ impl<T> MulAssign<T> for Vec3d<T> where T: Copy + MulAssign<T> {
 // 		Self::new(self.x / rhs.x, self.y / rhs.y)
 // 	}
 // }
-impl<T> Div<T> for Vec3d<T> where T: Copy + Div<T,Output=T> {
+impl<T> Div<T> for Vec3d<T> where T: Div<T,Output=T> + Copy {
 	type Output = Self;
 	fn div(self, rhs: T) -> Self::Output {
 		Self::new(self.x / rhs, self.y / rhs, self.z / rhs)
