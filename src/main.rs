@@ -4,6 +4,7 @@
 	clippy::collapsible_if,
 	clippy::just_underscores_and_digits,
 	clippy::let_and_return,
+	clippy::useless_format,
 )]
 
 #![deny(
@@ -18,12 +19,12 @@
 	vec_from_fn,
 )]
 
-use std::{f32::consts::PI, thread::sleep, time::{Duration, SystemTime}};
+use std::{thread::sleep, time::{Duration, SystemTime}};
 
 // use encoding_rs::UTF_8;
 // use llama_cpp_2::{context::params::LlamaContextParams, llama_backend::LlamaBackend, llama_batch::LlamaBatch, model::{AddBos, LlamaModel, params::LlamaModelParams}, sampling::LlamaSampler};
-use rand::{Rng, RngExt, rng, rngs::ThreadRng};
-use sdl3::{event::Event, keyboard::{KeyboardState, Keycode, Scancode}, pixels::Color, render::FPoint};
+use rand::{RngExt, rng, rngs::ThreadRng};
+use sdl3::{event::Event, keyboard::{KeyboardState, Keycode, Scancode}, pixels::Color, render::{FPoint, FRect}};
 
 mod consts;
 mod extensions;
@@ -39,17 +40,17 @@ mod vec3d;
 mod zqqx_lang;
 
 use consts::*;
-use extensions::*;
+// use extensions::*;
 use float_type::*;
-use font_rendering::CanvasRenderText;
+use font_rendering::*;
 use lorenz_attractor::*;
 use math_aliases::*;
 use typesafe_rng::*;
-use utils_io::*;
+// use utils_io::*;
 use vec2D::*;
 use vec2d::*;
 use vec3d::*;
-use zqqx_lang::*;
+// use zqqx_lang::*;
 
 
 
@@ -78,6 +79,13 @@ fn main() {
 	sdl_context.mouse().set_relative_mouse_mode(&window, true);
 
 
+	let pause_menu_items = { use PauseMenuItem::*; vec![
+		Quit,
+	]};
+	let mut is_paused = false;
+	let mut pause_menu_item_index: u32 = 0;
+
+
 	const CHUNKS_N: u32 = 5;
 	let render_distance: u32 = 2;
 	let mut chunks = Vec2D::<Chunk>::from_fn(CHUNKS_N, CHUNKS_N, |_x, _z| {
@@ -100,7 +108,6 @@ fn main() {
 	#[allow(unused_variables)]
 	let mut tick_n: u64 = 0;
 	let mut frame_n: u64 = 0;
-	let mut is_paused: bool = false;
 	let mut is_extra_info_shown = true;
 
 	// let mut zqqx_lang = ZqqxLang::new();
@@ -123,11 +130,12 @@ fn main() {
 
 		for event in event_pump.poll_iter() {
 			match event {
-				Event::Quit {..} |
+				Event::Quit {..} => { break 'main_loop }
 				Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-					break 'main_loop
+					is_paused = !is_paused;
+					is_redraw_needed = true;
 				}
-				Event::MouseMotion { xrel, yrel, .. } => {
+				Event::MouseMotion { xrel, yrel, .. } if !is_paused => {
 					const ROTATION_SPEED: float = 0.6;
 					// left/right
 					camera.forward += camera.basis().0 * xrel * camera.fov * DELTA_TIME * ROTATION_SPEED;
@@ -138,10 +146,7 @@ fn main() {
 					is_redraw_needed = true;
 				}
 				// TODO: use MouseWheel for FOV?
-				// Event::KeyDown { keycode: Some(Keycode::todo), .. } => {
-				// 	is_paused = !is_paused;
-				// }
-				Event::KeyDown { keycode: Some(Keycode::F5), .. } => {
+				Event::KeyDown { keycode: Some(Keycode::F5), .. } if !is_paused => {
 					movement_type.next();
 					match movement_type { // #bqooaj
 						MovementType::Grounded => {
@@ -158,6 +163,23 @@ fn main() {
 					is_extra_info_shown = !is_extra_info_shown;
 					is_redraw_needed = true;
 				}
+				Event::KeyDown { keycode: Some(Keycode::Up), .. } if is_paused => {
+					pause_menu_item_index = ((pause_menu_item_index as i32) - 1).rem_euclid(pause_menu_items.len() as i32) as u32;
+					is_redraw_needed = true;
+				}
+				Event::KeyDown { keycode: Some(Keycode::Down), .. } if is_paused => {
+					pause_menu_item_index = (pause_menu_item_index + 1).rem_euclid(pause_menu_items.len() as u32);
+					is_redraw_needed = true;
+				}
+				Event::KeyDown { keycode: Some(Keycode::Return), .. } if is_paused => {
+					use PauseMenuItem::*;
+					match pause_menu_items[pause_menu_item_index as usize] {
+						Quit => {
+							break 'main_loop
+						}
+						Text(_) => {}
+					}
+				}
 				_ => {}
 			}
 		}
@@ -165,10 +187,10 @@ fn main() {
 
 		// handle inputs:
 		let mut move_speed: float = 20.;
-		if keyboard.is_scancodes_pressed_any(&[Scancode::LShift, Scancode::RShift]) {
+		if !is_paused && keyboard.is_scancodes_pressed_any(&[Scancode::LShift, Scancode::RShift]) {
 			move_speed *= 3.;
 		}
-		if keyboard.is_scancodes_pressed_any(&[Scancode::Up, Scancode::W, Scancode::P]) {
+		if !is_paused && keyboard.is_scancodes_pressed_any(&[Scancode::Up, Scancode::W, Scancode::P]) {
 			match movement_type {
 				MovementType::Grounded |
 				MovementType::FlyingMClike => {
@@ -182,7 +204,7 @@ fn main() {
 			}
 			is_redraw_needed = true;
 		}
-		if keyboard.is_scancodes_pressed_any(&[Scancode::Down, Scancode::S, Scancode::Semicolon]) {
+		if !is_paused && keyboard.is_scancodes_pressed_any(&[Scancode::Down, Scancode::S, Scancode::Semicolon]) {
 			match movement_type {
 				MovementType::Grounded |
 				MovementType::FlyingMClike => {
@@ -196,15 +218,15 @@ fn main() {
 			}
 			is_redraw_needed = true;
 		}
-		if keyboard.is_scancodes_pressed_any(&[Scancode::Left, Scancode::A, Scancode::L]) {
+		if !is_paused && keyboard.is_scancodes_pressed_any(&[Scancode::Left, Scancode::A, Scancode::L]) {
 			camera.pos -= camera.basis().0 * DELTA_TIME * move_speed;
 			is_redraw_needed = true;
 		}
-		if keyboard.is_scancodes_pressed_any(&[Scancode::Right, Scancode::D, Scancode::Apostrophe]) {
+		if !is_paused && keyboard.is_scancodes_pressed_any(&[Scancode::Right, Scancode::D, Scancode::Apostrophe]) {
 			camera.pos += camera.basis().0 * DELTA_TIME * move_speed;
 			is_redraw_needed = true;
 		}
-		if keyboard.is_scancode_pressed(Scancode::Space) {
+		if !is_paused && keyboard.is_scancode_pressed(Scancode::Space) {
 			match movement_type {
 				MovementType::Grounded => {
 					// TODO?
@@ -219,7 +241,7 @@ fn main() {
 			}
 			is_redraw_needed = true;
 		}
-		if keyboard.is_scancodes_pressed_any(&[Scancode::LCtrl, Scancode::LAlt, Scancode::RCtrl, Scancode::RAlt]) {
+		if !is_paused && keyboard.is_scancodes_pressed_any(&[Scancode::LCtrl, Scancode::LAlt, Scancode::RCtrl, Scancode::RAlt]) {
 			match movement_type {
 				MovementType::Grounded => {
 					// TODO?
@@ -235,7 +257,7 @@ fn main() {
 			is_redraw_needed = true;
 		}
 		const ROLL_SPEED: float = 1.;
-		if keyboard.is_scancode_pressed(Scancode::Q) {
+		if !is_paused && keyboard.is_scancode_pressed(Scancode::Q) {
 			match movement_type {
 				MovementType::Grounded => {}
 				MovementType::FlyingMClike => {}
@@ -247,7 +269,7 @@ fn main() {
 				}
 			}
 		}
-		if keyboard.is_scancode_pressed(Scancode::E) {
+		if !is_paused && keyboard.is_scancode_pressed(Scancode::E) {
 			match movement_type {
 				MovementType::Grounded => {}
 				MovementType::FlyingMClike => {}
@@ -259,7 +281,7 @@ fn main() {
 				}
 			}
 		}
-		if keyboard.is_scancode_pressed(Scancode::R) {
+		if !is_paused && keyboard.is_scancode_pressed(Scancode::R) {
 			// reset camera roll
 			match movement_type {
 				MovementType::Grounded => {}
@@ -328,9 +350,10 @@ fn main() {
 			let (w, h) = canvas.window().size();
 			let (wi, _hi) = (w as i32, h as i32);
 			let (wf, hf) = (w as float, h as float);
+			let (wfh, hfh) = (wf / 2., hf / 2.);
+			// let wh_ratio = wf / hf;
+			// let hw_ratio = hf / wf;
 
-			// let current_chunk_x = (camera.pos.x / CHUNK_SIZE).round() as i32;
-			// let current_chunk_z = (camera.pos.z / CHUNK_SIZE).round() as i32;
 			for (dx, dz, _x, _z, chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
 				canvas.set_draw_color(chunk.color);
 				const STEP: float = 1.;
@@ -346,7 +369,7 @@ fn main() {
 						];
 						for line in lines.iter() {
 							if let Some((a,b)) = camera.project_line(line, wf, hf) {
-								let _ = canvas.draw_line(a,b);
+								canvas.draw_line(a,b).unwrap();
 							}
 						}
 						z += STEP;
@@ -372,7 +395,7 @@ fn main() {
 							for line in lines.iter() {
 								let line = (line.0 + shift, line.1 + shift);
 								if let Some((a,b)) = camera.project_line(&line, wf, hf) {
-									let _ = canvas.draw_line(a,b);
+									canvas.draw_line(a,b).unwrap();
 								}
 							}
 						}
@@ -426,6 +449,42 @@ fn main() {
 				canvas.render_text(&fps_text, (wi - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), text_size);
 			}
 
+			if is_paused {
+				const PADDING: float = 50.;
+				const ITEM_Y: float = 80.;
+				const ITEMS_N: u32 = 7;
+				debug_assert_eq!(1, ITEMS_N % 2);
+				const MENU_SIZE_X: float = 800.;
+				const MENU_SIZE_Y: float = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as float);
+				const ITEM_X: float = MENU_SIZE_X - 2.*PADDING;
+				canvas.set_draw_color(Color::BLACK);
+				canvas.fill_rect(FRect::from_center_size(wfh, hfh, MENU_SIZE_X, MENU_SIZE_Y)).unwrap();
+				canvas.set_draw_color(Color::WHITE);
+				canvas.draw_rect(FRect::from_center_size(wfh, hfh, MENU_SIZE_X, MENU_SIZE_Y)).unwrap();
+				const ITEM_UNSELECTED_COLOR: Color = Color::GRAY;
+				const ITEM_SELECTED_COLOR: Color = Color::WHITE;
+				// const ITEM_TEXT_COLOR: Color = Color::GREEN;
+				const ITEM_TEXT_SIZE: u8 = 5;
+				const ITEM_INNER_PADDING: float = (ITEM_Y - (ITEM_TEXT_SIZE as float)*(FONT_H as float)) / 2.;
+				canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
+				let i_init: u32 = pause_menu_item_index.saturating_sub((ITEMS_N-1)/2);
+				let mut i: u32 = i_init;
+				while i - i_init < ITEMS_N && i < pause_menu_items.len() as u32 {
+					let menu_item = &pause_menu_items[i as usize];
+					if i == pause_menu_item_index {
+						canvas.set_draw_color(ITEM_SELECTED_COLOR);
+					}
+					let item_cx = wfh;
+					let item_cy = hfh - MENU_SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
+					canvas.draw_rect(FRect::from_center_size(item_cx, item_cy, ITEM_X, ITEM_Y)).unwrap();
+					canvas.render_text(menu_item.to_str(), ((item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32, (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32), ITEM_TEXT_SIZE);
+					if i == pause_menu_item_index {
+						canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
+					}
+					i += 1;
+				}
+			}
+
 			let _ = canvas.present();
 		}
 
@@ -438,6 +497,23 @@ fn main() {
 	}
 }
 
+
+
+
+
+enum PauseMenuItem {
+	Quit,
+	Text(String), // just for test
+}
+impl PauseMenuItem {
+	fn to_str(&self) -> &str {
+		use PauseMenuItem::*;
+		match self {
+			Quit => "QUIT",
+			Text(text) => text,
+		}
+	}
+}
 
 
 
@@ -526,6 +602,7 @@ impl RenderableObject {
 			}
 			RotatingSimplex { points_rotplanes_rotvels } => {
 				for (point, rotation_plane, rotation_velocity) in points_rotplanes_rotvels.iter_mut() {
+					// TODO: this causes them to gradually grow in size, so use only starting point and current phase, which is %2pi
 					*point += point.cross(*rotation_plane) * *rotation_velocity * delta_time;
 				}
 			}
@@ -630,9 +707,9 @@ impl Chunk {
 						Vec3f::new(-0.5, rng.random_range(1. ..= 9.), -4.),
 						RenderableObject::LorenzAttractor {
 							size: rng.random_range(0.1 ..= 0.2),
-							la: LorenzAttractor::new().offset_params_as_vec3d(
+							la: LorenzAttractor::new().offset_params_(
 								Vec3f::random_unit_cube(rng) * 0.1,
-							).set_xyz_as_vec3d(
+							).set_xyz_(
 								Vec3f::random_unit(rng) * rng.random_range(0.1 ..= 0.2),
 							),
 							last_points: vec![],
@@ -800,6 +877,28 @@ fn compute_outcode(p: Vec2f, w: float, h: float) -> u8 {
 }
 
 
+
+
+
+trait SdlFRectFromCenterSize {
+	fn from_center_size(cx: float, cy: float, sx: float, sy: float) -> Self;
+	fn from_center_size_(c: impl Into<Vec2f>, s: impl Into<Vec2f>) -> Self;
+}
+impl SdlFRectFromCenterSize for FRect {
+	fn from_center_size(cx: float, cy: float, sx: float, sy: float) -> Self {
+		Self {
+			x: cx - sx/2.,
+			y: cy - sy/2.,
+			w: sx,
+			h: sy,
+		}
+	}
+	fn from_center_size_(c: impl Into<Vec2f>, s: impl Into<Vec2f>) -> Self {
+		let c = c.into();
+		let s = s.into();
+		Self::from_center_size(c.x, c.y, s.x, s.y)
+	}
+}
 
 
 

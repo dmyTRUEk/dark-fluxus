@@ -129,6 +129,17 @@ impl<T: Div<T, Output=T> + Clone> Div<T> for Vec2d<T> {
 
 
 
+impl<T> From<(T, T)> for Vec2d<T> {
+	fn from((x, y): (T, T)) -> Self {
+		Self { x, y }
+	}
+}
+impl<T> From<Vec2d<T>> for (T, T) {
+	fn from(v: Vec2d<T>) -> Self {
+		(v.x, v.y)
+	}
+}
+
 impl From<Vec2f> for FPoint {
 	fn from(v: Vec2f) -> Self {
 		FPoint::new(v.x, v.y)

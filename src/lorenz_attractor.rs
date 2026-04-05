@@ -27,11 +27,9 @@ impl LorenzAttractor {
 		self.beta  += b;
 		self
 	}
-	pub fn offset_params_as_vec3d(mut self, delta_srb: Vec3f) -> Self {
-		self.sigma += delta_srb.x;
-		self.rho   += delta_srb.y;
-		self.beta  += delta_srb.z;
-		self
+	pub fn offset_params_(self, delta_srb: impl Into<Vec3f>) -> Self {
+		let delta_srb: Vec3f = delta_srb.into();
+		self.offset_params(delta_srb.x, delta_srb.y, delta_srb.z)
 	}
 	pub fn set_xyz(mut self, x: float, y: float, z: float) -> Self {
 		self.x = x;
@@ -39,17 +37,19 @@ impl LorenzAttractor {
 		self.z = z;
 		self
 	}
-	pub fn set_xyz_as_vec3d(mut self, v: Vec3f) -> Self {
-		self.x = v.x;
-		self.y = v.y;
-		self.z = v.z;
-		self
+	pub fn set_xyz_(self, v: impl Into<Vec3f>) -> Self {
+		let v: Vec3f = v.into();
+		self.set_xyz(v.x, v.y, v.z)
 	}
 	pub fn offset_xyz(mut self, dx: float, dy: float, dz: float) -> Self {
 		self.x += dx;
 		self.y += dy;
 		self.z += dz;
 		self
+	}
+	pub fn offset_xyz_(self, d: impl Into<Vec3f>) -> Self {
+		let d: Vec3f = d.into();
+		self.offset_xyz(d.x, d.y, d.z)
 	}
 
 	pub fn step(&mut self, step_size: float) {
@@ -70,6 +70,10 @@ impl LorenzAttractor {
 	}
 	pub fn get_linear_combination(&self, cx: float, cy: float, cz: float) -> float {
 		cx * self.x + cy * self.y + cz * self.z
+	}
+	pub fn get_linear_combination_(&self, c: impl Into<Vec3f>) -> float {
+		let c = c.into();
+		self.get_linear_combination(c.x, c.y, c.z)
 	}
 }
 
