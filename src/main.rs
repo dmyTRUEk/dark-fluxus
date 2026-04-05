@@ -81,6 +81,7 @@ fn main() {
 
 	let pause_menu_items = { use PauseMenuItem::*; vec![
 		Quit,
+		ToggleUnlimitedFov,
 	]};
 	let mut is_paused = false;
 	let mut pause_menu_item_index: u32 = 0;
@@ -109,6 +110,7 @@ fn main() {
 	let mut tick_n: u64 = 0;
 	let mut frame_n: u64 = 0;
 	let mut is_extra_info_shown = true;
+	let mut is_unlimited_fov = false;
 
 	// let mut zqqx_lang = ZqqxLang::new();
 
@@ -177,8 +179,16 @@ fn main() {
 						Quit => {
 							break 'main_loop
 						}
+						ToggleUnlimitedFov => {
+							is_unlimited_fov = !is_unlimited_fov;
+							if !is_unlimited_fov {
+								camera.fov = camera.fov.clamp(FOV_MIN*1.1, FOV_MAX/1.1);
+								is_redraw_needed = true;
+							}
+						}
 						Text(_) => {}
 					}
+					is_paused = false;
 				}
 				_ => {}
 			}
@@ -294,18 +304,24 @@ fn main() {
 			}
 		}
 
-		const MIN_FOV: float = 1e-1 * DEG_TO_RAD;
-		const MAX_FOV: float = 170. * DEG_TO_RAD;
-		const FOV_RANGE: float = MAX_FOV - MIN_FOV;
-		const FOV_CHANGE_SPEED: float = 0.03;
-		if keyboard.is_scancode_pressed(Scancode::I) {
-			// camera.fov -= DELTA;
-			camera.fov = MIN_FOV + FOV_RANGE * sigmoid(asigmoid((camera.fov-MIN_FOV)/FOV_RANGE) - FOV_CHANGE_SPEED);
+		const FOV_MIN: float = 1e-1 * DEG_TO_RAD;
+		const FOV_MAX: float = 170. * DEG_TO_RAD;
+		const FOV_RANGE: float = FOV_MAX - FOV_MIN;
+		const FOV_CHANGE_SPEED: float = 3. * DELTA_TIME;
+		if keyboard.is_scancode_pressed(Scancode::Equals) {
+			if is_unlimited_fov {
+				camera.fov -= DELTA_TIME;
+			} else {
+				camera.fov = FOV_MIN + FOV_RANGE * sigmoid(asigmoid((camera.fov-FOV_MIN)/FOV_RANGE) - FOV_CHANGE_SPEED);
+			}
 			is_redraw_needed = true;
 		}
-		if keyboard.is_scancode_pressed(Scancode::O) {
-			// camera.fov += DELTA;
-			camera.fov = MIN_FOV + FOV_RANGE * sigmoid(asigmoid((camera.fov-MIN_FOV)/FOV_RANGE) + FOV_CHANGE_SPEED);
+		if keyboard.is_scancode_pressed(Scancode::Minus) {
+			if is_unlimited_fov {
+				camera.fov += DELTA_TIME;
+			} else {
+				camera.fov = FOV_MIN + FOV_RANGE * sigmoid(asigmoid((camera.fov-FOV_MIN)/FOV_RANGE) + FOV_CHANGE_SPEED);
+			}
 			is_redraw_needed = true;
 		}
 
@@ -503,6 +519,7 @@ fn main() {
 
 enum PauseMenuItem {
 	Quit,
+	ToggleUnlimitedFov,
 	Text(String), // just for test
 }
 impl PauseMenuItem {
@@ -510,6 +527,7 @@ impl PauseMenuItem {
 		use PauseMenuItem::*;
 		match self {
 			Quit => "QUIT",
+			ToggleUnlimitedFov => "TOGGLE UNLIMITED FOV",
 			Text(text) => text,
 		}
 	}
