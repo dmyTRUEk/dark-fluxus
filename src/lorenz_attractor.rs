@@ -1,6 +1,6 @@
 //! lorenz attractor
 
-use crate::{float, vec3d::Vec3f};
+use crate::{float_type::float, vec3d::Vec3f};
 
 
 

@@ -1,6 +1,6 @@
 //! extensions
 
-use crate::float;
+use crate::float_type::float;
 
 
 

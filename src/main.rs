@@ -22,17 +22,15 @@ use std::{f32::consts::PI, thread::sleep, time::{Duration, SystemTime}};
 
 // use encoding_rs::UTF_8;
 // use llama_cpp_2::{context::params::LlamaContextParams, llama_backend::LlamaBackend, llama_batch::LlamaBatch, model::{AddBos, LlamaModel, params::LlamaModelParams}, sampling::LlamaSampler};
-use rand::{Rng, RngExt, rng};
+use rand::{Rng, RngExt, rng, rngs::ThreadRng};
 use sdl3::{event::Event, keyboard::{KeyboardState, Keycode, Scancode}, pixels::Color, render::FPoint};
 
-// mod colors;
 mod consts;
 mod extensions;
+mod float_type;
 mod font_rendering;
-// mod frame_buffer;
 mod lorenz_attractor;
 mod math_aliases;
-// mod teapot;
 mod typesafe_rng;
 mod utils_io;
 mod vec2d;
@@ -40,9 +38,9 @@ mod vec2D;
 mod vec3d;
 mod zqqx_lang;
 
-// use colors::*;
 use consts::*;
 use extensions::*;
+use float_type::*;
 use font_rendering::CanvasRenderText;
 use lorenz_attractor::*;
 use math_aliases::*;
@@ -60,128 +58,6 @@ use zqqx_lang::*;
 fn main() {
 	#[allow(unused_variables)]
 	let mut rng = rng();
-
-	// // const MODEL_PATH: &str = "llm_models/tinyllama-1.1b-chat-v1.0.Q8_0.gguf"; // dumb af // src: https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/tree/main
-	// // const MODEL_PATH: &str = "llm_models/Llama-3.2-1B-Instruct-IQ3_M.gguf"; // src: https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/tree/main
-	// const MODEL_PATH: &str = "llm_models/Llama-3.2-1B-Instruct-Q8_0.gguf"; // best
-	// // const MODEL_PATH: &str = "llm_models/Llama-3.2-1B-Instruct-f16.gguf";
-	// // const MODEL_PATH: &str = "llm_models/machbase-llama3b.Q6_K.gguf"; // src: https://huggingface.co/mradermacher/machbase-llama3b-GGUF/tree/main
-	//
-	// // 1. Initialize the llama.cpp backend
-	// let mut backend = LlamaBackend::init().unwrap();
-	// backend.void_logs();
-	// let backend = backend;
-	//
-	// // 2. Load the model from the file
-	// let model_params = LlamaModelParams::default();
-	// let model = LlamaModel::load_from_file(&backend, MODEL_PATH, &model_params)
-	// 	.expect(&format!("Failed to load model. Check if '{MODEL_PATH}' exists."));
-	//
-	// let mut items: Vec<String> = vec![
-	// 	format!("water"),
-	// 	format!("air"),
-	// 	format!("stone"),
-	// 	format!("fire"),
-	// 	// format!("ambrosia"),
-	// 	// format!("flumoxium"),
-	// 	// format!("diminution"),
-	// ];
-	//
-	// loop {
-	// 	for (i, item) in items.iter().enumerate() {
-	// 		println!("{i}. {item}");
-	// 	}
-	// 	println!();
-	// 	// let Ok(n1) = prompt("Give first item number: ").parse::<usize>() else { continue };
-	// 	// let Ok(n2) = prompt("Give second item number: ").parse::<usize>() else { continue };
-	// 	// let Some(item_1) = &items.get(n1) else { continue };
-	// 	// let Some(item_2) = &items.get(n2) else { continue };
-	// 	let item_1 = &items[rng.random_range(0..items.len())];
-	// 	let item_2 = &items[rng.random_range(0..items.len())];
-	//
-	// 	println!("{item_1} + {item_2}:");
-	//
-	// 	// 3. Create a context for execution
-	// 	let ctx_params = LlamaContextParams::default();
-	// 	let mut ctx = model.new_context(&backend, ctx_params).unwrap();
-	//
-	// 	// 4. Tokenize the prompt
-	// 	let prompt = format!("You are a master wizard alchemist. Be creative. What is the result of mixing {item_1} with {item_2}? Answer with only one word, the name of new thing, no more text output, question, explanations or anything. One word.");
-	// 	let tokens = model.str_to_token(&prompt, AddBos::Always).unwrap();
-	//
-	// 	// print!("\n\n\n{}", prompt);
-	// 	// io::stdout().flush().unwrap();
-	//
-	// 	// 5. Create a batch and add the prompt tokens
-	// 	// We allocate space for 512 tokens, 1 sequence.
-	// 	let mut batch = LlamaBatch::new(512, 1);
-	// 	// let last_index = tokens.len() - 1;
-	//
-	// 	for (i, &token) in tokens.iter().enumerate() {
-	// 		let is_last = i == tokens.len() - 1;
-	// 		batch.add(token, i as i32, &[0], is_last).unwrap(); // Must be true for the very last prompt token
-	// 	}
-	// 	ctx.decode(&mut batch).unwrap();
-	//
-	// 	// 5. Initialize the modern Sampler (Greedy)
-	// 	let mut sampler = LlamaSampler::greedy();
-	//
-	// 	// 6. Text Generation Loop
-	// 	let max_tokens = 100;
-	// 	let mut n_cur = tokens.len();
-	//
-	// 	let mut decoder = UTF_8.new_decoder();
-	//
-	// 	// println!();
-	//
-	// 	let mut output = String::new();
-	//
-	// 	while n_cur < max_tokens {
-	// 		// This sampler call fails if the PREVIOUS decode didn't request logits
-	// 		let new_token_id = sampler.sample(&ctx, batch.n_tokens() - 1);
-	//
-	// 		if new_token_id == model.token_eos() {
-	// 			break;
-	// 		}
-	//
-	// 		// Decode to string
-	// 		let token_str = model.token_to_piece(new_token_id, &mut decoder, false, None).unwrap();
-	// 		output += &token_str;
-	// 		// print!("{}", token_str);
-	// 		// io::stdout().flush().unwrap();
-	//
-	// 		// --- THE FIX IS HERE ---
-	// 		batch.clear();
-	//
-	// 		// The last 'true' tells llama.cpp: "I want to sample from THIS token next"
-	// 		// Without this 'true', the next iteration's sampler.sample() will crash.
-	// 		batch.add(new_token_id, n_cur as i32, &[0], true).unwrap();
-	//
-	// 		ctx.decode(&mut batch).unwrap();
-	// 		n_cur += 1;
-	// 	}
-	//
-	// 	dbg!(&output);
-	// 	output = output.trim().chars().filter(|c| c.is_alphanumeric() || " ".contains(*c)).collect();
-	// 	output = output.to_lowercase();
-	// 	// output = format!("{s}{output}{s}", s=" ".repeat(10));
-	// 	dbg!(&output);
-	// 	for item in items.iter() {
-	// 		output = output.replace(item, "");
-	// 		// output = output.replace(&format!(" {item} "), "");
-	// 	}
-	// 	output = output.trim().to_lowercase();
-	// 	dbg!(&output);
-	// 	if !output.is_empty() && output.chars().filter(|&c| c == ' ').count() < 3 && output.chars().count() >= 3 {
-	// 		items.push(output);
-	// 	}
-	//
-	// 	println!();
-	// }
-	//
-	// return;
-
-
 
 	let sdl_context = sdl3::init().unwrap();
 	let video_subsystem = sdl_context.video().unwrap();
@@ -202,255 +78,10 @@ fn main() {
 	sdl_context.mouse().set_relative_mouse_mode(&window, true);
 
 
-	// let lines: Vec<(Vec3f, Vec3f)> = vec![
-	// 	(vec3![0,0,0], vec3![1,0,0]),
-	// 	(vec3![0,0,0], vec3![0,1,0]),
-	// 	(vec3![0,0,0], vec3![0,0,1]),
-	// 	(vec3![1,0,0], vec3![0,1,0]),
-	// 	(vec3![1,0,0], vec3![0,0,1]),
-	// 	(vec3![0,1,0], vec3![0,0,1]),
-	// ];
-
-	// let lines: Vec<(Vec3f, Vec3f)> = {
-	// 	use teapot::*;
-	// 	let lines = VERTICES.chunks(9)
-	// 		.flat_map(|coords| {
-	// 			let [ax,ay,az, bx,by,bz, cx,cy,cz] = *coords else { unreachable!() };
-	// 			let a = Vec3f::new(ax,ay,az);
-	// 			let b = Vec3f::new(bx,by,bz);
-	// 			let c = Vec3f::new(cx,cy,cz);
-	// 			[ (a, b), (b, c), (c, a) ]
-	// 		})
-	// 		.collect();
-	// 	lines
-	// };
-
-	// let lines: Vec<(Vec3f, Vec3f)> = {
-	// 	let mut lines = vec![];
-	// 	const N: i32 = 30;
-	// 	for x in -N ..= N {
-	// 		for z in -N ..= N {
-	// 			let x = x as float;
-	// 			let z = z as float;
-	// 			let a = vec3xz!(x-0.5, z-0.5);
-	// 			let b = vec3xz!(x+0.5, z-0.5);
-	// 			let c = vec3xz!(x-0.5, z+0.5);
-	// 			lines.push((a, b));
-	// 			lines.push((b, c));
-	// 			lines.push((c, a));
-	// 		}
-	// 	}
-	// 	for x in -N ..= N {
-	// 		let z = N;
-	// 		let x = x as float;
-	// 		let z = z as float;
-	// 		let a = vec3xz!(x+0.5, z+0.5);
-	// 		let b = vec3xz!(x-0.5, z+0.5);
-	// 		lines.push((a, b));
-	// 	}
-	// 	for z in -N ..= N {
-	// 		let x = N;
-	// 		let x = x as float;
-	// 		let z = z as float;
-	// 		let a = vec3xz!(x+0.5, z+0.5);
-	// 		let b = vec3xz!(x+0.5, z-0.5);
-	// 		lines.push((a, b));
-	// 	}
-	// 	for line in lines.iter_mut() {
-	// 		for p in [&mut line.0, &mut line.1].iter_mut() {
-	// 			p.y += 2. * ln(0.2*(p.x*p.x+p.z*p.z));
-	// 		}
-	// 	}
-	// 	lines
-	// };
-
-	#[derive(Debug)]
-	enum SdlRenderableShape {
-		Points(Vec<Vec3f>),
-		Lines(Vec<(Vec3f, Vec3f)>),
-		Chain(Vec<Vec3f>),
-	}
-
-	#[derive(Debug)]
-	enum RenderableObject {
-		Cube { size: float },
-		LorenzAttractor { size: float, la: LorenzAttractor, last_points: Vec<Vec3f>, max_len: u32 },
-		// SpinningText?
-		Monolith { sizes: Vec<float> },
-		RotatingSimplex { points_rotplanes_rotvels: Vec<(Vec3f, Vec3f, float)> },
-	}
-	impl RenderableObject {
-		fn is_need_update(&self) -> bool {
-			use RenderableObject::*;
-			match self {
-				| LorenzAttractor { .. }
-				| RotatingSimplex { .. }
-				=> true,
-				| Cube { .. }
-				| Monolith { .. }
-				=> false,
-			}
-		}
-		fn is_time_dependent(&self) -> bool {
-			use RenderableObject::*;
-			match self {
-				| LorenzAttractor { .. }
-				| RotatingSimplex { .. }
-				=> true,
-				| Cube { .. }
-				| Monolith { .. }
-				=> false,
-			}
-		}
-		fn update(&mut self, delta_time: float) {
-			use RenderableObject::*;
-			match self {
-				LorenzAttractor { la, last_points, max_len, .. } => {
-					last_points.push(la.get_xyz_as_vec3d());
-					if last_points.len() as u32 > *max_len {
-						let _ = last_points.remove(0);
-					}
-					la.step(1e-2);
-				}
-				RotatingSimplex { points_rotplanes_rotvels } => {
-					for (point, rotation_plane, rotation_velocity) in points_rotplanes_rotvels.iter_mut() {
-						*point += point.cross(*rotation_plane) * *rotation_velocity * delta_time;
-					}
-				}
-				| Cube { .. }
-				| Monolith { .. }
-				=> {}
-			}
-		}
-		fn get_renderable_shape(&self) -> SdlRenderableShape {
-			use RenderableObject::*;
-			use SdlRenderableShape::*;
-			match self {
-				Cube { size } => {
-					let s = size / 2.;
-					Lines(vec![
-						(vec3!(-s,-s,-s), vec3!(-s,-s, s)),
-						(vec3!(-s,-s,-s), vec3!(-s, s,-s)),
-						(vec3!(-s, s, s), vec3!(-s,-s, s)),
-						(vec3!(-s, s, s), vec3!(-s, s,-s)),
-						//
-						(vec3!( s,-s,-s), vec3!( s,-s, s)),
-						(vec3!( s,-s,-s), vec3!( s, s,-s)),
-						(vec3!( s, s, s), vec3!( s,-s, s)),
-						(vec3!( s, s, s), vec3!( s, s,-s)),
-						//
-						(vec3!(-s,-s,-s), vec3!( s,-s,-s)),
-						(vec3!( s, s, s), vec3!(-s, s, s)),
-						(vec3!(-s,-s, s), vec3!( s,-s, s)),
-						(vec3!(-s, s,-s), vec3!( s, s,-s)),
-					])
-				}
-				LorenzAttractor { size, last_points, .. } => {
-					Chain(last_points.iter().map(|&p| p * *size).collect())
-				}
-				Monolith { sizes } => {
-					Lines(sizes.iter().map(|size| {
-						let s = size / 2.;
-						vec![
-							(vec3!(-s,-s,-s), vec3!(-s,-s, s)),
-							(vec3!(-s,-s,-s), vec3!(-s, s,-s)),
-							(vec3!(-s, s, s), vec3!(-s,-s, s)),
-							(vec3!(-s, s, s), vec3!(-s, s,-s)),
-							//
-							(vec3!( s,-s,-s), vec3!( s,-s, s)),
-							(vec3!( s,-s,-s), vec3!( s, s,-s)),
-							(vec3!( s, s, s), vec3!( s,-s, s)),
-							(vec3!( s, s, s), vec3!( s, s,-s)),
-							//
-							// (vec3!(-s,-s,-s), vec3!( s,-s,-s)),
-							// (vec3!( s, s, s), vec3!(-s, s, s)),
-							// (vec3!(-s,-s, s), vec3!( s,-s, s)),
-							// (vec3!(-s, s,-s), vec3!( s, s,-s)),
-						]
-					}).flatten().collect())
-				}
-				RotatingSimplex { points_rotplanes_rotvels } => {
-					let mut lines = vec![];
-					for i in 0 .. points_rotplanes_rotvels.len() {
-						for j in i+1 .. points_rotplanes_rotvels.len() {
-							let a = points_rotplanes_rotvels[i].0;
-							let b = points_rotplanes_rotvels[j].0;
-							lines.push((a, b));
-						}
-					}
-					Lines(lines)
-				}
-			}
-		}
-	}
-
-	const CHUNK_SIZE: float = 10.;
-	const CHUNK_SIZE_HALF: float = CHUNK_SIZE / 2.;
-	struct Chunk {
-		color: Color,
-		renderable_objects: Vec<(Vec3f, RenderableObject)>,
-	}
-
 	const CHUNKS_N: u32 = 5;
 	let render_distance: u32 = 2;
 	let mut chunks = Vec2D::<Chunk>::from_fn(CHUNKS_N, CHUNKS_N, |_x, _z| {
-		Chunk {
-			// color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0), // for dbg
-			color: Color::RGB(rng.random(), rng.random(), rng.random()),
-			renderable_objects: {
-				use V5::*;
-				match rng.random_variant_weighted([3., 1., 0.5, 0.1, 0.5]) {
-					_1 => vec![],
-					_2 => Vec::from_fn(
-						rng.random_range(0 ..= 5),
-						|_i| (
-							Vec3f::new(
-								rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
-								rng.random_range(1. ..= 9.),
-								rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
-							),
-							RenderableObject::Cube { size: rng.random_range(0.3 ..= 3.) }
-						)
-					),
-					_3 => vec![(
-						Vec3f::new(-0.5, rng.random_range(1. ..= 9.), -4.),
-						RenderableObject::LorenzAttractor {
-							size: rng.random_range(0.1 ..= 0.2),
-							la: LorenzAttractor::new().offset_params_as_vec3d(
-								Vec3f::random_unit_cube(&mut rng) * 0.1,
-							).set_xyz_as_vec3d(
-								Vec3f::random_unit(&mut rng) * rng.random_range(0.1 ..= 0.2),
-							),
-							last_points: vec![],
-							max_len: 10_f32.powf(rng.random_range(2. ..= 4.)).round() as u32,
-						}
-					)],
-					_4 => vec![(
-						Vec3f::from_y(rng.random_range(1. ..= 3.)),
-						RenderableObject::Monolith {
-							sizes: Vec::from_fn(
-								rng.random_range(5 ..= 20),
-								|_i| rng.random_range(0.5 ..= 2.7_f32).powi(2)
-							),
-						}
-					)],
-					_5 => vec![(
-						Vec3f::from_y(rng.random_range(1. ..= 5.)),
-						RenderableObject::RotatingSimplex {
-							points_rotplanes_rotvels: {
-								macro_rules! random_r { () => { rng.random_range(0.8 ..= 2.3_f32).powi(2) }; }
-								let equidistant_from_center = rng.random_bool(0.5).then(|| random_r!());
-								(0..rng.random_range(4 ..= 10)).map(|_i| (
-									Vec3f::random_unit(&mut rng) * if let Some(s) = equidistant_from_center { s } else { random_r!() },
-									Vec3f::random_unit(&mut rng),
-									rng.random_range(0.5 ..= 1.4_f32).powi(2)
-								)).collect()
-							},
-						}
-					)]
-				}
-			}
-		}
+		Chunk::new_random(&mut rng)
 	});
 	// println!("chunks.len = {}", chunks.iter().count());
 
@@ -464,35 +95,6 @@ fn main() {
 	let mut current_chunk_x = 0;
 	let mut current_chunk_z = 0;
 
-	#[derive(Debug)]
-	enum MovementType {
-		// order is important, check #bqooaj
-		Grounded,
-		FlyingMClike,
-		FlyingGMlike,
-		FpvLike,
-	}
-	impl MovementType {
-		fn next(&mut self) {
-			use MovementType::*;
-			*self = match self {
-				// order is important, check #bqooaj
-				Grounded => FlyingMClike,
-				FlyingMClike => FlyingGMlike,
-				FlyingGMlike => FpvLike,
-				FpvLike => Grounded,
-			};
-		}
-		fn to_str_uppercase(&self) -> &'static str {
-			use MovementType::*;
-			match self {
-				Grounded => "GROUNDED",
-				FlyingMClike => "FLYING MC LIKE",
-				FlyingGMlike => "FLYING GM LIKE",
-				FpvLike => "FPV LIKE",
-			}
-		}
-	}
 	let mut movement_type = MovementType::Grounded;
 
 	#[allow(unused_variables)]
@@ -840,10 +442,231 @@ fn main() {
 
 
 
+#[derive(Debug)]
+enum MovementType {
+	// order is important, check #bqooaj
+	Grounded,
+	FlyingMClike,
+	FlyingGMlike,
+	FpvLike,
+}
+impl MovementType {
+	fn next(&mut self) {
+		use MovementType::*;
+		*self = match self {
+			// order is important, check #bqooaj
+			Grounded => FlyingMClike,
+			FlyingMClike => FlyingGMlike,
+			FlyingGMlike => FpvLike,
+			FpvLike => Grounded,
+		};
+	}
+	fn to_str_uppercase(&self) -> &'static str {
+		use MovementType::*;
+		match self {
+			Grounded => "GROUNDED",
+			FlyingMClike => "FLYING MC LIKE",
+			FlyingGMlike => "FLYING GM LIKE",
+			FpvLike => "FPV LIKE",
+		}
+	}
+}
 
 
-#[allow(non_camel_case_types)]
-type float = f32;
+
+
+
+#[derive(Debug)]
+enum SdlRenderableShape {
+	Points(Vec<Vec3f>),
+	Lines(Vec<(Vec3f, Vec3f)>),
+	Chain(Vec<Vec3f>),
+}
+
+#[derive(Debug)]
+enum RenderableObject {
+	Cube { size: float },
+	LorenzAttractor { size: float, la: LorenzAttractor, last_points: Vec<Vec3f>, max_len: u32 },
+	// SpinningText?
+	Monolith { sizes: Vec<float> },
+	RotatingSimplex { points_rotplanes_rotvels: Vec<(Vec3f, Vec3f, float)> },
+}
+impl RenderableObject {
+	fn is_need_update(&self) -> bool {
+		use RenderableObject::*;
+		match self {
+			| LorenzAttractor { .. }
+			| RotatingSimplex { .. }
+			=> true,
+			| Cube { .. }
+			| Monolith { .. }
+			=> false,
+		}
+	}
+	fn is_time_dependent(&self) -> bool {
+		use RenderableObject::*;
+		match self {
+			| LorenzAttractor { .. }
+			| RotatingSimplex { .. }
+			=> true,
+			| Cube { .. }
+			| Monolith { .. }
+			=> false,
+		}
+	}
+	fn update(&mut self, delta_time: float) {
+		use RenderableObject::*;
+		match self {
+			LorenzAttractor { la, last_points, max_len, .. } => {
+				last_points.push(la.get_xyz_as_vec3d());
+				if last_points.len() as u32 > *max_len {
+					let _ = last_points.remove(0);
+				}
+				la.step(1e-2);
+			}
+			RotatingSimplex { points_rotplanes_rotvels } => {
+				for (point, rotation_plane, rotation_velocity) in points_rotplanes_rotvels.iter_mut() {
+					*point += point.cross(*rotation_plane) * *rotation_velocity * delta_time;
+				}
+			}
+			| Cube { .. }
+			| Monolith { .. }
+			=> {}
+		}
+	}
+	fn get_renderable_shape(&self) -> SdlRenderableShape {
+		use RenderableObject::*;
+		use SdlRenderableShape::*;
+		match self {
+			Cube { size } => {
+				let s = size / 2.;
+				Lines(vec![
+					(vec3!(-s,-s,-s), vec3!(-s,-s, s)),
+					(vec3!(-s,-s,-s), vec3!(-s, s,-s)),
+					(vec3!(-s, s, s), vec3!(-s,-s, s)),
+					(vec3!(-s, s, s), vec3!(-s, s,-s)),
+					//
+					(vec3!( s,-s,-s), vec3!( s,-s, s)),
+					(vec3!( s,-s,-s), vec3!( s, s,-s)),
+					(vec3!( s, s, s), vec3!( s,-s, s)),
+					(vec3!( s, s, s), vec3!( s, s,-s)),
+					//
+					(vec3!(-s,-s,-s), vec3!( s,-s,-s)),
+					(vec3!( s, s, s), vec3!(-s, s, s)),
+					(vec3!(-s,-s, s), vec3!( s,-s, s)),
+					(vec3!(-s, s,-s), vec3!( s, s,-s)),
+				])
+			}
+			LorenzAttractor { size, last_points, .. } => {
+				Chain(last_points.iter().map(|&p| p * *size).collect())
+			}
+			Monolith { sizes } => {
+				Lines(sizes.iter().map(|size| {
+					let s = size / 2.;
+					vec![
+						(vec3!(-s,-s,-s), vec3!(-s,-s, s)),
+						(vec3!(-s,-s,-s), vec3!(-s, s,-s)),
+						(vec3!(-s, s, s), vec3!(-s,-s, s)),
+						(vec3!(-s, s, s), vec3!(-s, s,-s)),
+						//
+						(vec3!( s,-s,-s), vec3!( s,-s, s)),
+						(vec3!( s,-s,-s), vec3!( s, s,-s)),
+						(vec3!( s, s, s), vec3!( s,-s, s)),
+						(vec3!( s, s, s), vec3!( s, s,-s)),
+						//
+						// (vec3!(-s,-s,-s), vec3!( s,-s,-s)),
+						// (vec3!( s, s, s), vec3!(-s, s, s)),
+						// (vec3!(-s,-s, s), vec3!( s,-s, s)),
+						// (vec3!(-s, s,-s), vec3!( s, s,-s)),
+					]
+				}).flatten().collect())
+			}
+			RotatingSimplex { points_rotplanes_rotvels } => {
+				let mut lines = vec![];
+				for i in 0 .. points_rotplanes_rotvels.len() {
+					for j in i+1 .. points_rotplanes_rotvels.len() {
+						let a = points_rotplanes_rotvels[i].0;
+						let b = points_rotplanes_rotvels[j].0;
+						lines.push((a, b));
+					}
+				}
+				Lines(lines)
+			}
+		}
+	}
+}
+
+
+
+
+
+const CHUNK_SIZE: float = 10.;
+const CHUNK_SIZE_HALF: float = CHUNK_SIZE / 2.;
+struct Chunk {
+	color: Color,
+	renderable_objects: Vec<(Vec3f, RenderableObject)>,
+}
+impl Chunk {
+	fn new_random(rng: &mut ThreadRng) -> Self {
+		Chunk {
+			// color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0), // for dbg
+			color: Color::RGB(rng.random(), rng.random(), rng.random()),
+			renderable_objects: {
+				use V5::*;
+				match rng.random_variant_weighted([3., 1., 0.5, 0.1, 0.5]) {
+					_1 => vec![],
+					_2 => Vec::from_fn(
+						rng.random_range(0 ..= 5),
+						|_i| (
+							Vec3f::new(
+								rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
+								rng.random_range(1. ..= 9.),
+								rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
+							),
+							RenderableObject::Cube { size: rng.random_range(0.3 ..= 3.) }
+						)
+					),
+					_3 => vec![(
+						Vec3f::new(-0.5, rng.random_range(1. ..= 9.), -4.),
+						RenderableObject::LorenzAttractor {
+							size: rng.random_range(0.1 ..= 0.2),
+							la: LorenzAttractor::new().offset_params_as_vec3d(
+								Vec3f::random_unit_cube(rng) * 0.1,
+							).set_xyz_as_vec3d(
+								Vec3f::random_unit(rng) * rng.random_range(0.1 ..= 0.2),
+							),
+							last_points: vec![],
+							max_len: 10_f32.powf(rng.random_range(2. ..= 4.)).round() as u32,
+						}
+					)],
+					_4 => vec![(
+						Vec3f::from_y(rng.random_range(1. ..= 3.)),
+						RenderableObject::Monolith {
+							sizes: Vec::from_fn(
+								rng.random_range(5 ..= 20),
+								|_i| rng.random_range(0.5 ..= 2.7_f32).powi(2)
+							),
+						}
+					)],
+					_5 => vec![(
+						Vec3f::from_y(rng.random_range(1. ..= 5.)),
+						RenderableObject::RotatingSimplex {
+							points_rotplanes_rotvels: {
+								macro_rules! random_r { () => { rng.random_range(0.8 ..= 2.3_f32).powi(2) }; }
+								let equidistant_from_center = rng.random_bool(0.5).then(|| random_r!());
+								(0..rng.random_range(4 ..= 10)).map(|_i| (
+									Vec3f::random_unit(rng) * if let Some(s) = equidistant_from_center { s } else { random_r!() },
+									Vec3f::random_unit(rng),
+									rng.random_range(0.5 ..= 1.4_f32).powi(2)
+								)).collect()
+							},
+						}
+					)]
+				}
+			}
+		}
+	}
+}
 
 
 
@@ -975,7 +798,6 @@ fn compute_outcode(p: Vec2f, w: float, h: float) -> u8 {
 	if p.y < 0. { code |= _TOP; } else if p.y > h { code |= _BOTTOM; }
 	code
 }
-
 
 
 

@@ -4,7 +4,7 @@ use std::{ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign}, process::O
 
 use rand::{RngExt, rngs::ThreadRng};
 
-use crate::{extensions::Into_, float, vec2d::Vec2d};
+use crate::{extensions::Into_, float_type::float, vec2d::Vec2d};
 
 
 

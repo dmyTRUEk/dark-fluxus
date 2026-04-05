@@ -2,7 +2,7 @@
 
 use std::f32::consts::PI;
 
-use crate::float;
+use crate::float_type::float;
 
 
 

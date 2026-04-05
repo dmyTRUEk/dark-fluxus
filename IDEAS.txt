@@ -3,3 +3,4 @@
 - from "fishing" can obtain fractals and other things that can be placed at home
 - "lsd" render setting - black -> rgb color, white -> 1 - rgb color
 - hyperbolic space?
+- "plane with a function" world

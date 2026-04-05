@@ -4,7 +4,7 @@ use std::ops::{Add, AddAssign, Div, Mul, MulAssign};
 
 use sdl3::render::FPoint;
 
-use crate::{extensions::Into_, float, vec3d::Vec3f};
+use crate::{extensions::Into_, float_type::float, vec3d::Vec3f};
 
 
 
