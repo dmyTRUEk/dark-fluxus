@@ -61,6 +61,12 @@ impl<T> Vec3d<T> where T: Copy + Mul<T,Output=T> + Sub<T,Output=T> + Into_<T> {
 }
 
 impl Vec3f {
+	pub const fn from_x(x: float) -> Self { Self { x, y: 0., z: 0. } }
+	pub const fn from_y(y: float) -> Self { Self { x: 0., y, z: 0. } }
+	pub const fn from_z(z: float) -> Self { Self { x: 0., y: 0., z } }
+	pub const fn from_yz(y: float, z: float) -> Self { Self { x: 0., y, z } }
+	pub const fn from_xz(x: float, z: float) -> Self { Self { x, y: 0., z } }
+	pub const fn from_xy(x: float, y: float) -> Self { Self { x, y, z: 0. } }
 	pub fn random_unit_cube(rng: &mut ThreadRng) -> Self {
 		Self {
 			x: rng.random_range(-1. ..= 1.),
@@ -71,23 +77,14 @@ impl Vec3f {
 	pub fn random_unit(rng: &mut ThreadRng) -> Self {
 		Self::random_unit_cube(rng).normed()
 	}
-	// pub fn random_normed_to(len: float, rng: &mut ThreadRng) -> Self {
-	// 	Self::random_unit_cube(rng).normed_to(len)
-	// }
-	pub fn from_x(x: float) -> Self { Self { x, y: 0., z: 0. } }
-	pub fn from_y(y: float) -> Self { Self { x: 0., y, z: 0. } }
-	pub fn from_z(z: float) -> Self { Self { x: 0., y: 0., z } }
-	pub fn from_yz(y: float, z: float) -> Self { Self { x: 0., y, z } }
-	pub fn from_xz(x: float, z: float) -> Self { Self { x, y: 0., z } }
-	pub fn from_xy(x: float, y: float) -> Self { Self { x, y, z: 0. } }
 	pub fn norm2(self) -> float { self.dot(self) }
 	pub fn norm(self) -> float { self.norm2().sqrt() }
 	pub fn normed(self) -> Self { self / self.norm() }
 	pub fn normed_to(self, len: float) -> Self { self.normed() * len }
 	pub fn normlize(&mut self) { *self = self.normed() }
-	pub fn _0yz(self) -> Self { Self { x: 0., ..self } }
-	pub fn x0z(self) -> Self { Self { y: 0., ..self } }
-	pub fn xy0(self) -> Self { Self { z: 0., ..self } }
+	pub const fn _0yz(self) -> Self { Self { x: 0., ..self } }
+	pub const fn x0z(self) -> Self { Self { y: 0., ..self } }
+	pub const fn xy0(self) -> Self { Self { z: 0., ..self } }
 }
 
 

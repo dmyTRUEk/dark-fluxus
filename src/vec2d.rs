@@ -2,6 +2,7 @@
 
 use std::ops::{Add, AddAssign, Div, Mul, MulAssign};
 
+use rand::{RngExt, rngs::ThreadRng};
 use sdl3::render::FPoint;
 
 use crate::{extensions::Into_, float_type::float, vec3d::Vec3f};
@@ -40,10 +41,22 @@ impl<T> Vec2d<T> where T: Copy + Add<T,Output=T> + Mul<T,Output=T> {
 
 
 impl Vec2f {
+	pub const fn from_x(x: float) -> Self { Self { x, y: 0. } }
+	pub const fn from_y(y: float) -> Self { Self { x: 0., y } }
+	pub fn random_unit_cube(rng: &mut ThreadRng) -> Self {
+		Self {
+			x: rng.random_range(-1. ..= 1.),
+			y: rng.random_range(-1. ..= 1.),
+		}
+	}
+	pub fn random_unit(rng: &mut ThreadRng) -> Self {
+		Self::random_unit_cube(rng).normed()
+	}
 	pub fn norm2(self) -> float { self.dot(self) }
 	pub fn norm(self) -> float { self.norm2().sqrt() }
 	pub fn normed(self) -> Self { self / self.norm() }
 	pub fn normlize(&mut self) { *self = self.normed() }
+	pub fn normed_to(self, len: float) -> Self { self.normed() * len }
 	pub const fn txy(self, t: float) -> Vec3f { Vec3f { x: t, y: self.x, z: self.y } }
 	pub const fn tyx(self, t: float) -> Vec3f { Vec3f { x: t, y: self.y, z: self.x } }
 	pub const fn xty(self, t: float) -> Vec3f { Vec3f { x: self.x, y: t, z: self.y } }

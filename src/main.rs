@@ -19,7 +19,7 @@
 	vec_from_fn,
 )]
 
-use std::{thread::sleep, time::{Duration, SystemTime}};
+use std::{f32::consts::PI, thread::sleep, time::{Duration, SystemTime}};
 
 // use encoding_rs::UTF_8;
 // use llama_cpp_2::{context::params::LlamaContextParams, llama_backend::LlamaBackend, llama_batch::LlamaBatch, model::{AddBos, LlamaModel, params::LlamaModelParams}, sampling::LlamaSampler};
@@ -81,10 +81,37 @@ fn main() {
 
 	let pause_menu_items = { use PauseMenuItem::*; vec![
 		Quit,
+		Back,
 		ToggleUnlimitedFov,
 	]};
 	let mut is_paused = false;
 	let mut pause_menu_item_index: u32 = 0;
+
+
+	let mut dimension = Dimension::Base;
+
+
+	let inventory_items = { use InventoryItem::*; vec![
+		SurfaceWorld,
+	]};
+	let mut is_inventory_opened = false;
+	let mut inventory_item_index: u32 = 0;
+	fn gen_surface_world_param(rng: &mut ThreadRng) -> (float, float, float, float) {
+		// returns amplitude, phase, cx, cz
+		(
+			rng.random_range(0. ..= 3_f32).powi(2),
+			rng.random_range(0. ..= 2.*PI),
+			rng.random_range(-2. ..= 2.),
+			rng.random_range(-2. ..= 2.),
+		)
+	}
+	fn gen_surface_world_params(rng: &mut ThreadRng) -> Vec<(float, float, float, float)> {
+		Vec::from_fn(
+			rng.random_range(1. ..= 10_f32).powi(2).round() as usize,
+			|_i| gen_surface_world_param(rng)
+		)
+	}
+	let mut surface_world_params = gen_surface_world_params(&mut rng);
 
 
 	const CHUNKS_N: u32 = 5;
@@ -95,8 +122,9 @@ fn main() {
 	// println!("chunks.len = {}", chunks.iter().count());
 
 	const GROUNDED_CAMERA_Y: float = 1.5;
+	const CAMERA_DEFAULT_POSITION: Vec3f = Vec3f::from_y(GROUNDED_CAMERA_Y);
 	let mut camera = Camera {
-		pos: vec3![0., GROUNDED_CAMERA_Y, 0.],
+		pos: CAMERA_DEFAULT_POSITION,
 		forward: vec3![0., 0., 1.],
 		up: vec3![0., 1., 0.],
 		fov: 90. * DEG_TO_RAD,
@@ -154,41 +182,75 @@ fn main() {
 						MovementType::Grounded => {
 							camera.pos.y = GROUNDED_CAMERA_Y;
 							camera.reset_roll();
-							is_redraw_needed = true;
 						}
 						MovementType::FlyingMClike => {}
 						MovementType::FlyingGMlike => {}
 						MovementType::FpvLike => {}
 					}
+					is_redraw_needed = true;
 				}
 				Event::KeyDown { keycode: Some(Keycode::F3), .. } => {
 					is_extra_info_shown = !is_extra_info_shown;
 					is_redraw_needed = true;
 				}
-				Event::KeyDown { keycode: Some(Keycode::Up), .. } if is_paused => {
-					pause_menu_item_index = ((pause_menu_item_index as i32) - 1).rem_euclid(pause_menu_items.len() as i32) as u32;
+				Event::KeyDown { keycode: Some(Keycode::I | Keycode::Tab), .. } if !is_paused => {
+					is_inventory_opened = !is_inventory_opened;
 					is_redraw_needed = true;
 				}
-				Event::KeyDown { keycode: Some(Keycode::Down), .. } if is_paused => {
-					pause_menu_item_index = (pause_menu_item_index + 1).rem_euclid(pause_menu_items.len() as u32);
+				Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
+					if is_paused {
+						pause_menu_item_index = ((pause_menu_item_index as i32) - 1).rem_euclid(pause_menu_items.len() as i32) as u32;
+					}
+					else if is_inventory_opened {
+						inventory_item_index = ((inventory_item_index as i32) - 1).rem_euclid(inventory_items.len() as i32) as u32;
+					}
 					is_redraw_needed = true;
 				}
-				Event::KeyDown { keycode: Some(Keycode::Return), .. } if is_paused => {
-					use PauseMenuItem::*;
-					match pause_menu_items[pause_menu_item_index as usize] {
-						Quit => {
-							break 'main_loop
+				Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
+					if is_paused {
+						pause_menu_item_index = (pause_menu_item_index + 1).rem_euclid(pause_menu_items.len() as u32);
+					}
+					else if is_inventory_opened {
+						inventory_item_index = (inventory_item_index + 1).rem_euclid(inventory_items.len() as u32);
+					}
+					is_redraw_needed = true;
+				}
+				Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
+					if is_paused {
+						use PauseMenuItem::*;
+						match pause_menu_items[pause_menu_item_index as usize] {
+							Quit => {
+								break 'main_loop
+							}
+							Back => {
+								dimension = Dimension::Base;
+								camera.pos = CAMERA_DEFAULT_POSITION;
+								current_chunk_x = 0;
+								current_chunk_z = 0;
+							}
+							ToggleUnlimitedFov => {
+								is_unlimited_fov = !is_unlimited_fov;
+								if !is_unlimited_fov {
+									camera.fov = camera.fov.clamp(FOV_MIN*1.1, FOV_MAX/1.1);
+								}
+							}
+							Text(_) => {}
 						}
-						ToggleUnlimitedFov => {
-							is_unlimited_fov = !is_unlimited_fov;
-							if !is_unlimited_fov {
-								camera.fov = camera.fov.clamp(FOV_MIN*1.1, FOV_MAX/1.1);
+						is_paused = false;
+						is_redraw_needed = true;
+					}
+					else if is_inventory_opened {
+						use InventoryItem::*;
+						match inventory_items[inventory_item_index as usize] {
+							SurfaceWorld => {
+								dimension = Dimension::SurfaceWorld;
+								surface_world_params = gen_surface_world_params(&mut rng);
 								is_redraw_needed = true;
 							}
+							Text(_) => {}
 						}
-						Text(_) => {}
+						is_inventory_opened = false;
 					}
-					is_paused = false;
 				}
 				_ => {}
 			}
@@ -327,29 +389,32 @@ fn main() {
 
 		// physics update:
 		if !is_paused /* TODO: && exist what needs to be updated */ {
-			for (_x, _z, chunk) in chunks.iter_mut() {
-				for (_pos, ro) in chunk.renderable_objects.iter_mut() {
-					ro.update(DELTA_TIME);
+			match dimension {
+				Dimension::Base => {
+					for (_x, _z, chunk) in chunks.iter_mut() {
+						for (_pos, ro) in chunk.renderable_objects.iter_mut() {
+							ro.update(DELTA_TIME);
+						}
+					}
+					if camera.pos.x < -CHUNK_SIZE_HALF {
+						camera.pos.x += CHUNK_SIZE;
+						current_chunk_x -= 1;
+					}
+					else if camera.pos.x > CHUNK_SIZE_HALF {
+						camera.pos.x -= CHUNK_SIZE;
+						current_chunk_x += 1;
+					}
+					if camera.pos.z < -CHUNK_SIZE_HALF {
+						camera.pos.z += CHUNK_SIZE;
+						current_chunk_z -= 1;
+					}
+					else if camera.pos.z > CHUNK_SIZE_HALF {
+						camera.pos.z -= CHUNK_SIZE;
+						current_chunk_z += 1;
+					}
+					is_redraw_needed = true;
 				}
-			}
-			is_redraw_needed = true;
-		}
-		{
-			if camera.pos.x < -CHUNK_SIZE_HALF {
-				camera.pos.x += CHUNK_SIZE;
-				current_chunk_x -= 1;
-			}
-			else if camera.pos.x > CHUNK_SIZE_HALF {
-				camera.pos.x -= CHUNK_SIZE;
-				current_chunk_x += 1;
-			}
-			if camera.pos.z < -CHUNK_SIZE_HALF {
-				camera.pos.z += CHUNK_SIZE;
-				current_chunk_z -= 1;
-			}
-			else if camera.pos.z > CHUNK_SIZE_HALF {
-				camera.pos.z -= CHUNK_SIZE;
-				current_chunk_z += 1;
+				Dimension::SurfaceWorld => {}
 			}
 		}
 
@@ -370,58 +435,125 @@ fn main() {
 			// let wh_ratio = wf / hf;
 			// let hw_ratio = hf / wf;
 
-			for (dx, dz, _x, _z, chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
-				canvas.set_draw_color(chunk.color);
-				const STEP: float = 1.;
-				let mut x = -CHUNK_SIZE_HALF * (1. - 1e-2);
-				while x < CHUNK_SIZE_HALF {
-					let mut z = -CHUNK_SIZE_HALF * (1. - 1e-2);
-					while z < CHUNK_SIZE_HALF {
-						let lines = [
-							(Vec3f::new((dx as float)*CHUNK_SIZE+x-STEP/3., 0., (dz as float)*CHUNK_SIZE+z-STEP/3.),
-							 Vec3f::new((dx as float)*CHUNK_SIZE+x+STEP/3., 0., (dz as float)*CHUNK_SIZE+z+STEP/3.)),
-							(Vec3f::new((dx as float)*CHUNK_SIZE+x-STEP/3., 0., (dz as float)*CHUNK_SIZE+z+STEP/3.),
-							 Vec3f::new((dx as float)*CHUNK_SIZE+x+STEP/3., 0., (dz as float)*CHUNK_SIZE+z-STEP/3.)),
-						];
-						for line in lines.iter() {
-							if let Some((a,b)) = camera.project_line(line, wf, hf) {
-								canvas.draw_line(a,b).unwrap();
+			match dimension {
+				Dimension::Base => {
+					for (dx, dz, _x, _z, chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
+						canvas.set_draw_color(chunk.color);
+						const STEP: float = 1.;
+						let mut x = -CHUNK_SIZE_HALF * (1. - 1e-2);
+						while x < CHUNK_SIZE_HALF {
+							let mut z = -CHUNK_SIZE_HALF * (1. - 1e-2);
+							while z < CHUNK_SIZE_HALF {
+								let lines = [
+									(Vec3f::new((dx as float)*CHUNK_SIZE+x-STEP/3., 0., (dz as float)*CHUNK_SIZE+z-STEP/3.),
+									 Vec3f::new((dx as float)*CHUNK_SIZE+x+STEP/3., 0., (dz as float)*CHUNK_SIZE+z+STEP/3.)),
+									(Vec3f::new((dx as float)*CHUNK_SIZE+x-STEP/3., 0., (dz as float)*CHUNK_SIZE+z+STEP/3.),
+									 Vec3f::new((dx as float)*CHUNK_SIZE+x+STEP/3., 0., (dz as float)*CHUNK_SIZE+z-STEP/3.)),
+								];
+								for line in lines.iter() {
+									if let Some((a,b)) = camera.project_line(line, wf, hf) {
+										canvas.draw_line(a,b).unwrap();
+									}
+								}
+								z += STEP;
+							}
+							x += STEP;
+						}
+					}
+					for (dx, dz, _x, _z, chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
+						canvas.set_draw_color(chunk.color);
+						for (pos, ro) in chunk.renderable_objects.iter() {
+							use SdlRenderableShape::*;
+							let shift: Vec3f = *pos + Vec3f::from_xz((dx as float)*CHUNK_SIZE, (dz as float)*CHUNK_SIZE);
+							match ro.get_renderable_shape() {
+								Points(points) => {
+									let projected_points: Vec<FPoint> = points.iter()
+										.map(|&p| p + shift)
+										.flat_map(|p| {
+											camera.project_point(p, wf, hf).map(|p| p.into())
+										}).collect::<Vec<_>>();
+									canvas.draw_points(projected_points.as_slice()).unwrap();
+								}
+								Lines(lines) => {
+									for line in lines.iter() {
+										let line = (line.0 + shift, line.1 + shift);
+										if let Some((a,b)) = camera.project_line(&line, wf, hf) {
+											canvas.draw_line(a,b).unwrap();
+										}
+									}
+								}
+								Chain(chain) => {
+									let projected_chain: Vec<FPoint> = chain.iter()
+										.map(|&p| p + shift)
+										.flat_map(|p| {
+											camera.project_point(p, wf, hf).map(|p| p.into())
+										}).collect::<Vec<_>>();
+									canvas.draw_lines(projected_chain.as_slice()).unwrap();
+								}
 							}
 						}
-						z += STEP;
 					}
-					x += STEP;
 				}
-			}
-			for (dx, dz, _x, _z, chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
-				canvas.set_draw_color(chunk.color);
-				for (pos, ro) in chunk.renderable_objects.iter() {
-					use SdlRenderableShape::*;
-					let shift: Vec3f = *pos + Vec3f::from_xz((dx as float)*CHUNK_SIZE, (dz as float)*CHUNK_SIZE);
-					match ro.get_renderable_shape() {
-						Points(points) => {
-							let projected_points: Vec<FPoint> = points.iter()
-								.map(|&p| p + shift)
-								.flat_map(|p| {
-									camera.project_point(p, wf, hf).map(|p| p.into())
-								}).collect::<Vec<_>>();
-							canvas.draw_points(projected_points.as_slice()).unwrap();
-						}
-						Lines(lines) => {
-							for line in lines.iter() {
-								let line = (line.0 + shift, line.1 + shift);
-								if let Some((a,b)) = camera.project_line(&line, wf, hf) {
+				Dimension::SurfaceWorld => {
+					const MESH_SIZE: u32 = 30;
+					const MESH_STEP: float = 0.9;
+					const LODS: &[(u32, Color)] = &[
+						(4, Color::RGB(64, 64, 64)),
+						(2, Color::GRAY),
+						(1, Color::WHITE),
+					];
+					let params = &surface_world_params;
+					fn surface_at(x: float, z: float, params: &[(f32, f32, f32, f32)]) -> float {
+						params.iter().map(|(amplitude, phase, cx, cz)| {
+							amplitude * sin(phase + cx*x + cz*z) / (params.len() as float)//.powf(*amplitude)
+						}).sum()
+					}
+					for (lod_n, lod_color) in LODS {
+						canvas.set_draw_color(*lod_color);
+						let mesh_step = MESH_STEP * (*lod_n as float);
+						let cx = camera.pos.x - (MESH_SIZE as float - 1.) * mesh_step / 2.;
+						let cz = camera.pos.z - (MESH_SIZE as float - 1.) * mesh_step / 2.;
+						let surface = Vec2D::from_fn(MESH_SIZE, MESH_SIZE, |x, z| {
+							let x = (x as float) * mesh_step;
+							let z = (z as float) * mesh_step;
+							surface_at(x + cx - cx.rem_euclid(mesh_step), z + cz - cz.rem_euclid(mesh_step), params)
+						});
+						let cx = cx - cx.rem_euclid(mesh_step);
+						let cz = cz - cz.rem_euclid(mesh_step);
+						// TODO(optim): use draw_lines/chain
+						// let mut lines_x = Vec::with_capacity((MESH_SIZE+1) as usize); // TODO: remove +1?
+						// let mut lines_z = Vec::with_capacity((MESH_SIZE+1) as usize); // TODO: remove +1?
+						for z in 0..MESH_SIZE-1 {
+							let zf = (z as float) * mesh_step;
+							for x in 0..MESH_SIZE-1 {
+								let xf = (x as float) * mesh_step;
+								let line1 = (vec3![xf+cx, surface[(x,z)], zf+cz], vec3![xf+cx+mesh_step, surface[(x+1,z)], zf+cz]);
+								if let Some((a,b)) = camera.project_line(&line1, wf, hf) {
+									canvas.draw_line(a,b).unwrap();
+								}
+								let line2 = (vec3![xf+cx, surface[(x,z)], zf+cz], vec3![xf+cx, surface[(x,z+1)], zf+cz+mesh_step]);
+								if let Some((a,b)) = camera.project_line(&line2, wf, hf) {
 									canvas.draw_line(a,b).unwrap();
 								}
 							}
 						}
-						Chain(chain) => {
-							let projected_chain: Vec<FPoint> = chain.iter()
-								.map(|&p| p + shift)
-								.flat_map(|p| {
-									camera.project_point(p, wf, hf).map(|p| p.into())
-								}).collect::<Vec<_>>();
-							canvas.draw_lines(projected_chain.as_slice()).unwrap();
+						for x in 0..MESH_SIZE-1 {
+							let z = MESH_SIZE-1;
+							let zf = (z as float) * mesh_step;
+							let xf = (x as float) * mesh_step;
+							let line1 = (vec3![xf+cx, surface[(x,z)], zf+cz], vec3![xf+cx+mesh_step, surface[(x+1,z)], zf+cz]);
+							if let Some((a,b)) = camera.project_line(&line1, wf, hf) {
+								canvas.draw_line(a,b).unwrap();
+							}
+						}
+						for z in 0..MESH_SIZE-1 {
+							let x = MESH_SIZE-1;
+							let xf = (x as float) * mesh_step;
+							let zf = (z as float) * mesh_step;
+							let line2 = (vec3![xf+cx, surface[(x,z)], zf+cz], vec3![xf+cx, surface[(x,z+1)], zf+cz+mesh_step]);
+							if let Some((a,b)) = camera.project_line(&line2, wf, hf) {
+								canvas.draw_line(a,b).unwrap();
+							}
 						}
 					}
 				}
@@ -463,6 +595,42 @@ fn main() {
 				// if fps < 60. { panic!() }
 				let fps_text = format!("\"FPS\": {fps:.1}");
 				canvas.render_text(&fps_text, (wi - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), text_size);
+			}
+
+			if is_inventory_opened {
+				const PADDING: float = 30.;
+				const ITEM_Y: float = 50.;
+				const ITEMS_N: u32 = 11;
+				debug_assert_eq!(1, ITEMS_N % 2);
+				const MENU_SIZE_X: float = 900.;
+				const MENU_SIZE_Y: float = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as float);
+				const ITEM_X: float = MENU_SIZE_X - 2.*PADDING;
+				canvas.set_draw_color(Color::BLACK);
+				canvas.fill_rect(FRect::from_center_size(wfh, hfh, MENU_SIZE_X, MENU_SIZE_Y)).unwrap();
+				canvas.set_draw_color(Color::WHITE);
+				canvas.draw_rect(FRect::from_center_size(wfh, hfh, MENU_SIZE_X, MENU_SIZE_Y)).unwrap();
+				const ITEM_UNSELECTED_COLOR: Color = Color::GRAY;
+				const ITEM_SELECTED_COLOR: Color = Color::WHITE;
+				// const ITEM_TEXT_COLOR: Color = Color::GREEN;
+				const ITEM_TEXT_SIZE: u8 = 5;
+				const ITEM_INNER_PADDING: float = (ITEM_Y - (ITEM_TEXT_SIZE as float)*(FONT_H as float)) / 2.;
+				canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
+				let i_init: u32 = inventory_item_index.saturating_sub((ITEMS_N-1)/2);
+				let mut i: u32 = i_init;
+				while i - i_init < ITEMS_N && i < inventory_items.len() as u32 {
+					let menu_item = &inventory_items[i as usize];
+					if i == inventory_item_index {
+						canvas.set_draw_color(ITEM_SELECTED_COLOR);
+					}
+					let item_cx = wfh;
+					let item_cy = hfh - MENU_SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
+					canvas.draw_rect(FRect::from_center_size(item_cx, item_cy, ITEM_X, ITEM_Y)).unwrap();
+					canvas.render_text(menu_item.to_str(), ((item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32, (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32), ITEM_TEXT_SIZE);
+					if i == inventory_item_index {
+						canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
+					}
+					i += 1;
+				}
 			}
 
 			if is_paused {
@@ -517,8 +685,46 @@ fn main() {
 
 
 
+enum Dimension {
+	Base, // TODO: rename? Home, RotatingBH
+	// BaseAlt, // TODO: rename? HomeAlt, StaticBH
+	SurfaceWorld, // TODO(feat): function
+}
+impl Dimension {
+	fn to_str(&self) -> &str {
+		use Dimension::*;
+		match self {
+			Base => "BASE",
+			SurfaceWorld => "SURFACE WORLD",
+		}
+	}
+}
+
+
+
+
+
+enum InventoryItem {
+	SurfaceWorld, // TODO(feat): function
+	Text(String), // just for test
+}
+impl InventoryItem {
+	fn to_str(&self) -> &str {
+		use InventoryItem::*;
+		match self {
+			SurfaceWorld => "SURFACE WORLD",
+			Text(text) => text,
+		}
+	}
+}
+
+
+
+
+
 enum PauseMenuItem {
 	Quit,
+	Back,
 	ToggleUnlimitedFov,
 	Text(String), // just for test
 }
@@ -527,6 +733,7 @@ impl PauseMenuItem {
 		use PauseMenuItem::*;
 		match self {
 			Quit => "QUIT",
+			Back => "BACK",
 			ToggleUnlimitedFov => "TOGGLE UNLIMITED FOV",
 			Text(text) => text,
 		}
@@ -834,7 +1041,7 @@ impl Camera {
 		if z <= 0. { return None; }
 
 		let aspect = width / height;
-		let f = 1. / (self.fov * 0.5).tan();
+		let f = 1. / tan(self.fov * 0.5);
 
 		// perspective projection (NDC)
 		let nx = (x / z) * f / aspect;
