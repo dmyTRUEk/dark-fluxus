@@ -1,14 +1,15 @@
 //! math vector 3d
 
-use std::{ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign}};
+use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign};
 
 use rand::{RngExt, rngs::ThreadRng};
 
-use crate::{extensions::Into_, float_type::float, vec2d::Vec2d};
+use crate::{extensions::Into_, float_type::float, math_aliases::{cos, sin}, vec2d::Vec2d};
 
 
 
 pub type Vec3f = Vec3d<float>;
+pub type Vec3i = Vec3d<i32>;
 
 #[macro_export] macro_rules! vec3 { ($x:expr, $y:expr, $z:expr $(,)?) => { Vec3d::from($x, $y, $z) }; }
 #[macro_export] macro_rules! vec3x { ($x:expr) => { Vec3d::from($x, 0, 0) }; }
@@ -64,6 +65,9 @@ impl<T> Vec3d<T> where T: Mul<T,Output=T> + Sub<T,Output=T> + Into_<T> + Copy {
 }
 
 impl Vec3f {
+	pub const ORT_X: Self = Self::from_x(1.);
+	pub const ORT_Y: Self = Self::from_y(1.);
+	pub const ORT_Z: Self = Self::from_z(1.);
 	pub const fn from_x(x: float) -> Self { Self { x, y: 0., z: 0. } }
 	pub const fn from_y(y: float) -> Self { Self { x: 0., y, z: 0. } }
 	pub const fn from_z(z: float) -> Self { Self { x: 0., y: 0., z } }
@@ -83,11 +87,19 @@ impl Vec3f {
 	pub fn norm2(self) -> float { self.dot(self) }
 	pub fn norm(self) -> float { self.norm2().sqrt() }
 	pub fn normed(self) -> Self { self / self.norm() }
+	pub fn normalize(&mut self) { *self = self.normed() }
 	pub fn normed_to(self, len: float) -> Self { self.normed() * len }
-	pub fn normlize(&mut self) { *self = self.normed() }
+	pub fn normalize_to(&mut self, len: float) { *self = self.normed_to(len) }
+	pub fn dist2_to(self, other: Self) -> float { (self - other).norm2() }
+	pub fn dist_to(self, other: Self) -> float { self.dist2_to(other).sqrt() }
 	pub const fn _0yz(self) -> Self { Self { x: 0., ..self } }
 	pub const fn x0z(self) -> Self { Self { y: 0., ..self } }
 	pub const fn xy0(self) -> Self { Self { z: 0., ..self } }
+	pub fn rotate_around(self, other: Self, angle: float) -> Self {
+		// src: https://stackoverflow.com/questions/14607640/rotating-a-vector-in-3d-space
+		// src: https://en.wikipedia.org/wiki/Rodrigues'_rotation_formula
+		self * cos(angle) + other.cross(self) * sin(angle) + other * (other * self) * (1. - cos(angle))
+	}
 }
 
 

@@ -5,7 +5,7 @@ use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign};
 use rand::{RngExt, rngs::ThreadRng};
 use sdl3::render::FPoint;
 
-use crate::{extensions::Into_, float_type::float, vec3d::Vec3f};
+use crate::{extensions::Into_, float_type::float, vec3d::{Vec3d, Vec3f}};
 
 
 
@@ -13,8 +13,8 @@ pub type Vec2f = Vec2d<float>;
 pub type Vec2i = Vec2d<i32>;
 
 #[macro_export] macro_rules! vec2 { ($x:expr, $y:expr) => { Vec2d::new($x, $y) }; }
-#[macro_export] macro_rules! vec2x { ($x:expr) => { Vec2d::new($x, 0) }; }
-#[macro_export] macro_rules! vec2y { ($y:expr) => { Vec2d::new(0, $y) }; }
+#[macro_export] macro_rules! vec2x { ($x:expr) => { Vec2d::from_x($x, 0) }; }
+#[macro_export] macro_rules! vec2y { ($y:expr) => { Vec2d::from_y(0, $y) }; }
 
 
 
@@ -31,6 +31,12 @@ impl<T> Vec2d<T> {
 	pub fn from(x: impl Into_<T>, y: impl Into_<T>) -> Self {
 		Self { x: x.into_(), y: y.into_() }
 	}
+	pub fn txy(self, t: T) -> Vec3d<T> { Vec3d::new(t, self.x, self.y) }
+	pub fn tyx(self, t: T) -> Vec3d<T> { Vec3d::new(t, self.y, self.x) }
+	pub fn xty(self, t: T) -> Vec3d<T> { Vec3d::new(self.x, t, self.y) }
+	pub fn ytx(self, t: T) -> Vec3d<T> { Vec3d::new(self.y, t, self.x) }
+	pub fn xyt(self, t: T) -> Vec3d<T> { Vec3d::new(self.x, self.y, t) }
+	pub fn yxt(self, t: T) -> Vec3d<T> { Vec3d::new(self.y, self.x, t) }
 }
 impl<T> Vec2d<T> where T: Add<T,Output=T> + Mul<T,Output=T> + Copy {
 	pub fn dot(self, other: Self) -> T {
@@ -41,6 +47,8 @@ impl<T> Vec2d<T> where T: Add<T,Output=T> + Mul<T,Output=T> + Copy {
 
 
 impl Vec2f {
+	pub const ORT_X: Self = Self::from_x(1.);
+	pub const ORT_Y: Self = Self::from_y(1.);
 	pub const fn from_x(x: float) -> Self { Self { x, y: 0. } }
 	pub const fn from_y(y: float) -> Self { Self { x: 0., y } }
 	pub fn random_unit_cube(rng: &mut ThreadRng) -> Self {
@@ -55,20 +63,20 @@ impl Vec2f {
 	pub fn norm2(self) -> float { self.dot(self) }
 	pub fn norm(self) -> float { self.norm2().sqrt() }
 	pub fn normed(self) -> Self { self / self.norm() }
-	pub fn normlize(&mut self) { *self = self.normed() }
+	pub fn normalize(&mut self) { *self = self.normed() }
 	pub fn normed_to(self, len: float) -> Self { self.normed() * len }
-	pub const fn txy(self, t: float) -> Vec3f { Vec3f { x: t, y: self.x, z: self.y } }
-	pub const fn tyx(self, t: float) -> Vec3f { Vec3f { x: t, y: self.y, z: self.x } }
-	pub const fn xty(self, t: float) -> Vec3f { Vec3f { x: self.x, y: t, z: self.y } }
-	pub const fn ytx(self, t: float) -> Vec3f { Vec3f { x: self.y, y: t, z: self.x } }
-	pub const fn xyt(self, t: float) -> Vec3f { Vec3f { x: self.x, y: self.y, z: t } }
-	pub const fn yxt(self, t: float) -> Vec3f { Vec3f { x: self.y, y: self.x, z: t } }
-	pub const fn _0xy(self) -> Vec3f { self.txy(0.) }
-	pub const fn _0yx(self) -> Vec3f { self.tyx(0.) }
-	pub const fn x0y(self) -> Vec3f { self.xty(0.) }
-	pub const fn y0x(self) -> Vec3f { self.ytx(0.) }
-	pub const fn xy0(self) -> Vec3f { self.xyt(0.) }
-	pub const fn yx0(self) -> Vec3f { self.yxt(0.) }
+	pub fn normalize_to(&mut self, len: float) { *self = self.normed_to(len) }
+	pub fn dist2_to(self, other: Self) -> float { (self - other).norm2() }
+	pub fn dist_to(self, other: Self) -> float { self.dist2_to(other).sqrt() }
+	pub fn _0xy(self) -> Vec3f { self.txy(0.) }
+	pub fn _0yx(self) -> Vec3f { self.tyx(0.) }
+	pub fn x0y(self) -> Vec3f { self.xty(0.) }
+	pub fn y0x(self) -> Vec3f { self.ytx(0.) }
+	pub fn xy0(self) -> Vec3f { self.xyt(0.) }
+	pub fn yx0(self) -> Vec3f { self.yxt(0.) }
+	pub fn rotate(self, _angle: float) -> Self {
+		todo!()
+	}
 }
 
 

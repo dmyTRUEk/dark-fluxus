@@ -19,7 +19,7 @@
 	vec_from_fn,
 )]
 
-use std::{f32::consts::PI, thread::sleep, time::{Duration, SystemTime}};
+use std::{f32::consts::{GOLDEN_RATIO, PI}, thread::sleep, time::{Duration, SystemTime}};
 
 // use encoding_rs::UTF_8;
 // use llama_cpp_2::{context::params::LlamaContextParams, llama_backend::LlamaBackend, llama_batch::LlamaBatch, model::{AddBos, LlamaModel, params::LlamaModelParams}, sampling::LlamaSampler};
@@ -169,10 +169,10 @@ fn main() {
 					const ROTATION_SPEED: float = 0.6;
 					// left/right
 					camera.forward += camera.basis().0 * xrel * camera.fov * DELTA_TIME * ROTATION_SPEED;
-					camera.forward.normlize();
+					camera.forward.normalize();
 					// up/down
 					camera.forward -= camera.basis().1 * yrel * camera.fov * DELTA_TIME * ROTATION_SPEED;
-					camera.forward.normlize();
+					camera.forward.normalize();
 					is_redraw_needed = true;
 				}
 				// TODO: use MouseWheel for FOV?
@@ -336,7 +336,7 @@ fn main() {
 				MovementType::FlyingGMlike => {}
 				MovementType::FpvLike => {
 					camera.up -= camera.basis().0 * DELTA_TIME * ROLL_SPEED;
-					camera.up.normlize();
+					camera.up.normalize();
 					is_redraw_needed = true;
 				}
 			}
@@ -348,7 +348,7 @@ fn main() {
 				MovementType::FlyingGMlike => {}
 				MovementType::FpvLike => {
 					camera.up += camera.basis().0 * DELTA_TIME * ROLL_SPEED;
-					camera.up.normlize();
+					camera.up.normalize();
 					is_redraw_needed = true;
 				}
 			}
@@ -437,8 +437,9 @@ fn main() {
 
 			match dimension {
 				Dimension::Base => {
-					for (dx, dz, _x, _z, chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
-						canvas.set_draw_color(chunk.color);
+					for (dx, dz, _x, _z, _chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
+						// canvas.set_draw_color(chunk.color);
+						canvas.set_draw_color(Color::GRAY);
 						const STEP: float = 1.;
 						let mut x = -CHUNK_SIZE_HALF * (1. - 1e-2);
 						while x < CHUNK_SIZE_HALF {
@@ -791,6 +792,7 @@ enum RenderableObject {
 	// SpinningText?
 	Monolith { sizes: Vec<float> },
 	RotatingSimplex { points_rotplanes_rotvels: Vec<(Vec3f, Vec3f, float)> },
+	Kitty { size: float },
 }
 impl RenderableObject {
 	fn is_need_update(&self) -> bool {
@@ -801,6 +803,7 @@ impl RenderableObject {
 			=> true,
 			| Cube { .. }
 			| Monolith { .. }
+			| Kitty { .. }
 			=> false,
 		}
 	}
@@ -809,6 +812,7 @@ impl RenderableObject {
 		match self {
 			| LorenzAttractor { .. }
 			| RotatingSimplex { .. }
+			| Kitty { .. }
 			=> true,
 			| Cube { .. }
 			| Monolith { .. }
@@ -818,7 +822,11 @@ impl RenderableObject {
 	fn update(&mut self, delta_time: float) {
 		use RenderableObject::*;
 		match self {
+			| Cube { .. }
+			| Monolith { .. }
+			=> {}
 			LorenzAttractor { la, last_points, max_len, .. } => {
+				// TODO(optim): use Queue (VecDeque)
 				last_points.push(la.get_xyz_as_vec3d());
 				if last_points.len() as u32 > *max_len {
 					let _ = last_points.remove(0);
@@ -831,9 +839,9 @@ impl RenderableObject {
 					*point += point.cross(*rotation_plane) * *rotation_velocity * delta_time;
 				}
 			}
-			| Cube { .. }
-			| Monolith { .. }
-			=> {}
+			Kitty { .. } => {
+				// todo!()
+			}
 		}
 	}
 	fn get_renderable_shape(&self) -> SdlRenderableShape {
@@ -894,6 +902,76 @@ impl RenderableObject {
 				}
 				Lines(lines)
 			}
+			Kitty { size } => {
+				const PHI: float = GOLDEN_RATIO;
+				let vertices = [
+					// src: https://en.wikipedia.org/wiki/Regular_icosahedron
+					vec3![-PHI, 0, -1],
+					vec3![-PHI, 0,  1],
+					vec3![ PHI, 0, -1],
+					vec3![ PHI, 0,  1],
+					vec3![-1, -PHI, 0],
+					vec3![-1,  PHI, 0],
+					vec3![ 1, -PHI, 0],
+					vec3![ 1,  PHI, 0],
+					vec3![0, -1, -PHI],
+					vec3![0, -1,  PHI],
+					vec3![0,  1, -PHI],
+					vec3![0,  1,  PHI],
+				]
+					.map(|v| v.rotate_around(Vec3f::ORT_Z, acos(PHI/sqrt(1.+PHI.powi(2))))) // make one vertex at the very top
+					.map(|v| v * *size);
+				// let mut nearests_vertices_indices = [ [-1_i8 ; 5] ; 12 ];
+				// for (vertex_i, (vertex, nearest_vertices_indices)) in vertices.iter().zip(nearests_vertices_indices.iter_mut()).enumerate() {
+				// 	// println!("{} vertex = {vertex:?}, nearest_vertices = {nearest_vertices_indices:?}", "-".repeat(42));
+				// 	for i in 0..5 {
+				// 		// println!("{} i = {i}", "-".repeat(21));
+				// 		// println!("nearest_vertices = {nearest_vertices_indices:?}");
+				// 		let mut available_vertices: Vec<(usize, Vec3f)> = vertices.into_iter().enumerate().collect();
+				// 		let _ = available_vertices.remove(vertex_i);
+				// 		for &j in nearest_vertices_indices.iter() {
+				// 			if j == -1 { break }
+				// 			let _ = available_vertices.remove(available_vertices.iter().position(|(k, _v)| *k as i8 == j).unwrap());
+				// 		}
+				// 		// println!("{available_vertices:?}");
+				// 		let closest_vertex_index = *available_vertices.iter()
+				// 			.map(|(i, v)| (i, vertex.dist2_to(*v)))
+				// 			.min_by(|(_i1, d1), (_i2, d2)| d1.partial_cmp(d2).unwrap())
+				// 			.unwrap().0;
+				// 		// println!("{closest_vertex_index}");
+				// 		nearest_vertices_indices[i] = closest_vertex_index as i8;
+				// 	}
+				// }
+				// dbg!(nearests_vertices_indices);
+				const NEARESTS_VERTICES_INDICES: [[u8; 5]; 12] = [
+					[ 1, 4, 5, 8, 10, ], // 0
+					[ 0, 4, 5, 9, 11, ], // 1
+					[ 3, 6, 7, 8, 10, ], // 2
+					[ 2, 6, 7, 9, 11, ], // 3
+					[ 0, 1, 6, 8, 9, ], // 4
+					[ 0, 1, 7, 10, 11, ], // 5
+					[ 2, 3, 4, 8, 9, ], // 6
+					[ 2, 3, 5, 10, 11, ], // 7
+					[ 0, 2, 4, 6, 10, ], // 8
+					[ 1, 3, 4, 6, 11, ], // 9
+					[ 0, 2, 5, 7, 8, ], // 10
+					[ 1, 3, 5, 7, 9, ], // 11
+				];
+				const VERTEX_TO_REMOVE: u8 = 5;
+				let mut lines = Vec::with_capacity(30);
+				for (vertex_index, (&vertex, &nearest_vertices_indices)) in vertices.iter().zip(NEARESTS_VERTICES_INDICES.iter()).enumerate() {
+					let vertex_index = vertex_index as u8;
+					if vertex_index == VERTEX_TO_REMOVE { continue }
+					for nearest_vertex_index in nearest_vertices_indices {
+						if nearest_vertex_index < vertex_index { continue }
+						if nearest_vertex_index == VERTEX_TO_REMOVE { continue }
+						lines.push((vertex, vertices[nearest_vertex_index as usize]));
+					}
+				}
+				// debug_assert_eq!(30, lines.len());
+				// TODO(optim): use precalculated points/lines
+				Lines(lines)
+			}
 		}
 	}
 }
@@ -914,8 +992,8 @@ impl Chunk {
 			// color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0), // for dbg
 			color: Color::RGB(rng.random(), rng.random(), rng.random()),
 			renderable_objects: {
-				use V5::*;
-				match rng.random_variant_weighted([3., 1., 0.5, 0.1, 0.5]) {
+				use V6::*;
+				match rng.random_variant_weighted([3., 1., 0.5, 0.1, 0.5, 2.]) {
 					_1 => vec![],
 					_2 => Vec::from_fn(
 						rng.random_range(0 ..= 5),
@@ -962,6 +1040,12 @@ impl Chunk {
 									rng.random_range(0.5 ..= 1.4_f32).powi(2)
 								)).collect()
 							},
+						}
+					)],
+					_6 => vec![(
+						Vec3f::from_y(rng.random_range(0.5 ..= 1.)),
+						RenderableObject::Kitty {
+							size: rng.random_range(0.25 ..= 0.5),
 						}
 					)],
 				}
