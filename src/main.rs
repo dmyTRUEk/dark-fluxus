@@ -19,7 +19,7 @@
 	vec_from_fn,
 )]
 
-use std::{f32::consts::{GOLDEN_RATIO, PI}, thread::sleep, time::{Duration, SystemTime}};
+use std::{f32::consts::{GOLDEN_RATIO, PI, TAU}, thread::sleep, time::{Duration, SystemTime}};
 
 use rand::{RngExt, rng, rngs::ThreadRng};
 use sdl3::{event::Event, keyboard::{KeyboardState, Keycode, Scancode}, pixels::Color, render::{FPoint, FRect}};
@@ -855,26 +855,16 @@ enum RenderableObject {
 	// SpinningText?
 	Monolith { sizes: Vec<float> },
 	RotatingSimplex { points_rotplanes_rotvels: Vec<(Vec3f, Vec3f, float)> },
+	RotatingIcosahedron { size: float, global_rotvel: float, rotplanes_rotvels_angles: Vec<(Vec3f, float, float)> },
 	Kitty { size: float },
 }
 impl RenderableObject {
-	fn is_need_update(&self) -> bool {
-		use RenderableObject::*;
-		match self {
-			| LorenzAttractor { .. }
-			| RotatingSimplex { .. }
-			=> true,
-			| Cube { .. }
-			| Monolith { .. }
-			| Kitty { .. }
-			=> false,
-		}
-	}
 	fn is_time_dependent(&self) -> bool {
 		use RenderableObject::*;
 		match self {
 			| LorenzAttractor { .. }
 			| RotatingSimplex { .. }
+			| RotatingIcosahedron { .. }
 			| Kitty { .. }
 			=> true,
 			| Cube { .. }
@@ -888,7 +878,7 @@ impl RenderableObject {
 			| Cube { .. }
 			| Monolith { .. }
 			=> {}
-			LorenzAttractor { la, last_points, max_len, .. } => {
+			LorenzAttractor { la, last_points, max_len, size: _ } => {
 				// TODO(optim): use Queue (VecDeque)
 				last_points.push(la.get_xyz_as_vec3d());
 				if last_points.len() as u32 > *max_len {
@@ -897,9 +887,15 @@ impl RenderableObject {
 				la.step(1e-2);
 			}
 			RotatingSimplex { points_rotplanes_rotvels } => {
+				// TODO: update only phase
 				for (point, rotation_plane, rotation_velocity) in points_rotplanes_rotvels.iter_mut() {
 					// TODO: this causes them to gradually grow in size, so use only starting point and current phase, which is %2pi
 					*point += point.cross(*rotation_plane) * *rotation_velocity * delta_time;
+				}
+			}
+			RotatingIcosahedron { rotplanes_rotvels_angles, global_rotvel, size: _ } => {
+				for (i, (_rotplane, rotvel, angle)) in rotplanes_rotvels_angles.iter_mut().enumerate() {
+					*angle += *global_rotvel * *rotvel * delta_time / ((i + 1) as float); // TODO
 				}
 			}
 			Kitty { .. } => {
@@ -965,9 +961,9 @@ impl RenderableObject {
 				}
 				vec![Lines(lines)]
 			}
-			Kitty { size } => {
+			RotatingIcosahedron { size, rotplanes_rotvels_angles, .. } => {
 				const PHI: float = GOLDEN_RATIO;
-				let vertices = [
+				let mut vertices = [
 					// src: https://en.wikipedia.org/wiki/Regular_icosahedron
 					vec3![-PHI, 0, -1],
 					vec3![-PHI, 0,  1],
@@ -981,31 +977,12 @@ impl RenderableObject {
 					vec3![0, -1,  PHI],
 					vec3![0,  1, -PHI],
 					vec3![0,  1,  PHI],
-				]
-					.map(|v| v.rotate_around(Vec3f::ORT_Z, acos(PHI/sqrt(1.+PHI.powi(2))))) // make one vertex at the very top
-					.map(|v| v * *size);
-				// let mut nearests_vertices_indices = [ [-1_i8 ; 5] ; 12 ];
-				// for (vertex_i, (vertex, nearest_vertices_indices)) in vertices.iter().zip(nearests_vertices_indices.iter_mut()).enumerate() {
-				// 	// println!("{} vertex = {vertex:?}, nearest_vertices = {nearest_vertices_indices:?}", "-".repeat(42));
-				// 	for i in 0..5 {
-				// 		// println!("{} i = {i}", "-".repeat(21));
-				// 		// println!("nearest_vertices = {nearest_vertices_indices:?}");
-				// 		let mut available_vertices: Vec<(usize, Vec3f)> = vertices.into_iter().enumerate().collect();
-				// 		let _ = available_vertices.remove(vertex_i);
-				// 		for &j in nearest_vertices_indices.iter() {
-				// 			if j == -1 { break }
-				// 			let _ = available_vertices.remove(available_vertices.iter().position(|(k, _v)| *k as i8 == j).unwrap());
-				// 		}
-				// 		// println!("{available_vertices:?}");
-				// 		let closest_vertex_index = *available_vertices.iter()
-				// 			.map(|(i, v)| (i, vertex.dist2_to(*v)))
-				// 			.min_by(|(_i1, d1), (_i2, d2)| d1.partial_cmp(d2).unwrap())
-				// 			.unwrap().0;
-				// 		// println!("{closest_vertex_index}");
-				// 		nearest_vertices_indices[i] = closest_vertex_index as i8;
-				// 	}
-				// }
-				// dbg!(nearests_vertices_indices);
+				].map(|v| v * *size);
+				for (rotplane, _rotvel, angle) in rotplanes_rotvels_angles.iter() {
+					for vertex in vertices.iter_mut() {
+						*vertex = vertex.rotate_around(*rotplane, *angle);
+					}
+				}
 				const NEARESTS_VERTICES_INDICES: [[u8; 5]; 12] = [
 					[ 1, 4, 5, 8, 10, ], // 0
 					[ 0, 4, 5, 9, 11, ], // 1
@@ -1020,20 +997,23 @@ impl RenderableObject {
 					[ 0, 2, 5, 7, 8, ], // 10
 					[ 1, 3, 5, 7, 9, ], // 11
 				];
-				const VERTEX_TO_REMOVE: u8 = 5;
+				// const VERTEX_TO_REMOVE: u8 = 5;
 				let mut lines = Vec::with_capacity(30);
 				for (vertex_index, (&vertex, &nearest_vertices_indices)) in vertices.iter().zip(NEARESTS_VERTICES_INDICES.iter()).enumerate() {
 					let vertex_index = vertex_index as u8;
-					if vertex_index == VERTEX_TO_REMOVE { continue }
+					// if vertex_index == VERTEX_TO_REMOVE { continue }
 					for nearest_vertex_index in nearest_vertices_indices {
 						if nearest_vertex_index < vertex_index { continue }
-						if nearest_vertex_index == VERTEX_TO_REMOVE { continue }
+						// if nearest_vertex_index == VERTEX_TO_REMOVE { continue }
 						lines.push((vertex, vertices[nearest_vertex_index as usize]));
 					}
 				}
-				// debug_assert_eq!(30, lines.len());
-				// TODO(optim): use precalculated points/lines
+				debug_assert_eq!(30, lines.len());
 				vec![Lines(lines)]
+			}
+			Kitty { size } => {
+				// TODO
+				vec![]
 			}
 		}
 	}
@@ -1055,8 +1035,8 @@ impl Chunk {
 			// color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0), // for dbg
 			color: Color::RGB(rng.random(), rng.random(), rng.random()),
 			renderable_objects: {
-				use V6::*;
-				match rng.random_variant_weighted([3., 1., 0.5, 0.1, 0.5, 2.]) {
+				use V7::*;
+				match rng.random_variant_weighted([3., 1., 0.5, 0.1, 0.5, 2., 2.]) {
 					_1 => vec![],
 					_2 => Vec::from_fn(
 						rng.random_range(0 ..= 5),
@@ -1106,6 +1086,17 @@ impl Chunk {
 						}
 					)],
 					_6 => vec![(
+						Vec3f::from_y(rng.random_range(1. ..= 2.)),
+						RenderableObject::RotatingIcosahedron {
+							size: rng.random_range(0.5 ..= 2.5),
+							global_rotvel: rng.random_range(0.01 ..= 1.),
+							rotplanes_rotvels_angles: Vec::from_fn(
+								rng.random_range(1 ..= 5),
+								|_i| (Vec3f::random_unit(rng), rng.random_range(0.1 ..= 2.), rng.random_range(0. ..= TAU))
+							),
+						}
+					)],
+					_7 => vec![(
 						Vec3f::from_y(rng.random_range(0.5 ..= 1.)),
 						RenderableObject::Kitty {
 							size: rng.random_range(0.25 ..= 0.5),
