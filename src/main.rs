@@ -83,6 +83,7 @@ fn main() {
 		Quit,
 		Back,
 		ToggleUnlimitedFov,
+		ToggleShakyFov,
 	]};
 	let mut is_paused = false;
 	let mut pause_menu_item_index: u32 = 0;
@@ -95,6 +96,7 @@ fn main() {
 		"shift - move fast",
 		"space/ctrl/alt - fly up/down",
 		"tab/i - open inventory",
+		"+- - change fov",
 		"f3 - toggle info overlay",
 		"f5 - change movement mode",
 	].map(|s| s.to_uppercase());
@@ -162,6 +164,7 @@ fn main() {
 	let mut frame_n: u64 = 0;
 	let mut is_extra_info_shown = true;
 	let mut is_unlimited_fov = false;
+	let mut is_shaky_fov = false;
 
 	// let mut zqqx_lang = ZqqxLang::new();
 
@@ -269,6 +272,9 @@ fn main() {
 								if !is_unlimited_fov {
 									camera.fov = camera.fov.clamp(FOV_MIN*1.1, FOV_MAX/1.1);
 								}
+							}
+							ToggleShakyFov => {
+								is_shaky_fov = !is_shaky_fov;
 							}
 							Text(_) => {}
 						}
@@ -425,6 +431,10 @@ fn main() {
 
 		// physics update:
 		if !is_paused /* TODO: && exist what needs to be updated */ {
+			if is_shaky_fov {
+				camera.fov = (camera.fov + rng.random_range(-0.1 ..= 0.1) * DELTA_TIME)
+					.clamp(1.*DEG_TO_RAD, 170.*DEG_TO_RAD);
+			}
 			match dimension {
 				Dimension::Base => {
 					dim_base_la_for_floor_color.step(DIM_BASE_LA_SPEED);
@@ -462,8 +472,6 @@ fn main() {
 			// canvas.set_draw_color(Color::RGB(((frame_n) % 255) as u8, (((frame_n+64)/2) % 255) as u8, (255 - (frame_n/3) % 255) as u8));
 			canvas.set_draw_color(Color::BLACK);
 			canvas.clear();
-
-			// dbg!(&camera);
 
 			let (w, h) = canvas.window().size();
 			let (wi, _hi) = (w as i32, h as i32);
@@ -816,6 +824,7 @@ enum PauseMenuItem {
 	Quit,
 	Back,
 	ToggleUnlimitedFov,
+	ToggleShakyFov,
 	Text(String), // just for test
 }
 impl PauseMenuItem {
@@ -825,6 +834,7 @@ impl PauseMenuItem {
 			Quit => "QUIT",
 			Back => "BACK",
 			ToggleUnlimitedFov => "TOGGLE UNLIMITED FOV",
+			ToggleShakyFov => "TOGGLE SHAKY FOV",
 			Text(text) => text,
 		}
 	}
