@@ -856,7 +856,7 @@ enum RenderableObject {
 	Monolith { sizes: Vec<float> },
 	RotatingSimplex { initpoints_rotplanes_rotvels_phases: Vec<(Vec3f, Vec3f, float, float)> },
 	RotatingIcosahedron { size: float, global_rotvel: float, rotplanes_rotvels_angles: Vec<(Vec3f, float, float)> },
-	Kitty { size: float },
+	Kitty { size: float, rotvel: float, phase: float },
 	// TODO: RotatingSimplex but only N closest are connected
 }
 impl RenderableObject {
@@ -901,12 +901,12 @@ impl RenderableObject {
 					*angle += *global_rotvel * *rotation_velocity * delta_time / ((i + 1) as float);
 				}
 			}
-			Kitty { .. } => {
-				// todo!()
+			Kitty { phase, rotvel, .. } => {
+				*phase += *rotvel * delta_time;
 			}
 		}
 	}
-	fn get_renderable_shapes(&self, _camera: &Camera) -> Vec<SdlRenderableShape> {
+	fn get_renderable_shapes(&self, camera: &Camera) -> Vec<SdlRenderableShape> {
 		use RenderableObject::*;
 		use SdlRenderableShape::*;
 		match self {
@@ -1019,9 +1019,82 @@ impl RenderableObject {
 				debug_assert_eq!(30, lines.len());
 				vec![Lines(lines)]
 			}
-			Kitty { size } => {
-				// TODO
-				vec![]
+			Kitty { size, phase, .. } => {
+				let angles_of_points_on_circle_20: Vec<float> = {
+					const N: u32 = 20;
+					let tau_div_n = TAU / (N as float);
+					Vec::from_fn(N as usize, |i| (i as float) * tau_div_n)
+				};
+				let (cam_r, cam_u, cam_f) = camera.basis();
+				let points_outline: Vec<Vec3f> = angles_of_points_on_circle_20.iter()
+					.chain(std::iter::once(angles_of_points_on_circle_20.first().unwrap()))
+					.enumerate()
+					.flat_map(|(i, angle)| {
+						// we do some tomfoolery magic here, after all, we love casting spells
+						if i == 11 || i == 19 {
+							None
+						} else {
+							let size = size * if i == 12 || i == 18 { 1.5 } else { 1. };
+							// Some(get_point_on_circle_in_3d(cam_r, cam_f, *angle, *phase, size))
+							Some(
+								cam_r.rotate_around(cam_f, *angle) * size
+								+ cam_r.rotate_around(cam_f, *phase) * 0.2
+							)
+						}
+					})
+					.collect();
+				let angles_of_points_on_circle_10: Vec<float> = {
+					const N: u32 = 10;
+					let tau_div_n = TAU / (N as float);
+					Vec::from_fn(N as usize, |i| (i as float) * tau_div_n)
+				};
+				let points_eye_left: Vec<Vec3f> = angles_of_points_on_circle_10.iter()
+					.chain(std::iter::once(angles_of_points_on_circle_10.first().unwrap()))
+					.map(|angle| {
+						cam_r.rotate_around(cam_f, *angle) * 0.1
+						+ cam_r.rotate_around(cam_f, *phase) * 0.2
+						+ cam_r * 0.5 + cam_u * 0.2
+						+ cam_f * 0.05
+					})
+					.collect();
+				let points_eye_right: Vec<Vec3f> = angles_of_points_on_circle_10.iter()
+					.chain(std::iter::once(angles_of_points_on_circle_10.first().unwrap()))
+					.map(|angle| {
+						cam_r.rotate_around(cam_f, *angle) * 0.1
+						+ cam_r.rotate_around(cam_f, *phase) * 0.2
+						- cam_r * 0.5 + cam_u * 0.2
+						+ cam_f * 0.05
+					})
+					.collect();
+				let points_smile = [
+					(1.78, -0.5),
+					(1.754, -1.),
+					(1.5, -1.41414),
+					(1.1, -1.654),
+					(0.7, -1.695),
+					(0.3, -1.566),
+					(0., -1.3),
+					(-0.3, -1.566),
+					(-0.7, -1.695),
+					(-1.1, -1.654),
+					(-1.5, -1.41414),
+					(-1.754, -1.),
+					(-1.78, -0.5),
+				];
+				let points_smile: Vec<Vec3f> = points_smile.into_iter()
+					.map(|(x, y)| {
+						// cam_r.rotate_around(cam_f, *angle) * 0.1
+						cam_r.rotate_around(cam_f, *phase) * 0.2
+						- cam_r * x * 0.2 + cam_u * y * 0.2
+						- cam_u * 0.1
+					})
+					.collect();
+				vec![
+					Chain(points_outline),
+					Chain(points_eye_left),
+					Chain(points_eye_right),
+					Chain(points_smile),
+				]
 			}
 		}
 	}
@@ -1044,7 +1117,8 @@ impl Chunk {
 			color: Color::RGB(rng.random(), rng.random(), rng.random()),
 			renderable_objects: {
 				use V7::*;
-				match rng.random_variant_weighted([3., 1., 0.5, 1e-2, 0.2, 0.3, 2.]) {
+				// TODO: write macros and use `pr => { ... }`
+				match rng.random_variant_weighted([5., 1., 0.3, 1e-2, 0.2, 0.3, 1e-3]) {
 					_1 => vec![],
 					_2 => Vec::from_fn(
 						rng.random_range(0 ..= 5),
@@ -1108,7 +1182,9 @@ impl Chunk {
 					_7 => vec![(
 						Vec3f::from_y(rng.random_range(0.5 ..= 1.)),
 						RenderableObject::Kitty {
-							size: rng.random_range(0.25 ..= 0.5),
+							size: rng.random_range(1. ..= 1.5),
+							rotvel: rng.random_range(5. ..= 15.),
+							phase: 0.,
 						}
 					)],
 				}
