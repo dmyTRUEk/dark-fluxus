@@ -103,6 +103,15 @@ fn main() {
 
 
 	let mut dimension = Dimension::Base;
+	const DIM_BASE_LA_SPEED: float = 1e-5;
+	let mut dim_base_la_for_floor_color = LorenzAttractor::new()
+		.offset_params_(Vec3f::random_unit_cube(&mut rng) * 0.1)
+		.offset_xyz(30., 0., 0.);
+	fn base_color(la: &LorenzAttractor) -> u8 {
+		let x = la.get_linear_combination(1., 1., 1.);
+		let c = x.clamp(1., 80.) as u8;
+		c
+	}
 
 
 	let inventory_items = { use InventoryItem::*; vec![
@@ -418,6 +427,7 @@ fn main() {
 		if !is_paused /* TODO: && exist what needs to be updated */ {
 			match dimension {
 				Dimension::Base => {
+					dim_base_la_for_floor_color.step(DIM_BASE_LA_SPEED);
 					for (_x, _z, chunk) in chunks.iter_mut() {
 						for (_pos, ro) in chunk.renderable_objects.iter_mut() {
 							ro.update(DELTA_TIME);
@@ -465,8 +475,10 @@ fn main() {
 			match dimension {
 				Dimension::Base => {
 					for (dx, dz, _x, _z, _chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
-						// canvas.set_draw_color(chunk.color);
-						canvas.set_draw_color(Color::GRAY);
+						canvas.set_draw_color({
+							let c = base_color(&dim_base_la_for_floor_color);
+							Color::RGB(c, c, c)
+						});
 						const STEP: float = 1.;
 						let mut x = -CHUNK_SIZE_HALF * (1. - 1e-2);
 						while x < CHUNK_SIZE_HALF {
