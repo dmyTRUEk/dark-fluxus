@@ -40,7 +40,7 @@ mod vec3d;
 mod zqqx_lang;
 
 use consts::*;
-// use extensions::*;
+use extensions::*;
 use float_type::*;
 use font_rendering::*;
 use lorenz_attractor::*;
@@ -86,6 +86,20 @@ fn main() {
 	]};
 	let mut is_paused = false;
 	let mut pause_menu_item_index: u32 = 0;
+
+
+	let help_lines = [
+		"controls:",
+		"f1 - show help screen",
+		"wasd/arrows/pl;' - move",
+		"shift - move fast",
+		"space/ctrl/alt - fly up/down",
+		"tab/i - open inventory",
+		"f3 - toggle info overlay",
+		"f5 - change movement mode",
+	].map(|s| s.to_uppercase());
+	let mut is_help_opened = false;
+	let mut help_item_index: u32 = 0;
 
 
 	let mut dimension = Dimension::Base;
@@ -158,14 +172,17 @@ fn main() {
 
 		const DELTA_TIME: float = 0.01; // TODO
 
+		let is_overlay = is_paused || is_inventory_opened || is_help_opened;
+
 		for event in event_pump.poll_iter() {
 			match event {
 				Event::Quit {..} => { break 'main_loop }
 				Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+					// TODO(feat): close other menus?
 					is_paused = !is_paused;
 					is_redraw_needed = true;
 				}
-				Event::MouseMotion { xrel, yrel, .. } if !is_paused => {
+				Event::MouseMotion { xrel, yrel, .. } if !is_overlay => {
 					const ROTATION_SPEED: float = 0.6;
 					// left/right
 					camera.forward += camera.basis().0 * xrel * camera.fov * DELTA_TIME * ROTATION_SPEED;
@@ -176,7 +193,7 @@ fn main() {
 					is_redraw_needed = true;
 				}
 				// TODO: use MouseWheel for FOV?
-				Event::KeyDown { keycode: Some(Keycode::F5), .. } if !is_paused => {
+				Event::KeyDown { keycode: Some(Keycode::F5), .. } if !is_overlay => {
 					movement_type.next();
 					match movement_type { // #bqooaj
 						MovementType::Grounded => {
@@ -189,33 +206,43 @@ fn main() {
 					}
 					is_redraw_needed = true;
 				}
-				Event::KeyDown { keycode: Some(Keycode::F3), .. } => {
+				Event::KeyDown { keycode: Some(Keycode::F1), .. } if !is_paused && !is_inventory_opened => {
+					is_help_opened = !is_help_opened;
+					is_redraw_needed = true;
+				}
+				Event::KeyDown { keycode: Some(Keycode::F3), .. } if !is_overlay => {
 					is_extra_info_shown = !is_extra_info_shown;
 					is_redraw_needed = true;
 				}
-				Event::KeyDown { keycode: Some(Keycode::I | Keycode::Tab), .. } if !is_paused => {
+				Event::KeyDown { keycode: Some(Keycode::I | Keycode::Tab), .. } if !is_paused && !is_help_opened => {
 					is_inventory_opened = !is_inventory_opened;
 					is_redraw_needed = true;
 				}
-				Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
+				Event::KeyDown { keycode: Some(Keycode::Up), .. } if is_overlay => {
 					if is_paused {
-						pause_menu_item_index = ((pause_menu_item_index as i32) - 1).rem_euclid(pause_menu_items.len() as i32) as u32;
+						pause_menu_item_index = pause_menu_item_index.dec_mod(pause_menu_items.len() as u32);
+					}
+					else if is_help_opened {
+						help_item_index = help_item_index.dec_mod(help_lines.len() as u32);
 					}
 					else if is_inventory_opened {
-						inventory_item_index = ((inventory_item_index as i32) - 1).rem_euclid(inventory_items.len() as i32) as u32;
+						inventory_item_index = inventory_item_index.dec_mod(inventory_items.len() as u32);
 					}
 					is_redraw_needed = true;
 				}
-				Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
+				Event::KeyDown { keycode: Some(Keycode::Down), .. } if is_overlay => {
 					if is_paused {
-						pause_menu_item_index = (pause_menu_item_index + 1).rem_euclid(pause_menu_items.len() as u32);
+						pause_menu_item_index = pause_menu_item_index.inc_mod(pause_menu_items.len() as u32);
+					}
+					else if is_help_opened {
+						help_item_index = help_item_index.inc_mod(help_lines.len() as u32);
 					}
 					else if is_inventory_opened {
-						inventory_item_index = (inventory_item_index + 1).rem_euclid(inventory_items.len() as u32);
+						inventory_item_index = inventory_item_index.inc_mod(inventory_items.len() as u32);
 					}
 					is_redraw_needed = true;
 				}
-				Event::KeyDown { keycode: Some(Keycode::Return), .. } => {
+				Event::KeyDown { keycode: Some(Keycode::Return), .. } if is_overlay => {
 					if is_paused {
 						use PauseMenuItem::*;
 						match pause_menu_items[pause_menu_item_index as usize] {
@@ -259,10 +286,10 @@ fn main() {
 
 		// handle inputs:
 		let mut move_speed: float = 20.;
-		if !is_paused && keyboard.is_scancodes_pressed_any(&[Scancode::LShift, Scancode::RShift]) {
+		if !is_overlay && keyboard.is_scancodes_pressed_any(&[Scancode::LShift, Scancode::RShift]) {
 			move_speed *= 3.;
 		}
-		if !is_paused && keyboard.is_scancodes_pressed_any(&[Scancode::Up, Scancode::W, Scancode::P]) {
+		if !is_overlay && keyboard.is_scancodes_pressed_any(&[Scancode::Up, Scancode::W, Scancode::P]) {
 			match movement_type {
 				MovementType::Grounded |
 				MovementType::FlyingMClike => {
@@ -276,7 +303,7 @@ fn main() {
 			}
 			is_redraw_needed = true;
 		}
-		if !is_paused && keyboard.is_scancodes_pressed_any(&[Scancode::Down, Scancode::S, Scancode::Semicolon]) {
+		if !is_overlay && keyboard.is_scancodes_pressed_any(&[Scancode::Down, Scancode::S, Scancode::Semicolon]) {
 			match movement_type {
 				MovementType::Grounded |
 				MovementType::FlyingMClike => {
@@ -290,15 +317,15 @@ fn main() {
 			}
 			is_redraw_needed = true;
 		}
-		if !is_paused && keyboard.is_scancodes_pressed_any(&[Scancode::Left, Scancode::A, Scancode::L]) {
+		if !is_overlay && keyboard.is_scancodes_pressed_any(&[Scancode::Left, Scancode::A, Scancode::L]) {
 			camera.pos -= camera.basis().0 * DELTA_TIME * move_speed;
 			is_redraw_needed = true;
 		}
-		if !is_paused && keyboard.is_scancodes_pressed_any(&[Scancode::Right, Scancode::D, Scancode::Apostrophe]) {
+		if !is_overlay && keyboard.is_scancodes_pressed_any(&[Scancode::Right, Scancode::D, Scancode::Apostrophe]) {
 			camera.pos += camera.basis().0 * DELTA_TIME * move_speed;
 			is_redraw_needed = true;
 		}
-		if !is_paused && keyboard.is_scancode_pressed(Scancode::Space) {
+		if !is_overlay && keyboard.is_scancode_pressed(Scancode::Space) {
 			match movement_type {
 				MovementType::Grounded => {
 					// TODO?
@@ -313,7 +340,7 @@ fn main() {
 			}
 			is_redraw_needed = true;
 		}
-		if !is_paused && keyboard.is_scancodes_pressed_any(&[Scancode::LCtrl, Scancode::LAlt, Scancode::RCtrl, Scancode::RAlt]) {
+		if !is_overlay && keyboard.is_scancodes_pressed_any(&[Scancode::LCtrl, Scancode::LAlt, Scancode::RCtrl, Scancode::RAlt]) {
 			match movement_type {
 				MovementType::Grounded => {
 					// TODO?
@@ -329,7 +356,7 @@ fn main() {
 			is_redraw_needed = true;
 		}
 		const ROLL_SPEED: float = 1.;
-		if !is_paused && keyboard.is_scancode_pressed(Scancode::Q) {
+		if !is_overlay && keyboard.is_scancodes_pressed_any(&[Scancode::Q, Scancode::O]) {
 			match movement_type {
 				MovementType::Grounded => {}
 				MovementType::FlyingMClike => {}
@@ -341,7 +368,7 @@ fn main() {
 				}
 			}
 		}
-		if !is_paused && keyboard.is_scancode_pressed(Scancode::E) {
+		if !is_overlay && keyboard.is_scancodes_pressed_any(&[Scancode::E, Scancode::LeftBracket]) {
 			match movement_type {
 				MovementType::Grounded => {}
 				MovementType::FlyingMClike => {}
@@ -353,7 +380,7 @@ fn main() {
 				}
 			}
 		}
-		if !is_paused && keyboard.is_scancode_pressed(Scancode::R) {
+		if !is_overlay && keyboard.is_scancode_pressed(Scancode::R) {
 			// reset camera roll
 			match movement_type {
 				MovementType::Grounded => {}
@@ -598,6 +625,42 @@ fn main() {
 				canvas.render_text(&fps_text, (wi - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), text_size);
 			}
 
+			if is_help_opened {
+				const PADDING: float = 30.;
+				const ITEM_Y: float = 30.;
+				const ITEMS_N: u32 = 15;
+				debug_assert_eq!(1, ITEMS_N % 2);
+				const MENU_SIZE_X: float = 1000.;
+				const MENU_SIZE_Y: float = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as float);
+				const ITEM_X: float = MENU_SIZE_X - 2.*PADDING;
+				canvas.set_draw_color(Color::BLACK);
+				canvas.fill_rect(FRect::from_center_size(wfh, hfh, MENU_SIZE_X, MENU_SIZE_Y)).unwrap();
+				canvas.set_draw_color(Color::WHITE);
+				canvas.draw_rect(FRect::from_center_size(wfh, hfh, MENU_SIZE_X, MENU_SIZE_Y)).unwrap();
+				const ITEM_UNSELECTED_COLOR: Color = Color::GRAY;
+				const ITEM_SELECTED_COLOR: Color = Color::WHITE;
+				// const ITEM_TEXT_COLOR: Color = Color::GREEN;
+				const ITEM_TEXT_SIZE: u8 = 5;
+				const ITEM_INNER_PADDING: float = (ITEM_Y - (ITEM_TEXT_SIZE as float)*(FONT_H as float)) / 2.;
+				canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
+				let i_init: u32 = help_item_index.saturating_sub((ITEMS_N-1)/2);
+				let mut i: u32 = i_init;
+				while i - i_init < ITEMS_N && i < help_lines.len() as u32 {
+					let menu_item = &help_lines[i as usize];
+					if i == help_item_index {
+						canvas.set_draw_color(ITEM_SELECTED_COLOR);
+					}
+					let item_cx = wfh;
+					let item_cy = hfh - MENU_SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
+					// canvas.draw_rect(FRect::from_center_size(item_cx, item_cy, ITEM_X, ITEM_Y)).unwrap();
+					canvas.render_text(menu_item, ((item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32, (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32), ITEM_TEXT_SIZE);
+					if i == help_item_index {
+						canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
+					}
+					i += 1;
+				}
+			}
+
 			if is_inventory_opened {
 				const PADDING: float = 30.;
 				const ITEM_Y: float = 50.;
@@ -619,14 +682,14 @@ fn main() {
 				let i_init: u32 = inventory_item_index.saturating_sub((ITEMS_N-1)/2);
 				let mut i: u32 = i_init;
 				while i - i_init < ITEMS_N && i < inventory_items.len() as u32 {
-					let menu_item = &inventory_items[i as usize];
+					let inventory_item = &inventory_items[i as usize];
 					if i == inventory_item_index {
 						canvas.set_draw_color(ITEM_SELECTED_COLOR);
 					}
 					let item_cx = wfh;
 					let item_cy = hfh - MENU_SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
 					canvas.draw_rect(FRect::from_center_size(item_cx, item_cy, ITEM_X, ITEM_Y)).unwrap();
-					canvas.render_text(menu_item.to_str(), ((item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32, (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32), ITEM_TEXT_SIZE);
+					canvas.render_text(inventory_item.to_str(), ((item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32, (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32), ITEM_TEXT_SIZE);
 					if i == inventory_item_index {
 						canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
 					}

@@ -50,3 +50,26 @@ impl<T> Into_<T> for T { fn into_(self) -> T { self } }
 // impl<T, S: Into<T>> MyInto<T> for S { fn into_(self) -> T { self.into() } }
 impl Into_<float> for i32 { fn into_(self) -> float { self as float } }
 
+
+
+pub trait AddSubModulo {
+	fn add_mod(self, n: Self, modulo: Self) -> Self;
+	fn sub_mod(self, n: Self, modulo: Self) -> Self;
+	fn inc_mod(self, modulo: Self) -> Self;
+	fn dec_mod(self, modulo: Self) -> Self;
+}
+impl AddSubModulo for u32 {
+	fn add_mod(self, n: Self, modulo: Self) -> Self {
+		(self + n).rem_euclid(modulo)
+	}
+	fn sub_mod(self, n: Self, modulo: Self) -> Self {
+		((self as i32) - (n as i32)).rem_euclid(modulo as i32) as u32
+	}
+	fn inc_mod(self, modulo: Self) -> Self {
+		self.add_mod(1, modulo)
+	}
+	fn dec_mod(self, modulo: Self) -> Self {
+		self.sub_mod(1, modulo)
+	}
+}
+
