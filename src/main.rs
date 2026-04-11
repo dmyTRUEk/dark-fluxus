@@ -29,6 +29,7 @@ mod extensions;
 mod float_type;
 mod font_rendering;
 mod lorenz_attractor;
+mod math;
 mod math_aliases;
 mod typesafe_rng;
 mod utils_io;
@@ -42,6 +43,7 @@ use extensions::*;
 use float_type::*;
 use font_rendering::*;
 use lorenz_attractor::*;
+use math::*;
 use math_aliases::*;
 use typesafe_rng::*;
 // use utils_io::*;
@@ -1112,7 +1114,7 @@ struct Chunk {
 }
 impl Chunk {
 	fn new_random(rng: &mut ThreadRng) -> Self {
-		Chunk {
+		Self {
 			// color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0), // for dbg
 			color: Color::RGB(rng.random(), rng.random(), rng.random()),
 			renderable_objects: {
@@ -1175,7 +1177,11 @@ impl Chunk {
 							global_rotvel: rng.random_range(0.01 ..= 1.),
 							rotplanes_rotvels_angles: Vec::from_fn(
 								rng.random_range(1 ..= 5),
-								|_i| (Vec3f::random_unit(rng), rng.random_range(0.1 ..= 2.), rng.random_range(0. ..= TAU))
+								|_i| (
+									Vec3f::random_unit(rng),
+									rng.random_range(0.1 ..= 2.),
+									rng.random_range(0. ..= TAU),
+								)
 							),
 						}
 					)],
