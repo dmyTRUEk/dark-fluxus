@@ -137,7 +137,7 @@ fn main() {
 	let mut surface_world_params = gen_surface_world_params(&mut rng);
 
 
-	const CHUNKS_N: u32 = 5;
+	const CHUNKS_N: u32 = 17;
 	let render_distance: u32 = 2;
 	let mut chunks = Vec2D::<Chunk>::from_fn(CHUNKS_N, CHUNKS_N, |_x, _z| {
 		Chunk::new_random(&mut rng)
@@ -1130,7 +1130,7 @@ impl RenderableObject {
 
 
 
-const CHUNK_SIZE: float = 10.;
+const CHUNK_SIZE: float = 20.;
 const CHUNK_SIZE_HALF: float = CHUNK_SIZE / 2.;
 struct Chunk {
 	color: Color,
