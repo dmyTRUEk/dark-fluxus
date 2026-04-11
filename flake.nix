@@ -9,6 +9,7 @@
 			# config.allowUnsupportedSystem = true;
 			# config.allowBroken = true;
 		};
+		targetPkgs = pkgs.pkgsCross.gnu64;
 	in {
 		devShells.${system}.default = pkgs.mkShell rec {
 			packages = with pkgs; [
@@ -23,19 +24,28 @@
 				# pkgsCross.mingwW64.pkg-config
 			];
 			# Environment variables:
+
 			# RUST_BACKTRACE = "full";
 
-			# buildInputs = with pkgs; [
-			# 	pkgsCross.mingwW64.SDL
-			# 	pkgsCross.mingwW64.pkg-config
-			# ];
-			#
-			# # This is the important part:
-			# LIBRARY_PATH = "${pkgs.pkgsCross.mingwW64.SDL}/lib";
-			# C_INCLUDE_PATH = "${pkgs.pkgsCross.mingwW64.SDL}/include";
-			#
-			# # Often needed for Rust build scripts:
-			# PKG_CONFIG_PATH = "${pkgs.pkgsCross.mingwW64.SDL}/lib/pkgconfig";
+			nativeBuildInputs = with pkgs; [
+				pkg-config
+			];
+
+			buildInputs = with pkgs; [
+				# pkgsCross.mingwW64.SDL
+				# pkgsCross.mingwW64.pkg-config
+				targetPkgs.sdl3
+				# pkg-config
+				# libxkbcommon
+				# cmake
+			];
+
+			PKG_CONFIG_ALLOW_CROSS = "1";
+			PKG_CONFIG_PATH = "${targetPkgs.sdl3.dev}/lib/pkgconfig";
+
+			RUSTFLAGS = [
+				"-L${targetPkgs.sdl3}/lib"
+			];
 		};
 	};
 }
