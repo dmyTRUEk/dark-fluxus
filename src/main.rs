@@ -883,7 +883,7 @@ enum RenderableObject {
 	RotatingSimplex { initpoints_rotplanes_rotvels_phases: Vec<(Vec3f, Vec3f, float, float)> },
 	RotatingIcosahedron { size: float, global_rotvel: float, rotplanes_rotvels_angles: Vec<(Vec3f, float, float)> },
 	Kitty { size: float, rotvel: float, phase: float },
-	// TODO: RotatingSimplex but only N closest are connected
+	Graph3d { connect_n: u32, global_rotvel: float, initpoints_rotplanes_rotvels_phases: Vec<(Vec3f, Vec3f, float, float)> },
 }
 impl RenderableObject {
 	fn is_time_dependent(&self) -> bool {
@@ -893,6 +893,7 @@ impl RenderableObject {
 			| RotatingSimplex { .. }
 			| RotatingIcosahedron { .. }
 			| Kitty { .. }
+			| Graph3d { .. }
 			=> true,
 			| Cube { .. }
 			| Monolith { .. }
@@ -919,7 +920,7 @@ impl RenderableObject {
 					if *phase > TAU {
 						*phase -= TAU;
 					}
-					debug_assert!(*phase >= 0.);
+					// debug_assert!(*phase >= 0.);
 				}
 			}
 			RotatingIcosahedron { rotplanes_rotvels_angles, global_rotvel, size: _ } => {
@@ -929,6 +930,15 @@ impl RenderableObject {
 			}
 			Kitty { phase, rotvel, .. } => {
 				*phase += *rotvel * delta_time;
+			}
+			Graph3d { initpoints_rotplanes_rotvels_phases, global_rotvel, .. } => {
+				for (_initpoint, _rotplane, rotation_velocity, phase) in initpoints_rotplanes_rotvels_phases.iter_mut() {
+					*phase += *rotation_velocity * *global_rotvel * delta_time;
+					if *phase > TAU {
+						*phase -= TAU;
+					}
+					// debug_assert!(*phase >= 0.);
+				}
 			}
 		}
 	}
@@ -1122,6 +1132,33 @@ impl RenderableObject {
 					Chain(points_smile),
 				]
 			}
+			Graph3d { connect_n, initpoints_rotplanes_rotvels_phases, .. } => {
+				let points: Vec<Vec3f> = initpoints_rotplanes_rotvels_phases.iter()
+					.map(|(initpoint, rotplane, _rotvel, phase)| {
+						initpoint.rotate_around(*rotplane, *phase)
+					})
+					.collect();
+				let mut neighbors: Vec<Vec<u32>> = Vec::from_fn(points.len(), |_i| Vec::with_capacity(points.len()));
+				for i in 0 .. points.len() {
+					let mut distances = vec![];
+					for j in 0 .. points.len() { // or from i+1 ?
+						let dist2 = if i != j { points[i].dist2_to(points[j]) } else { float::MAX };
+						distances.push((j as u32, dist2));
+					}
+					distances.sort_by(|(_j1, d1), (_j2, d2)| d1.partial_cmp(d2).unwrap());
+					neighbors[i] = distances[..*connect_n as usize].iter().map(|(j, _d)| *j).collect();
+				}
+				let mut lines = vec![];
+				for i in 0 .. points.len() {
+					for j in neighbors[i].iter() {
+						if (i as u32) >= *j { continue }
+						let a = points[i];
+						let b = points[*j as usize];
+						lines.push((a, b));
+					}
+				}
+				vec![Lines(lines)]
+			}
 		}
 	}
 }
@@ -1142,9 +1179,9 @@ impl Chunk {
 			// color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0), // for dbg
 			color: Color::RGB(rng.random(), rng.random(), rng.random()),
 			renderable_objects: {
-				use V7::*;
+				use V8::*;
 				// TODO: write macros and use `pr => { ... }`
-				match rng.random_variant_weighted([5., 1., 0.3, 1e-2, 0.2, 0.3, 1e-3]) {
+				match rng.random_variant_weighted([5., 1., 0.3, 1e-2, 0.2, 0.3, 1e-3, 0.1]) {
 					_1 => vec![],
 					_2 => Vec::from_fn(
 						rng.random_range(0 ..= 5),
@@ -1185,7 +1222,8 @@ impl Chunk {
 							initpoints_rotplanes_rotvels_phases: {
 								macro_rules! random_r { () => { rng.random_range(0.8 ..= 2.3_f32).powi(2) }; }
 								let equidistant_from_center = rng.random_bool(0.5).then(|| random_r!());
-								(0..rng.random_range(4 ..= 10)).map(|_i| (
+								let n = rng.random_range(4 ..= 10);
+								(0..n).map(|_i| (
 									Vec3f::random_unit(rng) * if let Some(s) = equidistant_from_center { s } else { random_r!() },
 									Vec3f::random_unit(rng),
 									rng.random_range(0.5 ..= 1.4_f32).powi(2),
@@ -1215,6 +1253,24 @@ impl Chunk {
 							size: rng.random_range(1. ..= 1.5),
 							rotvel: rng.random_range(5. ..= 15.),
 							phase: 0.,
+						}
+					)],
+					_8 => vec![(
+						Vec3f::from_y(rng.random_range(2. ..= 5.)),
+						RenderableObject::Graph3d {
+							connect_n: rng.random_range(1 ..= 6),
+							global_rotvel: rng.random_range(0.01 ..= 2.),
+							initpoints_rotplanes_rotvels_phases: {
+								macro_rules! random_r { () => { rng.random_range(0.8 ..= 2.3_f32).powi(2) }; }
+								let equidistant_from_center = rng.random_bool(0.5).then(|| random_r!());
+								let n = rng.random_range(10 ..= 200);
+								(0..n).map(|_i| (
+									Vec3f::random_unit(rng) * if let Some(s) = equidistant_from_center { s } else { random_r!() },
+									Vec3f::random_unit(rng),
+									rng.random_range(0.5 ..= 1.4_f32).powi(2),
+									rng.random_range(0. ..= TAU),
+								)).collect()
+							},
 						}
 					)],
 				}
