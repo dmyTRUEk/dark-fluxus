@@ -854,9 +854,10 @@ enum RenderableObject {
 	LorenzAttractor { size: float, la: LorenzAttractor, last_points: Vec<Vec3f>, max_len: u32 },
 	// SpinningText?
 	Monolith { sizes: Vec<float> },
-	RotatingSimplex { points_rotplanes_rotvels: Vec<(Vec3f, Vec3f, float)> },
+	RotatingSimplex { initpoints_rotplanes_rotvels_phases: Vec<(Vec3f, Vec3f, float, float)> },
 	RotatingIcosahedron { size: float, global_rotvel: float, rotplanes_rotvels_angles: Vec<(Vec3f, float, float)> },
 	Kitty { size: float },
+	// TODO: RotatingSimplex but only N closest are connected
 }
 impl RenderableObject {
 	fn is_time_dependent(&self) -> bool {
@@ -886,16 +887,18 @@ impl RenderableObject {
 				}
 				la.step(1e-2);
 			}
-			RotatingSimplex { points_rotplanes_rotvels } => {
-				// TODO: update only phase
-				for (point, rotation_plane, rotation_velocity) in points_rotplanes_rotvels.iter_mut() {
-					// TODO: this causes them to gradually grow in size, so use only starting point and current phase, which is %2pi
-					*point += point.cross(*rotation_plane) * *rotation_velocity * delta_time;
+			RotatingSimplex { initpoints_rotplanes_rotvels_phases } => {
+				for (_initpoint, _rotplane, rotation_velocity, phase) in initpoints_rotplanes_rotvels_phases.iter_mut() {
+					*phase += *rotation_velocity * delta_time;
+					if *phase > TAU {
+						*phase -= TAU;
+					}
+					debug_assert!(*phase >= 0.);
 				}
 			}
 			RotatingIcosahedron { rotplanes_rotvels_angles, global_rotvel, size: _ } => {
-				for (i, (_rotplane, rotvel, angle)) in rotplanes_rotvels_angles.iter_mut().enumerate() {
-					*angle += *global_rotvel * *rotvel * delta_time / ((i + 1) as float); // TODO
+				for (i, (_rotplane, rotation_velocity, angle)) in rotplanes_rotvels_angles.iter_mut().enumerate() {
+					*angle += *global_rotvel * *rotation_velocity * delta_time / ((i + 1) as float);
 				}
 			}
 			Kitty { .. } => {
@@ -950,12 +953,17 @@ impl RenderableObject {
 					]
 				}).flatten().collect())]
 			}
-			RotatingSimplex { points_rotplanes_rotvels } => {
+			RotatingSimplex { initpoints_rotplanes_rotvels_phases } => {
+				let points: Vec<Vec3f> = initpoints_rotplanes_rotvels_phases.iter()
+					.map(|(initpoint, rotplane, _rotvel, phase)| {
+						initpoint.rotate_around(*rotplane, *phase)
+					})
+					.collect();
 				let mut lines = vec![];
-				for i in 0 .. points_rotplanes_rotvels.len() {
-					for j in i+1 .. points_rotplanes_rotvels.len() {
-						let a = points_rotplanes_rotvels[i].0;
-						let b = points_rotplanes_rotvels[j].0;
+				for i in 0 .. points.len() {
+					for j in i+1 .. points.len() {
+						let a = points[i];
+						let b = points[j];
 						lines.push((a, b));
 					}
 				}
@@ -1036,7 +1044,7 @@ impl Chunk {
 			color: Color::RGB(rng.random(), rng.random(), rng.random()),
 			renderable_objects: {
 				use V7::*;
-				match rng.random_variant_weighted([3., 1., 0.5, 0.1, 0.5, 2., 2.]) {
+				match rng.random_variant_weighted([3., 1., 0.5, 1e-2, 0.2, 0.3, 2.]) {
 					_1 => vec![],
 					_2 => Vec::from_fn(
 						rng.random_range(0 ..= 5),
@@ -1054,9 +1062,9 @@ impl Chunk {
 						RenderableObject::LorenzAttractor {
 							size: rng.random_range(0.1 ..= 0.2),
 							la: LorenzAttractor::new().offset_params_(
-								Vec3f::random_unit_cube(rng) * 0.1,
+								Vec3f::random_unit_cube(rng) * 0.1
 							).set_xyz_(
-								Vec3f::random_unit(rng) * rng.random_range(0.1 ..= 0.2),
+								Vec3f::random_unit(rng) * rng.random_range(0.1 ..= 0.2)
 							),
 							last_points: vec![],
 							max_len: 10_f32.powf(rng.random_range(2. ..= 4.)).round() as u32,
@@ -1074,13 +1082,14 @@ impl Chunk {
 					_5 => vec![(
 						Vec3f::from_y(rng.random_range(1. ..= 5.)),
 						RenderableObject::RotatingSimplex {
-							points_rotplanes_rotvels: {
+							initpoints_rotplanes_rotvels_phases: {
 								macro_rules! random_r { () => { rng.random_range(0.8 ..= 2.3_f32).powi(2) }; }
 								let equidistant_from_center = rng.random_bool(0.5).then(|| random_r!());
 								(0..rng.random_range(4 ..= 10)).map(|_i| (
 									Vec3f::random_unit(rng) * if let Some(s) = equidistant_from_center { s } else { random_r!() },
 									Vec3f::random_unit(rng),
-									rng.random_range(0.5 ..= 1.4_f32).powi(2)
+									rng.random_range(0.5 ..= 1.4_f32).powi(2),
+									rng.random_range(0. ..= TAU),
 								)).collect()
 							},
 						}
