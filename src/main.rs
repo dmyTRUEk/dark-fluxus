@@ -21,8 +21,6 @@
 
 use std::{f32::consts::{GOLDEN_RATIO, PI}, thread::sleep, time::{Duration, SystemTime}};
 
-// use encoding_rs::UTF_8;
-// use llama_cpp_2::{context::params::LlamaContextParams, llama_backend::LlamaBackend, llama_batch::LlamaBatch, model::{AddBos, LlamaModel, params::LlamaModelParams}, sampling::LlamaSampler};
 use rand::{RngExt, rng, rngs::ThreadRng};
 use sdl3::{event::Event, keyboard::{KeyboardState, Keycode, Scancode}, pixels::Color, render::{FPoint, FRect}};
 
@@ -493,30 +491,32 @@ fn main() {
 						for (pos, ro) in chunk.renderable_objects.iter() {
 							use SdlRenderableShape::*;
 							let shift: Vec3f = *pos + Vec3f::from_xz((dx as float)*CHUNK_SIZE, (dz as float)*CHUNK_SIZE);
-							match ro.get_renderable_shape() {
-								Points(points) => {
-									let projected_points: Vec<FPoint> = points.iter()
-										.map(|&p| p + shift)
-										.flat_map(|p| {
-											camera.project_point(p, wf, hf).map(|p| p.into())
-										}).collect::<Vec<_>>();
-									canvas.draw_points(projected_points.as_slice()).unwrap();
-								}
-								Lines(lines) => {
-									for line in lines.iter() {
-										let line = (line.0 + shift, line.1 + shift);
-										if let Some((a,b)) = camera.project_line(&line, wf, hf) {
-											canvas.draw_line(a,b).unwrap();
+							for renderable_shape in ro.get_renderable_shapes(&camera) {
+								match renderable_shape {
+									Points(points) => {
+										let projected_points: Vec<FPoint> = points.iter()
+											.map(|&p| p + shift)
+											.flat_map(|p| {
+												camera.project_point(p, wf, hf).map(|p| p.into())
+											}).collect::<Vec<_>>();
+										canvas.draw_points(projected_points.as_slice()).unwrap();
+									}
+									Lines(lines) => {
+										for line in lines.iter() {
+											let line = (line.0 + shift, line.1 + shift);
+											if let Some((a,b)) = camera.project_line(&line, wf, hf) {
+												canvas.draw_line(a,b).unwrap();
+											}
 										}
 									}
-								}
-								Chain(chain) => {
-									let projected_chain: Vec<FPoint> = chain.iter()
-										.map(|&p| p + shift)
-										.flat_map(|p| {
-											camera.project_point(p, wf, hf).map(|p| p.into())
-										}).collect::<Vec<_>>();
-									canvas.draw_lines(projected_chain.as_slice()).unwrap();
+									Chain(chain) => {
+										let projected_chain: Vec<FPoint> = chain.iter()
+											.map(|&p| p + shift)
+											.flat_map(|p| {
+												camera.project_point(p, wf, hf).map(|p| p.into())
+											}).collect::<Vec<_>>();
+										canvas.draw_lines(projected_chain.as_slice()).unwrap();
+									}
 								}
 							}
 						}
@@ -907,13 +907,13 @@ impl RenderableObject {
 			}
 		}
 	}
-	fn get_renderable_shape(&self) -> SdlRenderableShape {
+	fn get_renderable_shapes(&self, _camera: &Camera) -> Vec<SdlRenderableShape> {
 		use RenderableObject::*;
 		use SdlRenderableShape::*;
 		match self {
 			Cube { size } => {
 				let s = size / 2.;
-				Lines(vec![
+				vec![Lines(vec![
 					(vec3!(-s,-s,-s), vec3!(-s,-s, s)),
 					(vec3!(-s,-s,-s), vec3!(-s, s,-s)),
 					(vec3!(-s, s, s), vec3!(-s,-s, s)),
@@ -928,13 +928,13 @@ impl RenderableObject {
 					(vec3!( s, s, s), vec3!(-s, s, s)),
 					(vec3!(-s,-s, s), vec3!( s,-s, s)),
 					(vec3!(-s, s,-s), vec3!( s, s,-s)),
-				])
+				])]
 			}
 			LorenzAttractor { size, last_points, .. } => {
-				Chain(last_points.iter().map(|&p| p * *size).collect())
+				vec![Chain(last_points.iter().map(|&p| p * *size).collect())]
 			}
 			Monolith { sizes } => {
-				Lines(sizes.iter().map(|size| {
+				vec![Lines(sizes.iter().map(|size| {
 					let s = size / 2.;
 					vec![
 						(vec3!(-s,-s,-s), vec3!(-s,-s, s)),
@@ -952,7 +952,7 @@ impl RenderableObject {
 						// (vec3!(-s,-s, s), vec3!( s,-s, s)),
 						// (vec3!(-s, s,-s), vec3!( s, s,-s)),
 					]
-				}).flatten().collect())
+				}).flatten().collect())]
 			}
 			RotatingSimplex { points_rotplanes_rotvels } => {
 				let mut lines = vec![];
@@ -963,7 +963,7 @@ impl RenderableObject {
 						lines.push((a, b));
 					}
 				}
-				Lines(lines)
+				vec![Lines(lines)]
 			}
 			Kitty { size } => {
 				const PHI: float = GOLDEN_RATIO;
@@ -1033,7 +1033,7 @@ impl RenderableObject {
 				}
 				// debug_assert_eq!(30, lines.len());
 				// TODO(optim): use precalculated points/lines
-				Lines(lines)
+				vec![Lines(lines)]
 			}
 		}
 	}
