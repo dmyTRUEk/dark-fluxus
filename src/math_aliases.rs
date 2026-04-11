@@ -36,3 +36,5 @@ pub fn sigmoid(x: float) -> float { 1. / (1. + exp(-x)) }
 // y = 1/(1+exp(-x)) => y*(1+exp(-x)) = 1 => 1+exp(-x) = 1/y => exp(-x) = 1/y-1 => -x = ln(1/y-1) => x = -ln(1/y-1)
 pub fn asigmoid(x: float) -> float { -ln(1./x - 1.) }
 
+pub fn hypot(a: float, b: float) -> float { a.hypot(b) }
+

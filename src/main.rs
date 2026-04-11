@@ -475,20 +475,24 @@ fn main() {
 			match dimension {
 				Dimension::Base => {
 					for (dx, dz, _x, _z, _chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
-						canvas.set_draw_color({
-							let c = base_color(&dim_base_la_for_floor_color);
-							Color::RGB(c, c, c)
-						});
 						const STEP: float = 1.;
 						let mut x = -CHUNK_SIZE_HALF * (1. - 1e-2);
 						while x < CHUNK_SIZE_HALF {
 							let mut z = -CHUNK_SIZE_HALF * (1. - 1e-2);
 							while z < CHUNK_SIZE_HALF {
+								let pos = Vec3f::from_xz((dx as float)*CHUNK_SIZE + x, (dz as float)*CHUNK_SIZE + z);
+								canvas.set_draw_color({
+									let c = base_color(&dim_base_la_for_floor_color);
+									let pos_rel_to_cam = pos - camera.pos;
+									// TODO: better attenuation curve
+									let c = ((c as float) / (1. + 2e-3*pos_rel_to_cam.norm2())) as u8;
+									Color::RGB(c, c, c)
+								});
 								let lines = [
-									(Vec3f::new((dx as float)*CHUNK_SIZE+x-STEP/3., 0., (dz as float)*CHUNK_SIZE+z-STEP/3.),
-									 Vec3f::new((dx as float)*CHUNK_SIZE+x+STEP/3., 0., (dz as float)*CHUNK_SIZE+z+STEP/3.)),
-									(Vec3f::new((dx as float)*CHUNK_SIZE+x-STEP/3., 0., (dz as float)*CHUNK_SIZE+z+STEP/3.),
-									 Vec3f::new((dx as float)*CHUNK_SIZE+x+STEP/3., 0., (dz as float)*CHUNK_SIZE+z-STEP/3.)),
+									(Vec3f::new(pos.x - STEP/3., 0., pos.z - STEP/3.),
+									 Vec3f::new(pos.x + STEP/3., 0., pos.z + STEP/3.)),
+									(Vec3f::new(pos.x - STEP/3., 0., pos.z + STEP/3.),
+									 Vec3f::new(pos.x + STEP/3., 0., pos.z - STEP/3.)),
 								];
 								for line in lines.iter() {
 									if let Some((a,b)) = camera.project_line(line, wf, hf) {
@@ -501,10 +505,18 @@ fn main() {
 						}
 					}
 					for (dx, dz, _x, _z, chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
-						canvas.set_draw_color(chunk.color);
 						for (pos, ro) in chunk.renderable_objects.iter() {
 							use SdlRenderableShape::*;
 							let shift: Vec3f = *pos + Vec3f::from_xz((dx as float)*CHUNK_SIZE, (dz as float)*CHUNK_SIZE);
+							canvas.set_draw_color({
+								let Color { r, g, b, .. } = chunk.color;
+								let pos_rel_to_cam = shift - camera.pos;
+								// TODO: better attenuation curve
+								let r = ((r as float) / (1. + 1e-2*pos_rel_to_cam.norm2())) as u8;
+								let g = ((g as float) / (1. + 1e-2*pos_rel_to_cam.norm2())) as u8;
+								let b = ((b as float) / (1. + 1e-2*pos_rel_to_cam.norm2())) as u8;
+								Color::RGB(r, g, b)
+							});
 							for renderable_shape in ro.get_renderable_shapes(&camera) {
 								match renderable_shape {
 									Points(points) => {
