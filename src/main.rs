@@ -82,16 +82,19 @@ fn main() {
 	let pause_menu_items = { use PauseMenuItem::*; vec![
 		Quit,
 		Back,
+		ToggleDarkness,
 		ToggleUnlimitedFov,
 		ToggleShakyFov,
 	]};
 	let mut is_paused = false;
 	let mut pause_menu_item_index: u32 = 0;
+	let mut is_darkness_at_base = false;
 
 
 	let help_lines = [
 		"controls:",
 		"f1 - show help screen",
+		"escape - pause",
 		"wasd/arrows/pl;' - move",
 		"shift - move fast",
 		"space/ctrl/alt - fly up/down",
@@ -266,6 +269,9 @@ fn main() {
 								camera.pos = CAMERA_DEFAULT_POSITION;
 								current_chunk_x = 0;
 								current_chunk_z = 0;
+							}
+							ToggleDarkness => {
+								is_darkness_at_base = !is_darkness_at_base;
 							}
 							ToggleUnlimitedFov => {
 								is_unlimited_fov = !is_unlimited_fov;
@@ -490,10 +496,12 @@ fn main() {
 							while z < CHUNK_SIZE_HALF {
 								let pos = Vec3f::from_xz((dx as float)*CHUNK_SIZE + x, (dz as float)*CHUNK_SIZE + z);
 								canvas.set_draw_color({
-									let c = base_color(&dim_base_la_for_floor_color);
+									let mut c = base_color(&dim_base_la_for_floor_color);
 									let pos_rel_to_cam = pos - camera.pos;
-									// TODO: better attenuation curve
-									let c = ((c as float) / (1. + 2e-3*pos_rel_to_cam.norm2())) as u8;
+									if is_darkness_at_base {
+										// TODO: better attenuation curve
+										c = ((c as float) / (1. + 2e-3*pos_rel_to_cam.norm2())) as u8;
+									}
 									Color::RGB(c, c, c)
 								});
 								let lines = [
@@ -517,12 +525,14 @@ fn main() {
 							use SdlRenderableShape::*;
 							let shift: Vec3f = *pos + Vec3f::from_xz((dx as float)*CHUNK_SIZE, (dz as float)*CHUNK_SIZE);
 							canvas.set_draw_color({
-								let Color { r, g, b, .. } = chunk.color;
+								let Color { mut r, mut g, mut b, .. } = chunk.color;
 								let pos_rel_to_cam = shift - camera.pos;
-								// TODO: better attenuation curve
-								let r = ((r as float) / (1. + 1e-2*pos_rel_to_cam.norm2())) as u8;
-								let g = ((g as float) / (1. + 1e-2*pos_rel_to_cam.norm2())) as u8;
-								let b = ((b as float) / (1. + 1e-2*pos_rel_to_cam.norm2())) as u8;
+								if is_darkness_at_base {
+									// TODO: better attenuation curve
+									r = ((r as float) / (1. + 1e-2*pos_rel_to_cam.norm2())) as u8;
+									g = ((g as float) / (1. + 1e-2*pos_rel_to_cam.norm2())) as u8;
+									b = ((b as float) / (1. + 1e-2*pos_rel_to_cam.norm2())) as u8;
+								}
 								Color::RGB(r, g, b)
 							});
 							for renderable_shape in ro.get_renderable_shapes(&camera) {
@@ -823,6 +833,7 @@ impl InventoryItem {
 enum PauseMenuItem {
 	Quit,
 	Back,
+	ToggleDarkness,
 	ToggleUnlimitedFov,
 	ToggleShakyFov,
 	Text(String), // just for test
@@ -833,6 +844,7 @@ impl PauseMenuItem {
 		match self {
 			Quit => "QUIT",
 			Back => "BACK",
+			ToggleDarkness => "TOGGLE DARKNESS",
 			ToggleUnlimitedFov => "TOGGLE UNLIMITED FOV",
 			ToggleShakyFov => "TOGGLE SHAKY FOV",
 			Text(text) => text,
