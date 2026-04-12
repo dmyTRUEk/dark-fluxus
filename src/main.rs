@@ -1189,11 +1189,9 @@ impl Chunk {
 			// color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0), // for dbg
 			color: Color::RGB(rng.random(), rng.random(), rng.random()),
 			renderable_objects: {
-				use V8::*;
-				// TODO: write macros and use `pr => { ... }`
-				match rng.random_variant_weighted([5., 1., 0.3, 1e-2, 0.2, 0.3, 1e-3, 0.1]) {
-					_1 => vec![],
-					_2 => Vec::from_fn(
+				match_random_weighted! { rng,
+					5. => vec![],
+					1. => Vec::from_fn(
 						rng.random_range(0 ..= 5),
 						|_i| (
 							Vec3f::new(
@@ -1204,7 +1202,7 @@ impl Chunk {
 							RenderableObject::Cube { size: rng.random_range(0.3 ..= 3.) }
 						)
 					),
-					_3 => vec![(
+					0.3 => vec![(
 						Vec3f::new(-0.5, rng.random_range(1. ..= 9.), -4.),
 						RenderableObject::LorenzAttractor {
 							size: rng.random_range(0.1 ..= 0.2),
@@ -1217,7 +1215,7 @@ impl Chunk {
 							max_len: 10_f32.powf(rng.random_range(2. ..= 4.)).round() as u32,
 						}
 					)],
-					_4 => vec![(
+					1e-2 => vec![(
 						Vec3f::from_y(rng.random_range(1. ..= 3.)),
 						RenderableObject::Monolith {
 							sizes: Vec::from_fn(
@@ -1226,7 +1224,7 @@ impl Chunk {
 							),
 						}
 					)],
-					_5 => vec![(
+					0.2 => vec![(
 						Vec3f::from_y(rng.random_range(1. ..= 5.)),
 						RenderableObject::RotatingSimplex {
 							initpoints_rotplanes_rotvels_phases: {
@@ -1242,7 +1240,7 @@ impl Chunk {
 							},
 						}
 					)],
-					_6 => vec![(
+					0.3 => vec![(
 						Vec3f::from_y(rng.random_range(1. ..= 2.)),
 						RenderableObject::RotatingIcosahedron {
 							size: rng.random_range(0.5 ..= 2.5),
@@ -1257,7 +1255,7 @@ impl Chunk {
 							),
 						}
 					)],
-					_7 => vec![(
+					1e-3 => vec![(
 						Vec3f::from_y(rng.random_range(0.5 ..= 1.)),
 						RenderableObject::Kitty {
 							size: rng.random_range(1. ..= 1.5),
@@ -1265,7 +1263,7 @@ impl Chunk {
 							phase: 0.,
 						}
 					)],
-					_8 => vec![(
+					0.1 => vec![(
 						Vec3f::from_y(rng.random_range(2. ..= 5.)),
 						RenderableObject::Graph3d {
 							connect_n: rng.random_range(1 ..= 6),
