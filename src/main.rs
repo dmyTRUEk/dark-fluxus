@@ -99,13 +99,14 @@ fn main() {
 		"wasd/arrows/pl;' - move",
 		"shift - move fast",
 		"space/ctrl/alt - fly up/down",
+		"e/q - roll (only in fpv mode)",
 		"tab/i - open inventory",
 		"+- - change fov",
 		"f3 - toggle info overlay",
 		"f5 - change movement mode",
 	].map(|s| s.to_uppercase());
 	let mut is_help_opened = false;
-	let mut help_item_index: u32 = 0;
+	let mut help_line_index: u32 = 0;
 
 
 	let mut dimension = Dimension::Base;
@@ -237,7 +238,7 @@ fn main() {
 						pause_menu_item_index = pause_menu_item_index.dec_mod(pause_menu_items.len() as u32);
 					}
 					else if is_help_opened {
-						help_item_index = help_item_index.dec_mod(help_lines.len() as u32);
+						help_line_index = help_line_index.dec_mod(help_lines.len() as u32);
 					}
 					else if is_inventory_opened {
 						inventory_item_index = inventory_item_index.dec_mod(inventory_items.len() as u32);
@@ -249,7 +250,7 @@ fn main() {
 						pause_menu_item_index = pause_menu_item_index.inc_mod(pause_menu_items.len() as u32);
 					}
 					else if is_help_opened {
-						help_item_index = help_item_index.inc_mod(help_lines.len() as u32);
+						help_line_index = help_line_index.inc_mod(help_lines.len() as u32);
 					}
 					else if is_inventory_opened {
 						inventory_item_index = inventory_item_index.inc_mod(inventory_items.len() as u32);
@@ -702,18 +703,18 @@ fn main() {
 				const ITEM_TEXT_SIZE: u8 = 5;
 				const ITEM_INNER_PADDING: float = (ITEM_Y - (ITEM_TEXT_SIZE as float)*(FONT_H as float)) / 2.;
 				canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
-				let i_init: u32 = help_item_index.saturating_sub((ITEMS_N-1)/2);
+				let i_init: u32 = help_line_index.saturating_sub((ITEMS_N-1)/2);
 				let mut i: u32 = i_init;
 				while i - i_init < ITEMS_N && i < help_lines.len() as u32 {
 					let menu_item = &help_lines[i as usize];
-					if i == help_item_index {
+					if i == help_line_index {
 						canvas.set_draw_color(ITEM_SELECTED_COLOR);
 					}
 					let item_cx = wfh;
 					let item_cy = hfh - MENU_SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
 					// canvas.draw_rect(FRect::from_center_size(item_cx, item_cy, ITEM_X, ITEM_Y)).unwrap();
 					canvas.render_text(menu_item, ((item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32, (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32), ITEM_TEXT_SIZE);
-					if i == help_item_index {
+					if i == help_line_index {
 						canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
 					}
 					i += 1;
