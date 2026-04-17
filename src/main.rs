@@ -21,6 +21,7 @@
 
 use std::{f32::consts::{GOLDEN_RATIO, PI, TAU}, thread::sleep, time::{Duration, SystemTime}};
 
+use either::Either;
 use rand::{RngExt, rng, rngs::ThreadRng};
 use sdl3::{event::Event, keyboard::{KeyboardState, Keycode, Scancode}, pixels::Color, render::{FPoint, FRect}};
 
@@ -79,19 +80,6 @@ fn main() {
 	sdl_context.mouse().set_relative_mouse_mode(&window, true);
 
 
-	let pause_menu_items = { use PauseMenuItem::*; vec![
-		Quit,
-		Back,
-		GetRandomItem,
-		ToggleDarkness,
-		ToggleUnlimitedFov,
-		ToggleShakyFov,
-	]};
-	let mut is_paused = false;
-	let mut pause_menu_item_index: u32 = 0;
-	let mut is_darkness_at_base = false;
-
-
 	let help_lines = [
 		"controls:",
 		"f1 - show help screen",
@@ -107,6 +95,20 @@ fn main() {
 	].map(|s| s.to_uppercase());
 	let mut is_help_opened = false;
 	let mut help_line_index: u32 = 0;
+
+
+	let pause_menu_items = { use PauseMenuItem::*; vec![
+		Quit,
+		Back,
+		GetRandomItem,
+		ToggleTopology,
+		ToggleDarkness,
+		ToggleUnlimitedFov,
+		ToggleShakyFov,
+	]};
+	let mut is_paused = false;
+	let mut pause_menu_item_index: u32 = 0;
+	let mut is_darkness_at_base = false;
 
 
 	let mut dimension = Dimension::Base;
@@ -148,6 +150,11 @@ fn main() {
 		Chunk::new_random(&mut rng)
 	});
 	// println!("chunks.len = {}", chunks.iter().count());
+	let mut current_chunk_x = 0;
+	let mut current_chunk_z = 0;
+	let mut is_alt_topology = true; // FIXME: must be false
+	let mut is_x_flipped_global = false; // for alt topology
+	let mut is_z_flipped_global = false; // for alt topology
 
 	const GROUNDED_CAMERA_Y: float = 1.5;
 	const CAMERA_DEFAULT_POSITION: Vec3f = Vec3f::from_y(GROUNDED_CAMERA_Y);
@@ -157,8 +164,6 @@ fn main() {
 		up: vec3![0., 1., 0.],
 		fov: 90. * DEG_TO_RAD,
 	};
-	let mut current_chunk_x = 0;
-	let mut current_chunk_z = 0;
 
 	let mut movement_type = MovementType::Grounded;
 
@@ -273,6 +278,9 @@ fn main() {
 							GetRandomItem => {
 								inventory_items.push(InventoryItem::new_random(&mut rng));
 							}
+							ToggleTopology => {
+								is_alt_topology = !is_alt_topology;
+							}
 							ToggleDarkness => {
 								is_darkness_at_base = !is_darkness_at_base;
 							}
@@ -309,7 +317,7 @@ fn main() {
 						if remove_self {
 							let _ = inventory_items.remove(inventory_item_index as usize);
 							if inventory_item_index >= inventory_items.len() as u32 {
-								inventory_item_index = inventory_items.len() as u32 - 1;
+								inventory_item_index = (inventory_items.len() as u32).saturating_sub(1);
 							}
 						}
 						is_redraw_needed = true;
@@ -467,19 +475,59 @@ fn main() {
 					}
 					if camera.pos.x < -CHUNK_SIZE_HALF {
 						camera.pos.x += CHUNK_SIZE;
-						current_chunk_x = current_chunk_x.dec_mod(CHUNKS_N);
+						if !is_alt_topology {
+							current_chunk_x = current_chunk_x.dec_mod(CHUNKS_N);
+						} else {
+							// camera.pos.z = CHUNK_SIZE - camera.pos.z; // TODO?
+							let ccx: i32 = (current_chunk_x as i32) + if !is_x_flipped_global { -1 } else { 1 };
+							if ccx < 0 || ccx >= CHUNKS_N as i32 {
+								current_chunk_z = CHUNKS_N - current_chunk_z - 1;
+								is_z_flipped_global = !is_z_flipped_global;
+							}
+							current_chunk_x = ccx.rem_euclid(CHUNKS_N as i32) as u32;
+						}
 					}
 					else if camera.pos.x > CHUNK_SIZE_HALF {
 						camera.pos.x -= CHUNK_SIZE;
-						current_chunk_x = current_chunk_x.inc_mod(CHUNKS_N);
+						if !is_alt_topology {
+							current_chunk_x = current_chunk_x.inc_mod(CHUNKS_N);
+						} else {
+							// camera.pos.z = CHUNK_SIZE - camera.pos.z; // TODO?
+							let ccx: i32 = (current_chunk_x as i32) + if !is_x_flipped_global { 1 } else { -1 };
+							if ccx < 0 || ccx >= CHUNKS_N as i32 {
+								current_chunk_z = CHUNKS_N - current_chunk_z - 1;
+								is_z_flipped_global = !is_z_flipped_global;
+							}
+							current_chunk_x = ccx.rem_euclid(CHUNKS_N as i32) as u32;
+						}
 					}
 					if camera.pos.z < -CHUNK_SIZE_HALF {
 						camera.pos.z += CHUNK_SIZE;
-						current_chunk_z = current_chunk_z.dec_mod(CHUNKS_N);
+						if !is_alt_topology {
+							current_chunk_z = current_chunk_z.dec_mod(CHUNKS_N);
+						} else {
+							// camera.pos.x = CHUNK_SIZE - camera.pos.x; // TODO?
+							let ccz: i32 = (current_chunk_z as i32) + if !is_z_flipped_global { -1 } else { 1 };
+							if ccz < 0 || ccz >= CHUNKS_N as i32 {
+								current_chunk_x = CHUNKS_N - current_chunk_x - 1;
+								is_x_flipped_global = !is_x_flipped_global;
+							}
+							current_chunk_z = ccz.rem_euclid(CHUNKS_N as i32) as u32;
+						}
 					}
 					else if camera.pos.z > CHUNK_SIZE_HALF {
 						camera.pos.z -= CHUNK_SIZE;
-						current_chunk_z = current_chunk_z.inc_mod(CHUNKS_N);
+						if !is_alt_topology {
+							current_chunk_z = current_chunk_z.inc_mod(CHUNKS_N);
+						} else {
+							// camera.pos.x = CHUNK_SIZE - camera.pos.x; // TODO?
+							let ccz: i32 = (current_chunk_z as i32) + if !is_z_flipped_global { 1 } else { -1 };
+							if ccz < 0 || ccz >= CHUNKS_N as i32 {
+								current_chunk_x = CHUNKS_N - current_chunk_x - 1;
+								is_x_flipped_global = !is_x_flipped_global;
+							}
+							current_chunk_z = ccz.rem_euclid(CHUNKS_N as i32) as u32;
+						}
 					}
 					is_redraw_needed = true;
 				}
@@ -504,29 +552,39 @@ fn main() {
 
 			match dimension {
 				Dimension::Base => {
-					for (dx, dz, _x, _z, _chunk) in chunks.iter_around_wrapping(current_chunk_x as i32, current_chunk_z as i32, render_distance) {
+					let iter = if !is_alt_topology {
+						Either::Left(chunks.iter_around_wrapping(current_chunk_x as i32, current_chunk_z as i32, render_distance))
+					} else {
+						Either::Right(chunks.iter_around_wrapping_alt(current_chunk_x as i32, current_chunk_z as i32, render_distance))
+					};
+					for (dx, dz, _x, _z, _is_x_flipped_local, _is_z_flipped_local, chunk) in iter {
 						const STEP: float = 1.;
+						// let is_x_flipped = is_x_flipped_global ^ is_x_flipped_local;
+						// let is_z_flipped = is_z_flipped_global ^ is_z_flipped_local;
 						let mut x = -CHUNK_SIZE_HALF * (1. - 1e-2);
 						while x < CHUNK_SIZE_HALF {
 							let mut z = -CHUNK_SIZE_HALF * (1. - 1e-2);
 							while z < CHUNK_SIZE_HALF {
 								let pos = Vec3f::from_xz((dx as float)*CHUNK_SIZE + x, (dz as float)*CHUNK_SIZE + z);
+								let pos = pos.flip_x_if(is_x_flipped_global);
+								let pos = pos.flip_z_if(is_z_flipped_global);
 								canvas.set_draw_color({
-									let mut c = base_color(&dim_base_la_for_floor_color);
-									let pos_rel_to_cam = pos - camera.pos;
-									if is_darkness_at_base {
-										// TODO: better attenuation curve
-										c = ((c as float) / (1. + 2e-3*pos_rel_to_cam.norm2())) as u8;
-									}
-									Color::RGB(c, c, c)
+									// let mut c = base_color(&dim_base_la_for_floor_color);
+									// let pos_rel_to_cam = pos - camera.pos;
+									// if is_darkness_at_base {
+									// 	// TODO: better attenuation curve
+									// 	c = ((c as float) / (1. + 2e-3*pos_rel_to_cam.norm2())) as u8;
+									// }
+									// Color::RGB(c, c, c)
+									chunk.color
 								});
 								let lines = [
-									(Vec3f::new(pos.x - STEP/3., 0., pos.z - STEP/3.),
-									 Vec3f::new(pos.x + STEP/3., 0., pos.z + STEP/3.)),
-									(Vec3f::new(pos.x - STEP/3., 0., pos.z + STEP/3.),
-									 Vec3f::new(pos.x + STEP/3., 0., pos.z - STEP/3.)),
+									(Vec3f::from_xz(pos.x - STEP/3., pos.z - STEP/3.),
+									 Vec3f::from_xz(pos.x + STEP/3., pos.z + STEP/3.)),
+									(Vec3f::from_xz(pos.x - STEP/3., pos.z + STEP/3.),
+									 Vec3f::from_xz(pos.x + STEP/3., pos.z - STEP/3.)),
 								];
-								for line in lines.iter() {
+								for line in lines.into_iter() {
 									if let Some((a,b)) = camera.project_line(line, wf, hf) {
 										canvas.draw_line(a,b).unwrap();
 									}
@@ -536,10 +594,19 @@ fn main() {
 							x += STEP;
 						}
 					}
-					for (dx, dz, _x, _z, chunk) in chunks.iter_around_wrapping(current_chunk_x as i32, current_chunk_z as i32, render_distance) {
+					let iter = if !is_alt_topology {
+						Either::Left(chunks.iter_around_wrapping(current_chunk_x as i32, current_chunk_z as i32, render_distance))
+					} else {
+						Either::Right(chunks.iter_around_wrapping_alt(current_chunk_x as i32, current_chunk_z as i32, render_distance))
+					};
+					for (dx, dz, _x, _z, is_x_flipped_local, is_z_flipped_local, chunk) in iter {
+						let is_x_flipped = is_x_flipped_global ^ is_x_flipped_local;
+						let is_z_flipped = is_z_flipped_global ^ is_z_flipped_local;
 						for (pos, ro) in chunk.renderable_objects.iter() {
 							use SdlRenderableShape::*;
-							let shift: Vec3f = *pos + Vec3f::from_xz((dx as float)*CHUNK_SIZE, (dz as float)*CHUNK_SIZE);
+							let shift: Vec3f = pos.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) +
+								Vec3f::from_xz((dx as float)*CHUNK_SIZE, (dz as float)*CHUNK_SIZE)
+									.flip_x_if(is_x_flipped_global).flip_z_if(is_z_flipped_global);
 							canvas.set_draw_color({
 								let Color { mut r, mut g, mut b, .. } = chunk.color;
 								let pos_rel_to_cam = shift - camera.pos;
@@ -555,7 +622,8 @@ fn main() {
 								match renderable_shape {
 									Points(points) => {
 										let projected_points: Vec<FPoint> = points.iter()
-											.map(|&p| p + shift)
+											.map(|&p| p.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped))
+											.map(|p| p + shift)
 											.flat_map(|p| {
 												camera.project_point(p, wf, hf).map(|p| p.into())
 											}).collect::<Vec<_>>();
@@ -563,15 +631,21 @@ fn main() {
 									}
 									Lines(lines) => {
 										for line in lines.iter() {
-											let line = (line.0 + shift, line.1 + shift);
-											if let Some((a,b)) = camera.project_line(&line, wf, hf) {
+											let (a, b) = line;
+											let a = a.flip_x_if(is_x_flipped);
+											let a = a.flip_z_if(is_z_flipped);
+											let b = b.flip_x_if(is_x_flipped);
+											let b = b.flip_z_if(is_z_flipped);
+											let line = (a + shift, b + shift);
+											if let Some((a,b)) = camera.project_line(line, wf, hf) {
 												canvas.draw_line(a,b).unwrap();
 											}
 										}
 									}
 									Chain(chain) => {
 										let projected_chain: Vec<FPoint> = chain.iter()
-											.map(|&p| p + shift)
+											.map(|&p| p.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped))
+											.map(|p| p + shift)
 											.flat_map(|p| {
 												camera.project_point(p, wf, hf).map(|p| p.into())
 											}).collect::<Vec<_>>();
@@ -616,11 +690,11 @@ fn main() {
 							for x in 0..MESH_SIZE-1 {
 								let xf = (x as float) * mesh_step;
 								let line1 = (vec3![xf+cx, surface[(x,z)], zf+cz], vec3![xf+cx+mesh_step, surface[(x+1,z)], zf+cz]);
-								if let Some((a,b)) = camera.project_line(&line1, wf, hf) {
+								if let Some((a,b)) = camera.project_line(line1, wf, hf) {
 									canvas.draw_line(a,b).unwrap();
 								}
 								let line2 = (vec3![xf+cx, surface[(x,z)], zf+cz], vec3![xf+cx, surface[(x,z+1)], zf+cz+mesh_step]);
-								if let Some((a,b)) = camera.project_line(&line2, wf, hf) {
+								if let Some((a,b)) = camera.project_line(line2, wf, hf) {
 									canvas.draw_line(a,b).unwrap();
 								}
 							}
@@ -630,7 +704,7 @@ fn main() {
 							let zf = (z as float) * mesh_step;
 							let xf = (x as float) * mesh_step;
 							let line1 = (vec3![xf+cx, surface[(x,z)], zf+cz], vec3![xf+cx+mesh_step, surface[(x+1,z)], zf+cz]);
-							if let Some((a,b)) = camera.project_line(&line1, wf, hf) {
+							if let Some((a,b)) = camera.project_line(line1, wf, hf) {
 								canvas.draw_line(a,b).unwrap();
 							}
 						}
@@ -639,7 +713,7 @@ fn main() {
 							let xf = (x as float) * mesh_step;
 							let zf = (z as float) * mesh_step;
 							let line2 = (vec3![xf+cx, surface[(x,z)], zf+cz], vec3![xf+cx, surface[(x,z+1)], zf+cz+mesh_step]);
-							if let Some((a,b)) = camera.project_line(&line2, wf, hf) {
+							if let Some((a,b)) = camera.project_line(line2, wf, hf) {
 								canvas.draw_line(a,b).unwrap();
 							}
 						}
@@ -650,9 +724,19 @@ fn main() {
 			if is_extra_info_shown {
 				let text_size = 3;
 				canvas.set_draw_color(Color::GRAY);
-				canvas.render_text(&format!("XYZ: {:.3}, {:.3}, {:.3}", camera.pos.x, camera.pos.y, camera.pos.z), (5,5), text_size);
-				canvas.render_text(&format!("FOV: {:.3}", camera.fov * RAD_TO_DEG), (5,5+35), text_size);
-				canvas.render_text(&format!("MOVE TYPE: {}", movement_type.to_str_uppercase()), (5,5+35*2), text_size);
+				let mut lines = vec![
+					format!("XYZ: {:.3}, {:.3}, {:.3}", camera.pos.x, camera.pos.y, camera.pos.z),
+					format!("CHUNK XZ: {}, {}", current_chunk_x, current_chunk_z),
+					format!("MOVE TYPE: {}", movement_type.to_str_uppercase()),
+					format!("FOV: {:.3}", camera.fov * RAD_TO_DEG),
+					format!("TOPOLOGY IS ALT: {}", is_alt_topology.to_string().to_uppercase()),
+				];
+				if is_alt_topology {
+					lines.push(format!("is xz flipped global: {is_x_flipped_global}, {is_z_flipped_global}").to_uppercase());
+				}
+				for (i, line) in lines.iter().enumerate() {
+					canvas.render_text(line, (5, 5 + 35*(i as i32)), text_size);
+				}
 
 				// // zqqx lang
 				// for char_n in 0..5 {
@@ -861,6 +945,7 @@ enum PauseMenuItem {
 	Quit,
 	Back,
 	GetRandomItem,
+	ToggleTopology,
 	ToggleDarkness,
 	ToggleUnlimitedFov,
 	ToggleShakyFov,
@@ -873,6 +958,7 @@ impl PauseMenuItem {
 			Quit => "QUIT",
 			Back => "BACK",
 			GetRandomItem => "GET RANDOM ITEM",
+			ToggleTopology => "TOGGLE TOPOLOGY",
 			ToggleDarkness => "TOGGLE DARKNESS",
 			ToggleUnlimitedFov => "TOGGLE UNLIMITED FOV",
 			ToggleShakyFov => "TOGGLE SHAKY FOV",
@@ -936,6 +1022,7 @@ enum RenderableObject {
 	RotatingIcosahedron { size: float, global_rotvel: float, rotplanes_rotvels_angles: Vec<(Vec3f, float, float)> },
 	Kitty { size: float, rotvel: float, phase: float },
 	Graph3d { connect_n: u32, global_rotvel: float, initpoints_rotplanes_rotvels_phases: Vec<(Vec3f, Vec3f, float, float)> },
+	// TravelingSalesmanProblemSolver in realtime
 }
 impl RenderableObject {
 	fn new_random(rng: &mut ThreadRng) -> Self {
@@ -1068,6 +1155,7 @@ impl RenderableObject {
 		match self {
 			Cube { size } => {
 				let s = size / 2.;
+				// TODO(optim): use Chain
 				vec![Lines(vec![
 					(vec3!(-s,-s,-s), vec3!(-s,-s, s)),
 					(vec3!(-s,-s,-s), vec3!(-s, s,-s)),
@@ -1176,6 +1264,7 @@ impl RenderableObject {
 				vec![Lines(lines)]
 			}
 			Kitty { size, phase, .. } => {
+				// TODO(fix): wrong in alt topology with is_x_flipped/is_z_flipped
 				let angles_of_points_on_circle_20: Vec<float> = {
 					const N: u32 = 20;
 					let tau_div_n = TAU / (N as float);
@@ -1315,7 +1404,7 @@ impl Chunk {
 			color: Color::RGB(rng.random(), rng.random(), rng.random()),
 			renderable_objects: {
 				match_random_weighted! { rng,
-					5. => vec![],
+					5. => vec![], // empty / void / nothing
 					1. => vec![(
 						Vec3f::from_y(rng.random_range(1. ..= 5.)),
 						RenderableObject::new_random(rng),
@@ -1364,7 +1453,7 @@ impl Camera {
 
 	fn project_line(
 		&self,
-		line: &(Vec3f, Vec3f),
+		line: (Vec3f, Vec3f),
 		width: float,
 		height: float,
 		// near: float,

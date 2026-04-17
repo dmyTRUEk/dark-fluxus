@@ -5,7 +5,9 @@ use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign};
 use rand::{RngExt, rngs::ThreadRng};
 use sdl3::render::FPoint;
 
-use crate::{extensions::Into_, float_type::float, vec3d::{Vec3d, Vec3f}};
+use crate::extensions::{BoolSelect, Into_};
+use crate::float_type::float;
+use crate::vec3d::{Vec3d, Vec3f};
 
 
 
@@ -79,6 +81,8 @@ impl Vec2f {
 	pub fn rotate(self, _angle: float) -> Self {
 		todo!()
 	}
+	pub fn flip_x_if(self, condition: bool) -> Self { Self { x: condition.select(-self.x, self.x), ..self } }
+	pub fn flip_y_if(self, condition: bool) -> Self { Self { y: condition.select(-self.y, self.y), ..self } }
 }
 
 

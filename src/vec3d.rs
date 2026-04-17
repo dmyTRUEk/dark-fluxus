@@ -4,7 +4,10 @@ use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign};
 
 use rand::{RngExt, rngs::ThreadRng};
 
-use crate::{extensions::Into_, float_type::float, math_aliases::{cos, sin}, vec2d::Vec2d};
+use crate::extensions::{BoolSelect, Into_};
+use crate::float_type::float;
+use crate::math_aliases::{cos, sin};
+use crate::vec2d::Vec2d;
 
 
 
@@ -103,6 +106,9 @@ impl Vec3f {
 		// src: https://en.wikipedia.org/wiki/Rodrigues'_rotation_formula
 		self * cos(angle) + other.cross(self) * sin(angle) + other * (other * self) * (1. - cos(angle))
 	}
+	pub fn flip_x_if(self, condition: bool) -> Self { Self { x: condition.select(-self.x, self.x), ..self } }
+	pub fn flip_y_if(self, condition: bool) -> Self { Self { y: condition.select(-self.y, self.y), ..self } }
+	pub fn flip_z_if(self, condition: bool) -> Self { Self { z: condition.select(-self.z, self.z), ..self } }
 }
 
 

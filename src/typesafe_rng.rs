@@ -44,34 +44,33 @@ macro_rules! impl_gen_with_weights {
 /// ```
 #[macro_export]
 macro_rules! match_random_weighted {
-    (
-        $rng:expr,
-        $( $weight:expr => $body:expr ),+ $(,)?
-    ) => {{
-        use rand::{distr::weighted::WeightedIndex, prelude::Distribution};
-        let weights = [$( $weight ),+];
-        // let i = $rng.random_variant_weighted([$( $weight ),+]);
-        let i = WeightedIndex::new(weights).unwrap().sample($rng);
-        match_random_weighted!(@arms i, 0; $( $body ),+)
-    }};
+	(
+		$rng:expr,
+		$( $weight:expr => $body:expr ),+ $(,)?
+	) => {{
+		use rand::{distr::weighted::WeightedIndex, prelude::Distribution};
+		let weights = [$( $weight ),+];
+		let i = WeightedIndex::new(weights).unwrap().sample($rng);
+		match_random_weighted!(@arms i, 0; $( $body ),+)
+	}};
 
-    // recursive case (at least 2 items)
-    (@arms $i:ident, $idx:expr; $body:expr, $( $rest:expr ),+ ) => {
-        if $i == $idx {
-            $body
-        } else {
-            match_random_weighted!(@arms $i, $idx + 1; $( $rest ),+)
-        }
-    };
+	// recursive case (at least 2 items)
+	(@arms $i:ident, $idx:expr; $body:expr, $( $rest:expr ),+ ) => {
+		if $i == $idx {
+			$body
+		} else {
+			match_random_weighted!(@arms $i, $idx + 1; $( $rest ),+)
+		}
+	};
 
-    // base case (last item)
-    (@arms $i:ident, $idx:expr; $body:expr ) => {
-        if $i == $idx {
-            $body
-        } else {
-            unreachable!()
-        }
-    };
+	// base case (last item)
+	(@arms $i:ident, $idx:expr; $body:expr ) => {
+		if $i == $idx {
+			$body
+		} else {
+			unreachable!()
+		}
+	};
 }
 
 

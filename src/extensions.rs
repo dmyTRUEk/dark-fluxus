@@ -73,3 +73,14 @@ impl AddSubModulo for u32 {
 	}
 }
 
+
+
+pub trait BoolSelect<T> {
+	fn select(self, true_val: T, false_val: T) -> T;
+}
+impl<T> BoolSelect<T> for bool {
+	fn select(self, true_val: T, false_val: T) -> T {
+		if self { true_val } else { false_val }
+	}
+}
+
