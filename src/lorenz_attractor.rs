@@ -4,7 +4,7 @@ use crate::{float_type::float, vec3d::Vec3f};
 
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LorenzAttractor {
 	pub sigma: float,
 	pub rho: float,

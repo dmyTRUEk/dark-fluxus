@@ -82,6 +82,7 @@ fn main() {
 	let pause_menu_items = { use PauseMenuItem::*; vec![
 		Quit,
 		Back,
+		GetRandomItem,
 		ToggleDarkness,
 		ToggleUnlimitedFov,
 		ToggleShakyFov,
@@ -119,9 +120,7 @@ fn main() {
 	}
 
 
-	let inventory_items = { use InventoryItem::*; vec![
-		SurfaceWorld,
-	]};
+	let mut inventory_items = Vec::with_capacity(100);
 	let mut is_inventory_opened = false;
 	let mut inventory_item_index: u32 = 0;
 	fn gen_surface_world_param(rng: &mut ThreadRng) -> (float, float, float, float) {
@@ -270,6 +269,9 @@ fn main() {
 								current_chunk_x = 0;
 								current_chunk_z = 0;
 							}
+							GetRandomItem => {
+								inventory_items.push(InventoryItem::new_random(&mut rng));
+							}
 							ToggleDarkness => {
 								is_darkness_at_base = !is_darkness_at_base;
 							}
@@ -289,14 +291,27 @@ fn main() {
 					}
 					else if is_inventory_opened {
 						use InventoryItem::*;
-						match inventory_items[inventory_item_index as usize] {
+						let remove_self = true;
+						match &inventory_items[inventory_item_index as usize] {
 							SurfaceWorld => {
 								dimension = Dimension::SurfaceWorld;
 								surface_world_params = gen_surface_world_params(&mut rng);
-								is_redraw_needed = true;
+							}
+							RenderableObject_(ro) => {
+								chunks[(current_chunk_x, current_chunk_z)].renderable_objects.push((
+									camera.pos.with_y(rng.random_range(0. ..= 5.)),
+									ro.clone()
+								));
 							}
 							Text(_) => {}
 						}
+						if remove_self {
+							let _ = inventory_items.remove(inventory_item_index as usize);
+							if inventory_item_index >= inventory_items.len() as u32 {
+								inventory_item_index = inventory_items.len() as u32 - 1;
+							}
+						}
+						is_redraw_needed = true;
 						is_inventory_opened = false;
 					}
 				}
@@ -733,7 +748,7 @@ fn main() {
 					let item_cx = wfh;
 					let item_cy = hfh - MENU_SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
 					canvas.draw_rect(FRect::from_center_size(item_cx, item_cy, ITEM_X, ITEM_Y)).unwrap();
-					canvas.render_text(inventory_item.to_str(), ((item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32, (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32), ITEM_TEXT_SIZE);
+					canvas.render_text(&inventory_item.to_string(), ((item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32, (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32), ITEM_TEXT_SIZE);
 					if i == inventory_item_index {
 						canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
 					}
@@ -814,14 +829,25 @@ impl Dimension {
 
 enum InventoryItem {
 	SurfaceWorld, // TODO(feat): function
+	RenderableObject_(RenderableObject),
 	Text(String), // just for test
 }
 impl InventoryItem {
-	fn to_str(&self) -> &str {
+	fn new_random(rng: &mut ThreadRng) -> Self {
+		use InventoryItem::*;
+		match_random_weighted! { rng,
+			0.1 => SurfaceWorld,
+			1. => RenderableObject_(RenderableObject::new_random(rng)),
+		}
+	}
+}
+impl ToString for InventoryItem {
+	fn to_string(&self) -> String {
 		use InventoryItem::*;
 		match self {
-			SurfaceWorld => "SURFACE WORLD",
-			Text(text) => text,
+			SurfaceWorld => "SURFACE WORLD".to_string(),
+			RenderableObject_(ro) => ro.to_string(),
+			Text(text) => text.clone(),
 		}
 	}
 }
@@ -833,6 +859,7 @@ impl InventoryItem {
 enum PauseMenuItem {
 	Quit,
 	Back,
+	GetRandomItem,
 	ToggleDarkness,
 	ToggleUnlimitedFov,
 	ToggleShakyFov,
@@ -844,6 +871,7 @@ impl PauseMenuItem {
 		match self {
 			Quit => "QUIT",
 			Back => "BACK",
+			GetRandomItem => "GET RANDOM ITEM",
 			ToggleDarkness => "TOGGLE DARKNESS",
 			ToggleUnlimitedFov => "TOGGLE UNLIMITED FOV",
 			ToggleShakyFov => "TOGGLE SHAKY FOV",
@@ -897,7 +925,7 @@ enum SdlRenderableShape {
 	Chain(Vec<Vec3f>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum RenderableObject {
 	Cube { size: float },
 	LorenzAttractor { size: float, la: LorenzAttractor, last_points: Vec<Vec3f>, max_len: u32 },
@@ -909,6 +937,74 @@ enum RenderableObject {
 	Graph3d { connect_n: u32, global_rotvel: float, initpoints_rotplanes_rotvels_phases: Vec<(Vec3f, Vec3f, float, float)> },
 }
 impl RenderableObject {
+	fn new_random(rng: &mut ThreadRng) -> Self {
+		match_random_weighted! { rng,
+			0.1 => RenderableObject::Cube {
+				size: rng.random_range(0.3 ..= 3.),
+			},
+			0.3 => RenderableObject::LorenzAttractor {
+				size: rng.random_range(0.1 ..= 0.2),
+				la: LorenzAttractor::new().offset_params_(
+					Vec3f::random_unit_cube(rng) * 0.1
+				).set_xyz_(
+					Vec3f::random_unit(rng) * rng.random_range(0.1 ..= 0.2)
+				),
+				last_points: vec![],
+				max_len: 10_f32.powf(rng.random_range(2. ..= 4.)).round() as u32,
+			},
+			0.1 => RenderableObject::Monolith {
+				sizes: Vec::from_fn(
+					rng.random_range(5 ..= 20),
+					|_i| rng.random_range(0.5 ..= 2.7_f32).powi(2)
+				),
+			},
+			1. => RenderableObject::RotatingSimplex {
+				initpoints_rotplanes_rotvels_phases: {
+					macro_rules! random_r { () => { rng.random_range(0.8 ..= 2.3_f32).powi(2) }; }
+					let equidistant_from_center = rng.random_bool(0.5).then(|| random_r!());
+					let n = rng.random_range(4 ..= 10);
+					(0..n).map(|_i| (
+						Vec3f::random_unit(rng) * if let Some(s) = equidistant_from_center { s } else { random_r!() },
+						Vec3f::random_unit(rng),
+						rng.random_range(0.5 ..= 1.4_f32).powi(2),
+						rng.random_range(0. ..= TAU),
+					)).collect()
+				},
+			},
+			1. => RenderableObject::RotatingIcosahedron {
+				size: rng.random_range(0.5 ..= 2.5),
+				global_rotvel: rng.random_range(0.01 ..= 1.),
+				rotplanes_rotvels_angles: Vec::from_fn(
+					rng.random_range(1 ..= 5),
+					|_i| (
+						Vec3f::random_unit(rng),
+						rng.random_range(0.1 ..= 2.),
+						rng.random_range(0. ..= TAU),
+					)
+				),
+			},
+			1e-2 => RenderableObject::Kitty {
+				size: rng.random_range(1. ..= 1.5),
+				rotvel: rng.random_range(5. ..= 15.),
+				phase: 0.,
+			},
+			0.2 => RenderableObject::Graph3d {
+				connect_n: rng.random_range(1 ..= 6),
+				global_rotvel: rng.random_range(0.01 ..= 2.),
+				initpoints_rotplanes_rotvels_phases: {
+					macro_rules! random_r { () => { rng.random_range(0.8 ..= 2.3_f32).powi(2) }; }
+					let equidistant_from_center = rng.random_bool(0.5).then(|| random_r!());
+					let n = rng.random_range(10 ..= 200);
+					(0..n).map(|_i| (
+						Vec3f::random_unit(rng) * if let Some(s) = equidistant_from_center { s } else { random_r!() },
+						Vec3f::random_unit(rng),
+						rng.random_range(0.5 ..= 1.4_f32).powi(2),
+						rng.random_range(0. ..= TAU),
+					)).collect()
+				},
+			},
+		}
+	}
 	fn is_time_dependent(&self) -> bool {
 		use RenderableObject::*;
 		match self {
@@ -1185,6 +1281,21 @@ impl RenderableObject {
 		}
 	}
 }
+impl ToString for RenderableObject {
+	#[allow(unused_variables)]
+	fn to_string(&self) -> String {
+		use RenderableObject::*;
+		match self {
+			Cube { size } => format!("cube (size={size:.2})"),
+			LorenzAttractor { size, la, last_points, max_len } => format!("lorenz attractor (size={size:.2})"),
+			Monolith { sizes } => format!("monolith"),
+			RotatingSimplex { initpoints_rotplanes_rotvels_phases } => format!("rotating simplex ({n} points)", n=initpoints_rotplanes_rotvels_phases.len()),
+			RotatingIcosahedron { size, global_rotvel, rotplanes_rotvels_angles } => format!("rotating icosahedron ({n} rotation vectors)", n=rotplanes_rotvels_angles.len()),
+			Kitty { size, rotvel, phase } => format!("kitty (size={size:.2})"),
+			Graph3d { connect_n, global_rotvel, initpoints_rotplanes_rotvels_phases } => format!("graph 3d ({n} points, {nc} connect)", n=initpoints_rotplanes_rotvels_phases.len(), nc=connect_n),
+		}.to_uppercase()
+	}
+}
 
 
 
@@ -1204,8 +1315,12 @@ impl Chunk {
 			renderable_objects: {
 				match_random_weighted! { rng,
 					5. => vec![],
-					1. => Vec::from_fn(
-						rng.random_range(0 ..= 5),
+					1. => vec![(
+						Vec3f::from_y(rng.random_range(1. ..= 5.)),
+						RenderableObject::new_random(rng),
+					)],
+					0.5 => Vec::from_fn(
+						rng.random_range(0. ..= 4_f32).powi(2).round() as usize,
 						|_i| (
 							Vec3f::new(
 								rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
@@ -1215,85 +1330,6 @@ impl Chunk {
 							RenderableObject::Cube { size: rng.random_range(0.3 ..= 3.) }
 						)
 					),
-					0.3 => vec![(
-						Vec3f::new(-0.5, rng.random_range(1. ..= 9.), -4.),
-						RenderableObject::LorenzAttractor {
-							size: rng.random_range(0.1 ..= 0.2),
-							la: LorenzAttractor::new().offset_params_(
-								Vec3f::random_unit_cube(rng) * 0.1
-							).set_xyz_(
-								Vec3f::random_unit(rng) * rng.random_range(0.1 ..= 0.2)
-							),
-							last_points: vec![],
-							max_len: 10_f32.powf(rng.random_range(2. ..= 4.)).round() as u32,
-						}
-					)],
-					1e-2 => vec![(
-						Vec3f::from_y(rng.random_range(1. ..= 3.)),
-						RenderableObject::Monolith {
-							sizes: Vec::from_fn(
-								rng.random_range(5 ..= 20),
-								|_i| rng.random_range(0.5 ..= 2.7_f32).powi(2)
-							),
-						}
-					)],
-					0.2 => vec![(
-						Vec3f::from_y(rng.random_range(1. ..= 5.)),
-						RenderableObject::RotatingSimplex {
-							initpoints_rotplanes_rotvels_phases: {
-								macro_rules! random_r { () => { rng.random_range(0.8 ..= 2.3_f32).powi(2) }; }
-								let equidistant_from_center = rng.random_bool(0.5).then(|| random_r!());
-								let n = rng.random_range(4 ..= 10);
-								(0..n).map(|_i| (
-									Vec3f::random_unit(rng) * if let Some(s) = equidistant_from_center { s } else { random_r!() },
-									Vec3f::random_unit(rng),
-									rng.random_range(0.5 ..= 1.4_f32).powi(2),
-									rng.random_range(0. ..= TAU),
-								)).collect()
-							},
-						}
-					)],
-					0.3 => vec![(
-						Vec3f::from_y(rng.random_range(1. ..= 2.)),
-						RenderableObject::RotatingIcosahedron {
-							size: rng.random_range(0.5 ..= 2.5),
-							global_rotvel: rng.random_range(0.01 ..= 1.),
-							rotplanes_rotvels_angles: Vec::from_fn(
-								rng.random_range(1 ..= 5),
-								|_i| (
-									Vec3f::random_unit(rng),
-									rng.random_range(0.1 ..= 2.),
-									rng.random_range(0. ..= TAU),
-								)
-							),
-						}
-					)],
-					1e-3 => vec![(
-						Vec3f::from_y(rng.random_range(0.5 ..= 1.)),
-						RenderableObject::Kitty {
-							size: rng.random_range(1. ..= 1.5),
-							rotvel: rng.random_range(5. ..= 15.),
-							phase: 0.,
-						}
-					)],
-					0.1 => vec![(
-						Vec3f::from_y(rng.random_range(2. ..= 5.)),
-						RenderableObject::Graph3d {
-							connect_n: rng.random_range(1 ..= 6),
-							global_rotvel: rng.random_range(0.01 ..= 2.),
-							initpoints_rotplanes_rotvels_phases: {
-								macro_rules! random_r { () => { rng.random_range(0.8 ..= 2.3_f32).powi(2) }; }
-								let equidistant_from_center = rng.random_bool(0.5).then(|| random_r!());
-								let n = rng.random_range(10 ..= 200);
-								(0..n).map(|_i| (
-									Vec3f::random_unit(rng) * if let Some(s) = equidistant_from_center { s } else { random_r!() },
-									Vec3f::random_unit(rng),
-									rng.random_range(0.5 ..= 1.4_f32).powi(2),
-									rng.random_range(0. ..= TAU),
-								)).collect()
-							},
-						}
-					)],
 				}
 			}
 		}

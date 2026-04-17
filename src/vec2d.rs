@@ -31,6 +31,8 @@ impl<T> Vec2d<T> {
 	pub fn from(x: impl Into_<T>, y: impl Into_<T>) -> Self {
 		Self { x: x.into_(), y: y.into_() }
 	}
+	pub fn with_x(self, x: T) -> Self { Self { x, ..self } }
+	pub fn with_y(self, y: T) -> Self { Self { y, ..self } }
 	pub fn txy(self, t: T) -> Vec3d<T> { Vec3d::new(t, self.x, self.y) }
 	pub fn tyx(self, t: T) -> Vec3d<T> { Vec3d::new(t, self.y, self.x) }
 	pub fn xty(self, t: T) -> Vec3d<T> { Vec3d::new(self.x, t, self.y) }
