@@ -1,11 +1,17 @@
 {
-	inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+	# description = ""; # TODO
 
-	outputs = { self, nixpkgs }:
+	inputs = {
+		nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+		rust-overlay.url = "github:oxalica/rust-overlay"; # for nightly
+	};
+
+	outputs = { self, nixpkgs, rust-overlay }:
 	let
 		system = "x86_64-linux";
 		pkgs = import nixpkgs {
 			inherit system;
+			overlays = [ (import rust-overlay) ];
 		};
 		targetPkgsLinux = pkgs.pkgsCross.gnu64;
 		targetPkgsWindows = pkgs.pkgsCross.mingwW64;
@@ -20,6 +26,27 @@
 				"-L${targetPkgsLinux.sdl3}/lib"
 				"-L${targetPkgsWindows.sdl3}/lib"
 			];
+		};
+
+		packages.${system}.default =
+		let
+			rust = pkgs.rust-bin.nightly.latest.default; # nightly toolchain from the overlay
+			cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+			pname = cargoToml.package.name;
+			version = cargoToml.package.version;
+		in
+			pkgs.rustPlatform.buildRustPackage {
+				inherit pname version;
+				src = self;
+				cargoLock.lockFile = ./Cargo.lock;
+				nativeBuildInputs = [
+					rust
+					pkgs.sdl3
+				];
+			};
+		apps.${system}.default = {
+			type = "app";
+			program = "${self.packages.${system}.default}/bin/${self.packages.${system}.default.pname}";
 		};
 	};
 }
