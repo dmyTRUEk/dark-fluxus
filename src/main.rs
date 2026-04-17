@@ -451,19 +451,19 @@ fn main() {
 					}
 					if camera.pos.x < -CHUNK_SIZE_HALF {
 						camera.pos.x += CHUNK_SIZE;
-						current_chunk_x -= 1;
+						current_chunk_x = current_chunk_x.dec_mod(CHUNKS_N);
 					}
 					else if camera.pos.x > CHUNK_SIZE_HALF {
 						camera.pos.x -= CHUNK_SIZE;
-						current_chunk_x += 1;
+						current_chunk_x = current_chunk_x.inc_mod(CHUNKS_N);
 					}
 					if camera.pos.z < -CHUNK_SIZE_HALF {
 						camera.pos.z += CHUNK_SIZE;
-						current_chunk_z -= 1;
+						current_chunk_z = current_chunk_z.dec_mod(CHUNKS_N);
 					}
 					else if camera.pos.z > CHUNK_SIZE_HALF {
 						camera.pos.z -= CHUNK_SIZE;
-						current_chunk_z += 1;
+						current_chunk_z = current_chunk_z.inc_mod(CHUNKS_N);
 					}
 					is_redraw_needed = true;
 				}
@@ -488,7 +488,7 @@ fn main() {
 
 			match dimension {
 				Dimension::Base => {
-					for (dx, dz, _x, _z, _chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
+					for (dx, dz, _x, _z, _chunk) in chunks.iter_around_wrapping(current_chunk_x as i32, current_chunk_z as i32, render_distance) {
 						const STEP: float = 1.;
 						let mut x = -CHUNK_SIZE_HALF * (1. - 1e-2);
 						while x < CHUNK_SIZE_HALF {
@@ -520,7 +520,7 @@ fn main() {
 							x += STEP;
 						}
 					}
-					for (dx, dz, _x, _z, chunk) in chunks.iter_around_wrapping(current_chunk_x, current_chunk_z, render_distance) {
+					for (dx, dz, _x, _z, chunk) in chunks.iter_around_wrapping(current_chunk_x as i32, current_chunk_z as i32, render_distance) {
 						for (pos, ro) in chunk.renderable_objects.iter() {
 							use SdlRenderableShape::*;
 							let shift: Vec3f = *pos + Vec3f::from_xz((dx as float)*CHUNK_SIZE, (dz as float)*CHUNK_SIZE);
@@ -851,6 +851,7 @@ impl PauseMenuItem {
 		}
 	}
 }
+
 
 
 
