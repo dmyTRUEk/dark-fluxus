@@ -1,6 +1,23 @@
 - "home" world is a torus (square enclosed on itself simply) - Rotating Black Hole (BH)
 - alt home repr world is a sphere? (square enclosed on itself across the center) - Static Black Hole (BH)
-- from "fishing" can obtain fractals and other things that can be placed at home
+- from "fishing" can obtain things that can be placed at home
+- fractals - rendered as formula
+- stock market (with rng 4 letter names and are based on la in the world)
 - "lsd" render setting - black -> rgb color, white -> 1 - rgb color
 - hyperbolic space?
 - "plane with a function" world
+- missing texture
+- console where interesting stuff is hidden behind hashes
+- library of babel
+- pixelated versions of images/paintings (of Francisco Goya - black paintings) from numbers
+- radio/electricity towers?
+- laby-nd
+- scoundrel
+- poker with N decks? (youtu.be/QAuyryV1fJI), diy bltr
+- random youtube video (11 symbols)
+- quarks
+- rng formulas
+- tarot cards
+- random shaders?
+- random differential equations simulator/"solver"
+- cellural automatas: game of life, langtons ant, etc
