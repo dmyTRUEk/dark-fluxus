@@ -198,8 +198,15 @@ fn main() {
 			match event {
 				Event::Quit {..} => { break 'main_loop }
 				Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-					// TODO(feat): close other menus?
-					is_paused = !is_paused;
+					if is_inventory_opened {
+						is_inventory_opened = false;
+					}
+					else if is_help_opened {
+						is_help_opened = false;
+					}
+					else {
+						is_paused = !is_paused;
+					}
 					is_redraw_needed = true;
 				}
 				Event::MouseMotion { xrel, yrel, .. } if !is_overlay => {
