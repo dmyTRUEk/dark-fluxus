@@ -19,18 +19,20 @@
 		devShells.${system}.default = pkgs.mkShell rec {
 			packages = with pkgs; [
 				#clang llvmPackages.libclang cmake # for llama-cpp-2
-				sdl3
+				# sdl3
+				wayland libxkbcommon # for winit
+				vulkan-loader # for wgpu
 			];
-
-			RUSTFLAGS = [
-				"-L${targetPkgsLinux.sdl3}/lib"
-				"-L${targetPkgsWindows.sdl3}/lib"
-			];
+			# RUSTFLAGS = [
+			# 	"-L${targetPkgsLinux.sdl3}/lib"
+			# 	"-L${targetPkgsWindows.sdl3}/lib"
+			# ];
+			LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath packages; # for wgpu
+			WGPU_BACKEND = "vulkan"; # options: vulkan, metal, dx12, gl
 		};
 
 		packages.${system}.default =
 		let
-			rust = pkgs.rust-bin.nightly.latest.default; # nightly toolchain from the overlay
 			cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
 			pname = cargoToml.package.name;
 			version = cargoToml.package.version;
@@ -39,9 +41,11 @@
 				inherit pname version;
 				src = self;
 				cargoLock.lockFile = ./Cargo.lock;
-				nativeBuildInputs = [
-					rust
-					pkgs.sdl3
+				nativeBuildInputs = with pkgs; [
+					rust-bin.nightly.latest.default # nightly toolchain from the overlay
+					# sdl3
+					wayland libxkbcommon # for winit
+					vulkan-loader # for wgpu
 				];
 			};
 		apps.${system}.default = {
