@@ -26,7 +26,7 @@ use either::Either;
 use rand::{RngExt, rng, rngs::ThreadRng};
 use pollster::block_on;
 use wgpu::util::DeviceExt;
-use winit::{event::{DeviceEvent, ElementState, KeyEvent, WindowEvent}, event_loop::ActiveEventLoop, keyboard::{Key, NamedKey, SmolStr}, window::Window};
+use winit::{event::{DeviceEvent, ElementState, KeyEvent, WindowEvent}, event_loop::ActiveEventLoop, window::Window};
 use glam::{Mat4, Vec3, Quat};
 
 mod color_u8;
@@ -150,14 +150,12 @@ impl App {
 	}
 
 	fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: winit::window::WindowId, event: WindowEvent) {
-		use {Key::*, NamedKey::*, WindowEvent::*};
+		use winit::keyboard::{Key::*, KeyCode, NamedKey::*, PhysicalKey, SmolStr};
+		use WindowEvent::*;
 		let is_overlay = self.state.is_overlay();
-		// let State { camera, input, last_update_inst, is_redraw_needed, help_lines, is_help_opened, help_line_index, pause_menu_items, is_paused, pause_menu_item_index, is_darkness_at_base, dimension, dim_base_la_for_floor_color, inventory_items, is_inventory_opened, inventory_item_index, surface_world_params, chunks, render_distance, current_chunk_x, current_chunk_z, is_alt_topology, is_x_flipped_global, is_z_flipped_global, movement_type, tick_n, frame_n, is_extra_info_shown } = &mut self.state;
-		let char_i: SmolStr = "i".into();
+		fn ss(s: &str) -> SmolStr { s.into() }
 		match event {
-			CloseRequested
-			// | KeyboardInput { event: KeyEvent { logical_key: Named(Escape), state: ElementState::Pressed, .. }, .. }
-			=> {
+			CloseRequested => {
 				event_loop.exit();
 			}
 			RedrawRequested => {
@@ -166,7 +164,7 @@ impl App {
 			Resized(_new_size) => {
 				self.reconfigure_surface();
 			}
-			KeyboardInput { event: KeyEvent { logical_key: Named(Escape), repeat: false, .. }, .. } => {
+			KeyboardInput { event: KeyEvent { logical_key: Named(Escape), state: ElementState::Pressed, repeat: false, .. }, .. } => {
 				if self.state.is_inventory_opened {
 					self.state.is_inventory_opened = false;
 				}
@@ -178,23 +176,24 @@ impl App {
 				}
 				self.state.is_redraw_needed = true;
 			}
-			KeyboardInput { event: KeyEvent { logical_key: Named(F1), repeat: false, .. }, .. } if !self.state.is_paused && !self.state.is_inventory_opened => {
+			KeyboardInput { event: KeyEvent { logical_key: Named(F1), state: ElementState::Pressed, repeat: false, .. }, .. } if !self.state.is_paused && !self.state.is_inventory_opened => {
 				self.state.is_help_opened = !self.state.is_help_opened;
 				self.state.is_redraw_needed = true;
 			}
-			KeyboardInput { event: KeyEvent { logical_key: Named(F3), repeat: false, .. }, .. } if !is_overlay => {
+			KeyboardInput { event: KeyEvent { logical_key: Named(F3), state: ElementState::Pressed, repeat: false, .. }, .. } if !is_overlay => {
 				self.state.is_extra_info_shown = !self.state.is_extra_info_shown;
 				self.state.is_redraw_needed = true;
 			}
-			KeyboardInput { event: KeyEvent { logical_key: Named(F5), repeat: false, .. }, .. } if !is_overlay => {
+			KeyboardInput { event: KeyEvent { logical_key: Named(F5), state: ElementState::Pressed, repeat: false, .. }, .. } if !is_overlay => {
+				dbg!("F5");
 				self.state.camera.next_movement_type();
 				self.state.is_redraw_needed = true;
 			}
-			KeyboardInput { event: KeyEvent { logical_key, repeat: false, .. }, .. } if (logical_key == Character(char_i) || logical_key == Named(Tab)) && !self.state.is_paused && !self.state.is_help_opened => {
+			KeyboardInput { event: KeyEvent { logical_key, state: ElementState::Pressed, repeat: false, .. }, .. } if (logical_key == Character(ss("i")) || logical_key == Named(Tab)) && !self.state.is_paused && !self.state.is_help_opened => {
 				self.state.is_inventory_opened = !self.state.is_inventory_opened;
 				self.state.is_redraw_needed = true;
 			}
-			KeyboardInput { event: KeyEvent { logical_key: Named(ArrowUp), repeat: false, .. }, .. } if is_overlay => {
+			KeyboardInput { event: KeyEvent { logical_key: Named(ArrowUp), state: ElementState::Pressed, repeat: false, .. }, .. } if is_overlay => {
 				if self.state.is_paused {
 					self.state.pause_menu_item_index = self.state.pause_menu_item_index.dec_mod(self.state.pause_menu_items.len() as u32);
 				}
@@ -206,7 +205,7 @@ impl App {
 				}
 				self.state.is_redraw_needed = true;
 			}
-			KeyboardInput { event: KeyEvent { logical_key: Named(ArrowDown), repeat: false, .. }, .. } if is_overlay => {
+			KeyboardInput { event: KeyEvent { logical_key: Named(ArrowDown), state: ElementState::Pressed, repeat: false, .. }, .. } if is_overlay => {
 				if self.state.is_paused {
 					self.state.pause_menu_item_index = self.state.pause_menu_item_index.inc_mod(self.state.pause_menu_items.len() as u32);
 				}
@@ -218,7 +217,7 @@ impl App {
 				}
 				self.state.is_redraw_needed = true;
 			}
-			KeyboardInput { event: KeyEvent { logical_key: Named(Enter), repeat: false, .. }, .. } if is_overlay => {
+			KeyboardInput { event: KeyEvent { logical_key: Named(Enter), state: ElementState::Pressed, repeat: false, .. }, .. } if is_overlay => {
 				if self.state.is_paused {
 					use PauseMenuItem::*;
 					match self.state.pause_menu_items[self.state.pause_menu_item_index as usize] {
@@ -278,26 +277,33 @@ impl App {
 				}
 			}
 			KeyboardInput { event, .. } => { // handle "continuous" input
-				// dbg!(event);
+				// dbg!(&event);
 				let is_pressed = event.state == ElementState::Pressed;
+				// dbg!(is_pressed);
 				let input = &mut self.state.input;
+				// TODO: use only one type of keys: physical or logical?
 				match event.logical_key {
-					Character(c) if c == "w" || c == "p" => input.forward = is_pressed,
-					Character(c) if c == "s" || c == ";" => input.back = is_pressed,
-					Character(c) if c == "a" || c == "l" => input.left = is_pressed,
-					Character(c) if c == "d" || c == "'" => input.right = is_pressed,
-					Character(c) if c == "q" || c == "o" => input.roll_left = is_pressed,
-					Character(c) if c == "e" || c == "[" => input.roll_right = is_pressed,
-					Character(c) if c == "r"             => input.reset_roll = is_pressed,
-					// TODO: space, ctrl, alt => up/down
-					Named(Shift) => input.is_fast_move = is_pressed,
+					Character(c) if c == "w" || c == "W" || c == "p" || c == "P" => input.forward = is_pressed,
+					Character(c) if c == "s" || c == "S" || c == ";" || c == ":" => input.back = is_pressed,
+					Character(c) if c == "a" || c == "A" || c == "l" || c == "L" => input.left = is_pressed,
+					Character(c) if c == "d" || c == "D" || c == "'" || c == "\"" => input.right = is_pressed,
+					Character(c) if c == "q" || c == "Q" || c == "o" || c == "O" => input.roll_left = is_pressed,
+					Character(c) if c == "e" || c == "E" || c == "[" || c == "{" => input.roll_right = is_pressed,
+					Character(c) if c == "r" || c == "R"                         => input.reset_roll = is_pressed,
+					Named(Space)         => input.up = is_pressed,
+					Named(Control | Alt) => input.down = is_pressed,
 					_ => {}
 				}
+				// TODO: dont use physical keys?
+				match event.physical_key {
+					PhysicalKey::Code(KeyCode::ShiftLeft | KeyCode::ShiftRight) => input.is_fast_move = is_pressed,
+					_ => {}
+				}
+				// dbg!(input);
 				self.state.is_redraw_needed = true;
 			}
 			_ => {}
 		}
-
 	}
 
 	fn device_event(&mut self, _event_loop: &ActiveEventLoop, _device_id: winit::event::DeviceId, event: DeviceEvent) {
@@ -1215,7 +1221,7 @@ impl State {
 		Self {
 			last_update_inst,
 			camera: Camera::new(w / h),
-			input: InputState::default(),
+			input: InputState::new(),
 			help_lines: [
 				"controls:",
 				"f1 - show help screen",
@@ -1336,21 +1342,7 @@ impl Camera {
 	fn update_position(&mut self, input: &InputState, dt: f32) {
 		let speed = 0.5 * dt;
 
-		let forward = self.forward();
-		let right = forward.cross(Vec3::Y).normalize();
-
-		// if input.forward {
-		// 	self.position += forward * speed;
-		// }
-		// if input.back {
-		// 	self.position -= forward * speed;
-		// }
-		// if input.left {
-		// 	self.position -= right * speed;
-		// }
-		// if input.right {
-		// 	self.position += right * speed;
-		// }
+		// dbg!(input);
 
 		let mut move_speed: float = 20.;
 		if input.is_fast_move {
@@ -1519,9 +1511,10 @@ struct Uniforms {
 	view_proj: [[f32; 4]; 4],
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct InputState {
 	// "continuous":
+	// TODO!: rename into move_<direction>
 	forward: bool,
 	back: bool,
 	left: bool,
@@ -1541,6 +1534,28 @@ struct InputState {
 	f1: bool,
 }
 impl InputState {
+	fn new() -> Self {
+		Self {
+			// "continuous":
+			forward: false,
+			back: false,
+			left: false,
+			right: false,
+			up: false,
+			down: false,
+			roll_left: false,
+			roll_right: false,
+			reset_roll: false,
+			mouse_dx: 0.,
+			mouse_dy: 0.,
+			zoom_in: false,
+			zoom_out: false,
+			is_fast_move: false,
+			// "discrete":
+			escape: false,
+			f1: false,
+		}
+	}
 	fn is_redraw_needed(&self) -> bool { // TODO: rename?
 		self.forward
 		|| self.back
