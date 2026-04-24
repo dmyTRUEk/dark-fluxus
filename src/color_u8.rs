@@ -31,6 +31,9 @@ impl ColorU8 {
 	pub const fn from_int(_n: u32) -> Self {
 		todo!()
 	}
+	pub const fn gray(n: u8) -> Self {
+		Self::new(n, n, n)
+	}
 
 	pub fn to_array(self) -> [float; 3] {
 		[self.r, self.g, self.b].map(|c| (c as float) / 255.)

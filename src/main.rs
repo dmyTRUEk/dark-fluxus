@@ -12,7 +12,7 @@
 	unreachable_patterns,
 	unused_must_use,
 	unused_results,
-	// unused_variables, // FIXME
+	unused_variables, // FIXME: ENABLE ME
 )]
 
 #![feature(
@@ -455,7 +455,7 @@ impl App {
 
 		let (w, h) = (self.renderer.config.width, self.renderer.config.height);
 		let wh = (w, h);
-		let (wi, hi) = (w as i32, h as i32);
+		let (wi, _hi) = (w as i32, h as i32);
 		let (wf, hf) = (w as float, h as float);
 		let (wfh, hfh) = (wf / 2., hf / 2.);
 		// let wh_ratio = wf / hf;
@@ -468,7 +468,7 @@ impl App {
 				} else {
 					Either::Right(self.state.chunks.iter_around_wrapping_alt(self.state.current_chunk_x as i32, self.state.current_chunk_z as i32, self.state.render_distance))
 				};
-				for (dx, dz, _x, _z, _is_x_flipped_local, _is_z_flipped_local, chunk) in iter {
+				for (dx, dz, _x, _z, _is_x_flipped_local, _is_z_flipped_local, _chunk) in iter {
 					// let step = 2_f32.powi(max(dx.abs(), dz.abs()) - 1); // TODO: use if render_distance > something?
 					let step = 1.;
 					let mut x = -CHUNK_SIZE_HALF;
@@ -569,68 +569,65 @@ impl App {
 				}
 			}
 			Dimension::SurfaceWorld => {
-				todo!();
-				// const MESH_SIZE: u32 = 30;
-				// const MESH_STEP: float = 0.9;
-				// const LODS: &[(u32, ColorU8)] = &[
-				// 	(4, ColorU8::new(64, 64, 64)),
-				// 	(2, ColorU8::GRAY),
-				// 	(1, ColorU8::WHITE),
-				// ];
-				// let params = &self.state.surface_world_params;
-				// fn surface_at(x: float, z: float, params: &[(f32, f32, f32, f32)]) -> float {
-				// 	params.iter().map(|(amplitude, phase, cx, cz)| {
-				// 		amplitude * sin(phase + cx*x + cz*z) / (params.len() as float)//.powf(*amplitude)
-				// 	}).sum()
-				// }
-				// for (lod_n, lod_color) in LODS {
-				// 	canvas.set_draw_color(*lod_color);
-				// 	let mesh_step = MESH_STEP * (*lod_n as float);
-				// 	let cx = self.state.camera.position.x - (MESH_SIZE as float - 1.) * mesh_step / 2.;
-				// 	let cz = self.state.camera.position.z - (MESH_SIZE as float - 1.) * mesh_step / 2.;
-				// 	let surface = Vec2D::from_fn(MESH_SIZE, MESH_SIZE, |x, z| {
-				// 		let x = (x as float) * mesh_step;
-				// 		let z = (z as float) * mesh_step;
-				// 		surface_at(x + cx - cx.rem_euclid(mesh_step), z + cz - cz.rem_euclid(mesh_step), params)
-				// 	});
-				// 	let cx = cx - cx.rem_euclid(mesh_step);
-				// 	let cz = cz - cz.rem_euclid(mesh_step);
-				// 	// TODO(optim): use draw_lines/chain
-				// 	// let mut lines_x = Vec::with_capacity((MESH_SIZE+1) as usize); // TODO: remove +1?
-				// 	// let mut lines_z = Vec::with_capacity((MESH_SIZE+1) as usize); // TODO: remove +1?
-				// 	for z in 0..MESH_SIZE-1 {
-				// 		let zf = (z as float) * mesh_step;
-				// 		for x in 0..MESH_SIZE-1 {
-				// 			let xf = (x as float) * mesh_step;
-				// 			let line1 = (Vec3::new(xf+cx, surface[(x,z)], zf+cz), Vec3::new(xf+cx+mesh_step, surface[(x+1,z)], zf+cz));
-				// 			if let Some((a,b)) = camera.project_line(line1, wf, hf) {
-				// 				canvas.draw_line(a,b).unwrap();
-				// 			}
-				// 			let line2 = (Vec3::new(xf+cx, surface[(x,z)], zf+cz), Vec3::new(xf+cx, surface[(x,z+1)], zf+cz+mesh_step));
-				// 			if let Some((a,b)) = camera.project_line(line2, wf, hf) {
-				// 				canvas.draw_line(a,b).unwrap();
-				// 			}
-				// 		}
-				// 	}
-				// 	for x in 0..MESH_SIZE-1 {
-				// 		let z = MESH_SIZE-1;
-				// 		let zf = (z as float) * mesh_step;
-				// 		let xf = (x as float) * mesh_step;
-				// 		let line1 = (Vec3::new(xf+cx, surface[(x,z)], zf+cz), Vec3::new(xf+cx+mesh_step, surface[(x+1,z)], zf+cz));
-				// 		if let Some((a,b)) = camera.project_line(line1, wf, hf) {
-				// 			canvas.draw_line(a,b).unwrap();
-				// 		}
-				// 	}
-				// 	for z in 0..MESH_SIZE-1 {
-				// 		let x = MESH_SIZE-1;
-				// 		let xf = (x as float) * mesh_step;
-				// 		let zf = (z as float) * mesh_step;
-				// 		let line2 = (Vec3::new(xf+cx, surface[(x,z)], zf+cz), Vec3::new(xf+cx, surface[(x,z+1)], zf+cz+mesh_step));
-				// 		if let Some((a,b)) = camera.project_line(line2, wf, hf) {
-				// 			canvas.draw_line(a,b).unwrap();
-				// 		}
-				// 	}
-				// }
+				const MESH_SIZE: u32 = 100;
+				const MESH_STEP: float = 0.2;
+				const LODS: &[(u32, ColorU8)] = &[
+					(27, ColorU8::gray(4)),
+					(9, ColorU8::gray(16)),
+					(3, ColorU8::gray(64)),
+					(1, ColorU8::WHITE),
+				];
+				let params = &self.state.surface_world_params;
+				fn surface_at(x: float, z: float, params: &[(f32, f32, f32, f32)]) -> float {
+					params.iter().map(|(amplitude, phase, cx, cz)| {
+						// TODO(optim): bench if taking /n out of here makes it faster
+						amplitude * sin(phase + cx*x + cz*z) / (params.len() as float)//.powf(*amplitude)
+					}).sum()
+				}
+				for (lod_n, lod_color) in LODS {
+					// canvas.set_draw_color(*lod_color);
+					let mesh_step = MESH_STEP * (*lod_n as float);
+					let cx = self.state.camera.position.x - (MESH_SIZE as float - 1.) * mesh_step / 2.;
+					let cz = self.state.camera.position.z - (MESH_SIZE as float - 1.) * mesh_step / 2.;
+					let surface = Vec2D::from_fn(MESH_SIZE, MESH_SIZE, |x, z| {
+						let x = (x as float) * mesh_step;
+						let z = (z as float) * mesh_step;
+						surface_at(x + cx - cx.rem_euclid(mesh_step), z + cz - cz.rem_euclid(mesh_step), params)
+					});
+					let cx = cx - cx.rem_euclid(mesh_step);
+					let cz = cz - cz.rem_euclid(mesh_step);
+					// TODO(optim): use draw_lines/chain
+					// let mut lines_x = Vec::with_capacity((MESH_SIZE+1) as usize); // TODO: remove +1?
+					// let mut lines_z = Vec::with_capacity((MESH_SIZE+1) as usize); // TODO: remove +1?
+					for z in 0..MESH_SIZE-1 {
+						let zf = (z as float) * mesh_step;
+						for x in 0..MESH_SIZE-1 {
+							let xf = (x as float) * mesh_step;
+							let a = Vec3::new(xf+cx, surface[(x,z)], zf+cz);
+							let b = Vec3::new(xf+cx+mesh_step, surface[(x+1,z)], zf+cz);
+							all_3d_lines_oc.push(Line3dOC::from(a, b, *lod_color));
+							let a = Vec3::new(xf+cx, surface[(x,z)], zf+cz);
+							let b = Vec3::new(xf+cx, surface[(x,z+1)], zf+cz+mesh_step);
+							all_3d_lines_oc.push(Line3dOC::from(a, b, *lod_color));
+						}
+					}
+					for x in 0..MESH_SIZE-1 {
+						let z = MESH_SIZE-1;
+						let zf = (z as float) * mesh_step;
+						let xf = (x as float) * mesh_step;
+						let a = Vec3::new(xf+cx, surface[(x,z)], zf+cz);
+						let b = Vec3::new(xf+cx+mesh_step, surface[(x+1,z)], zf+cz);
+						all_3d_lines_oc.push(Line3dOC::from(a, b, *lod_color));
+					}
+					for z in 0..MESH_SIZE-1 {
+						let x = MESH_SIZE-1;
+						let xf = (x as float) * mesh_step;
+						let zf = (z as float) * mesh_step;
+						let a = Vec3::new(xf+cx, surface[(x,z)], zf+cz);
+						let b = Vec3::new(xf+cx, surface[(x,z+1)], zf+cz+mesh_step);
+						all_3d_lines_oc.push(Line3dOC::from(a, b, *lod_color));
+					}
+				}
 			}
 		}
 
@@ -1296,7 +1293,7 @@ impl Camera {
 	fn update_position(&mut self, input: &InputState, dt: f32) {
 		// dbg!(input);
 
-		let mut move_speed: float = 20.;
+		let mut move_speed: float = 12.;
 		if input.is_fast_move {
 			move_speed *= 3.;
 		}
@@ -1525,7 +1522,7 @@ fn gen_surface_world_param(rng: &mut ThreadRng) -> (float, float, float, float) 
 }
 fn gen_surface_world_params(rng: &mut ThreadRng) -> Vec<(float, float, float, float)> {
 	Vec::from_fn(
-		rng.random_range(1. ..= 10_f32).powi(2).round() as usize,
+		rng.random_range(2. ..= 7_f32).powi(2).round() as usize,
 		|_i| gen_surface_world_param(rng)
 	)
 }
@@ -1668,6 +1665,7 @@ enum RenderableObject {
 	Kitty { size: float, rotvel: float, phase: float },
 	Graph3d { connect_n: u32, global_rotvel: float, initpoints_rotplanes_rotvels_phases: Vec<(Vec3, Vec3, float, float)> },
 	// TravelingSalesmanProblemSolver in realtime
+	// 3d rotating color cube
 }
 impl RenderableObject {
 	fn new_random(rng: &mut ThreadRng) -> Self {
@@ -2062,7 +2060,7 @@ impl Chunk {
 			color: ColorU8::new(rng.random(), rng.random(), rng.random()),
 			renderable_objects: {
 				match_random_weighted! { rng,
-					400. => vec![], // empty / void / nothing
+					4. => vec![], // empty / void / nothing
 					1. => vec![(
 						Vec3::from_y(rng.random_range(1. ..= 5.)),
 						RenderableObject::new_random(rng),
