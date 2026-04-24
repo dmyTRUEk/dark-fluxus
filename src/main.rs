@@ -20,7 +20,7 @@
 	vec_from_fn,
 )]
 
-use std::{any::type_name_of_val, f32::consts::{FRAC_PI_2, GOLDEN_RATIO, PI, TAU}, thread::sleep, time::{Duration, Instant, SystemTime}};
+use std::{f32::consts::{FRAC_PI_2, GOLDEN_RATIO, PI, TAU}, thread::sleep, time::{Duration, Instant, SystemTime}};
 
 use either::Either;
 use rand::{RngExt, rng, rngs::ThreadRng};
@@ -412,16 +412,11 @@ impl App {
 			}
 		}
 
-		// 3. If anything moved, we need to draw again
-		// (If it's a game, you usually just set this to true always)
-		self.state.is_redraw_needed = true; // TODO
+		// self.state.is_redraw_needed = true; // TODO: render always?
 	}
 
+	// TODO(refactor): split into `render_3d` and `render_2d`?
 	fn render(&mut self) {
-		let vp = self.state.camera.proj_matrix() * self.state.camera.view_matrix();
-		let uniforms = Uniforms { view_proj: vp.to_cols_array_2d() };
-		self.renderer.queue.write_buffer(&self.renderer.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
-
 		let frame = match self.renderer.surface.get_current_texture() {
 			wgpu::CurrentSurfaceTexture::Success(frame) => frame,
 			wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
@@ -445,16 +440,36 @@ impl App {
 
 		self.state.frame_n += 1;
 
-		let mut all_points: Vec<(Vec3, ColorU8)> = vec![];
-		let mut all_lines: Vec<((Vec3, ColorU8), (Vec3, ColorU8))> = vec![];
-		// let mut all_chains: Vec<Vec<Vec3>> = vec![];
-		let mut all_triangles: Vec<((Vec3, ColorU8), (Vec3, ColorU8), (Vec3, ColorU8))> = vec![];
+		let mut all_points_3d: Vec<(Vec3, ColorU8)> = vec![];
+		let mut all_lines_3d: Vec<((Vec3, ColorU8), (Vec3, ColorU8))> = vec![];
+		// let mut all_chains_3d: Vec<Vec<Vec3>> = vec![];
+		let mut all_triangles_3d: Vec<((Vec3, ColorU8), (Vec3, ColorU8), (Vec3, ColorU8))> = vec![];
 
-		// canvas.set_draw_color(ColorU8::RGB(((frame_n) % 255) as u8, (((frame_n+64)/2) % 255) as u8, (255 - (frame_n/3) % 255) as u8));
-		// canvas.set_draw_color(ColorU8::BLACK);
-		// canvas.clear();
+		let mut all_points_2d: Vec<(Vec3, ColorU8)> = vec![
+			// TODO: REMOVE ME
+			(Vec3::from_xy(410., 100.), ColorU8::RED),
+			(Vec3::from_xy(420., 100.), ColorU8::GREEN),
+			(Vec3::from_xy(430., 100.), ColorU8::BLUE),
+			(Vec3::from_xy(440., 100.), ColorU8::CYAN),
+			(Vec3::from_xy(450., 100.), ColorU8::MAGENTA),
+			(Vec3::from_xy(460., 100.), ColorU8::YELLOW),
+		];
+		let mut all_lines_2d: Vec<((Vec3, ColorU8), (Vec3, ColorU8))> = vec![
+			// TODO: REMOVE ME
+			(
+				(Vec3::from_xy(400., 100.), ColorU8::CYAN),
+				(Vec3::from_xy(100., 300.), ColorU8::MAGENTA),
+			)
+		];
+		let mut all_triangles_2d: Vec<((Vec3, ColorU8), (Vec3, ColorU8), (Vec3, ColorU8))> = vec![
+			// TODO: REMOVE ME
+			(
+				(Vec3::from_xy(100., 100.), ColorU8::RED),
+				(Vec3::from_xy(300., 100.), ColorU8::GREEN),
+				(Vec3::from_xy(100., 200.), ColorU8::BLUE)
+			),
+		];
 
-		// let (w, h) = canvas.window().size();
 		let (w, h) = (self.renderer.config.width, self.renderer.config.height);
 		let (wi, hi) = (w as i32, h as i32);
 		let (wf, hf) = (w as float, h as float);
@@ -480,8 +495,8 @@ impl App {
 							let pos = Vec3::new((dx as float)*CHUNK_SIZE + x, 0., (dz as float)*CHUNK_SIZE + z);
 							let pos = pos.flip_x_if(self.state.is_x_flipped_global);
 							let pos = pos.flip_z_if(self.state.is_z_flipped_global);
-							// canvas.set_draw_color({
 							let c = {
+								// TODO
 								// let mut c = base_color(&dim_base_la_for_floor_color);
 								// let pos_rel_to_cam = pos - camera.position;
 								// if is_darkness_at_base {
@@ -498,10 +513,7 @@ impl App {
 								 Vec3::new(pos.x + STEP/3., 0., pos.z - STEP/3.)),
 							];
 							for (a, b) in lines.into_iter() {
-								// if let Some((a,b)) = self.state.camera.project_line(line, wf, hf) {
-								// 	canvas.draw_line(a,b).unwrap();
-								// }
-								all_lines.push(((a, c), (b, c)));
+								all_lines_3d.push(((a, c), (b, c)));
 							}
 							z += STEP;
 						}
@@ -521,7 +533,6 @@ impl App {
 						let shift: Vec3 = pos.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) +
 							Vec3::new((dx as float)*CHUNK_SIZE, 0., (dz as float)*CHUNK_SIZE)
 								.flip_x_if(self.state.is_x_flipped_global).flip_z_if(self.state.is_z_flipped_global);
-						// canvas.set_draw_color({
 						let c = {
 							let ColorU8 { mut r, mut g, mut b, .. } = chunk.color;
 							if self.state.is_darkness_at_base {
@@ -537,7 +548,7 @@ impl App {
 							// TODO(optim): do these computations on gpu?
 							match renderable_shape {
 								Points(points) => {
-									all_points.extend(
+									all_points_3d.extend(
 										points.iter()
 											.map(|&p| (p.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift, c))
 									);
@@ -549,12 +560,12 @@ impl App {
 										let b = b.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped);
 										let a = a + shift;
 										let b = b + shift;
-										all_lines.push(((a, c), (b, c)));
+										all_lines_3d.push(((a, c), (b, c)));
 									}
 								}
 								Chain(chain) => {
 									for [a, b] in chain.array_windows() {
-										all_lines.push((
+										all_lines_3d.push((
 											(a.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift, c),
 											(b.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift, c)
 										));
@@ -808,53 +819,122 @@ impl App {
 			multiview_mask: None,
 		});
 
-		let points: Vec<Vertex> = all_points.into_iter()
-			.map(|(p, c)| Vertex { position: p.to_array(), color: c.to_array() })
-			.collect();
-		let lines: Vec<Vertex> = all_lines.into_iter()
-			.flat_map(|((p1,c1), (p2,c2))| [
-				Vertex { position: p1.to_array(), color: c1.to_array() },
-				Vertex { position: p2.to_array(), color: c2.to_array() },
-			])
-			.collect();
-		let triangles: Vec<Vertex> = all_triangles.into_iter()
-			.flat_map(|((p1,c1), (p2,c2), (p3,c3))| [
-				Vertex { position: p1.to_array(), color: c1.to_array() },
-				Vertex { position: p2.to_array(), color: c2.to_array() },
-				Vertex { position: p3.to_array(), color: c3.to_array() },
-			])
-			.collect();
+		{ // -------------------- 3D RENDER --------------------
+			let view_proj_3d = self.state.camera.proj_matrix() * self.state.camera.view_matrix();
+			let uniforms_3d = Uniforms { view_proj: view_proj_3d.to_cols_array_2d() };
+			self.renderer.queue.write_buffer(&self.renderer.uniform_buffer_3d, 0, bytemuck::bytes_of(&uniforms_3d));
 
-		let counts = [
-			points.len() as u32,
-			lines.len() as u32,
-			triangles.len() as u32,
-		];
+			let points_3d: Vec<Vertex> = all_points_3d.into_iter()
+				.map(|(p, c)| Vertex { position: p.to_array(), color: c.to_array() })
+				.collect();
+			let lines_3d: Vec<Vertex> = all_lines_3d.into_iter()
+				.flat_map(|((p1,c1), (p2,c2))| [
+					Vertex { position: p1.to_array(), color: c1.to_array() },
+					Vertex { position: p2.to_array(), color: c2.to_array() },
+				])
+				.collect();
+			let triangles_3d: Vec<Vertex> = all_triangles_3d.into_iter()
+				.flat_map(|((p1,c1), (p2,c2), (p3,c3))| [
+					Vertex { position: p1.to_array(), color: c1.to_array() },
+					Vertex { position: p2.to_array(), color: c2.to_array() },
+					Vertex { position: p3.to_array(), color: c3.to_array() },
+				])
+				.collect();
 
-		let buffers = [
-			self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-				label: None,
-				contents: bytemuck::cast_slice(&points),
-				usage: wgpu::BufferUsages::VERTEX,
-			}),
-			self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-				label: None,
-				contents: bytemuck::cast_slice(&lines),
-				usage: wgpu::BufferUsages::VERTEX,
-			}),
-			self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-				label: None,
-				contents: bytemuck::cast_slice(&triangles),
-				usage: wgpu::BufferUsages::VERTEX,
-			}),
-		];
+			let counts_3d = [
+				points_3d.len() as u32,
+				lines_3d.len() as u32,
+				triangles_3d.len() as u32,
+			];
 
-		pass.set_bind_group(0, &self.renderer.bind_group, &[]);
-		for i in 0..self.renderer.pipelines.len() {
-			if counts[i] > 0 {
-				pass.set_pipeline(&self.renderer.pipelines[i]);
-				pass.set_vertex_buffer(0, buffers[i].slice(..));
-				pass.draw(0..counts[i], 0..1);
+			let buffers_3d = [
+				self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+					label: None,
+					contents: bytemuck::cast_slice(&points_3d),
+					usage: wgpu::BufferUsages::VERTEX,
+				}),
+				self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+					label: None,
+					contents: bytemuck::cast_slice(&lines_3d),
+					usage: wgpu::BufferUsages::VERTEX,
+				}),
+				self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+					label: None,
+					contents: bytemuck::cast_slice(&triangles_3d),
+					usage: wgpu::BufferUsages::VERTEX,
+				}),
+			];
+
+			pass.set_bind_group(0, &self.renderer.bind_group_3d, &[]);
+			for i in 0..self.renderer.pipelines_3d.len() {
+				if counts_3d[i] > 0 {
+					pass.set_pipeline(&self.renderer.pipelines_3d[i]);
+					pass.set_vertex_buffer(0, buffers_3d[i].slice(..));
+					pass.draw(0..counts_3d[i], 0..1);
+				}
+			}
+		}
+
+		{ // -------------------- 2D RENDER --------------------
+			let view_proj_2d = Mat4::orthographic_rh( // ortho projection
+				0.0,
+				self.renderer.config.width as f32,
+				self.renderer.config.height as f32,
+				0.0,
+				-1.0,
+				1.0,
+			);
+			let uniforms_2d = Uniforms { view_proj: view_proj_2d.to_cols_array_2d() };
+			self.renderer.queue.write_buffer(&self.renderer.uniform_buffer_2d, 0, bytemuck::bytes_of(&uniforms_2d));
+
+			let points_2d: Vec<Vertex> = all_points_2d.into_iter()
+				.map(|(p, c)| Vertex { position: p.to_array(), color: c.to_array() })
+				.collect();
+			let lines_2d: Vec<Vertex> = all_lines_2d.into_iter()
+				.flat_map(|((p1,c1), (p2,c2))| [
+					Vertex { position: p1.to_array(), color: c1.to_array() },
+					Vertex { position: p2.to_array(), color: c2.to_array() },
+				])
+				.collect();
+			let triangles_2d: Vec<Vertex> = all_triangles_2d.into_iter()
+				.flat_map(|((p1,c1), (p2,c2), (p3,c3))| [
+					Vertex { position: p1.to_array(), color: c1.to_array() },
+					Vertex { position: p2.to_array(), color: c2.to_array() },
+					Vertex { position: p3.to_array(), color: c3.to_array() },
+				])
+				.collect();
+
+			let counts_2d = [
+				points_2d.len() as u32,
+				lines_2d.len() as u32,
+				triangles_2d.len() as u32,
+			];
+
+			let buffers_2d = [
+				self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+					label: None,
+					contents: bytemuck::cast_slice(&points_2d),
+					usage: wgpu::BufferUsages::VERTEX,
+				}),
+				self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+					label: None,
+					contents: bytemuck::cast_slice(&lines_2d),
+					usage: wgpu::BufferUsages::VERTEX,
+				}),
+				self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+					label: None,
+					contents: bytemuck::cast_slice(&triangles_2d),
+					usage: wgpu::BufferUsages::VERTEX,
+				}),
+			];
+
+			pass.set_bind_group(0, &self.renderer.bind_group_2d, &[]);
+			for i in 0..self.renderer.pipelines_2d.len() {
+				if counts_2d[i] > 0 {
+					pass.set_pipeline(&self.renderer.pipelines_2d[i]);
+					pass.set_vertex_buffer(0, buffers_2d[i].slice(..));
+					pass.draw(0..counts_2d[i], 0..1);
+				}
 			}
 		}
 
@@ -876,13 +956,13 @@ impl App {
 		self.state.camera.aspect_ratio = (w as f32) / (h as f32);
 		self.state.is_redraw_needed = true;
 	}
-
 }
 
 
 
 
 
+// TODO(optim): separate into Vertex3d and Vertex2d (remove one float lol)
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
@@ -915,9 +995,12 @@ struct Renderer {
 	device: wgpu::Device,
 	queue: wgpu::Queue,
 	config: wgpu::SurfaceConfiguration,
-	pipelines: [wgpu::RenderPipeline; 3],
-	uniform_buffer: wgpu::Buffer,
-	bind_group: wgpu::BindGroup,
+	pipelines_3d: [wgpu::RenderPipeline; 3],
+	pipelines_2d: [wgpu::RenderPipeline; 3],
+	uniform_buffer_3d: wgpu::Buffer,
+	uniform_buffer_2d: wgpu::Buffer,
+	bind_group_3d: wgpu::BindGroup,
+	bind_group_2d: wgpu::BindGroup,
 }
 impl Renderer {
 	fn new(window: &'static Window) -> Self {
@@ -950,13 +1033,19 @@ impl Renderer {
 			source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
 		});
 
-		let uniforms = Uniforms {
-			view_proj: Mat4::IDENTITY.to_cols_array_2d(),
-		};
-		let uniform_buffer = device.create_buffer_init(
+		let uniforms_3d = Uniforms { view_proj: Mat4::IDENTITY.to_cols_array_2d() };
+		let uniforms_2d = Uniforms { view_proj: Mat4::IDENTITY.to_cols_array_2d() };
+		let uniform_buffer_3d = device.create_buffer_init(
 			&wgpu::util::BufferInitDescriptor {
 				label: Some("Uniform Buffer"),
-				contents: bytemuck::bytes_of(&uniforms),
+				contents: bytemuck::bytes_of(&uniforms_3d),
+				usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+			},
+		);
+		let uniform_buffer_2d = device.create_buffer_init(
+			&wgpu::util::BufferInitDescriptor {
+				label: Some("Uniform Buffer"),
+				contents: bytemuck::bytes_of(&uniforms_2d),
 				usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
 			},
 		);
@@ -975,12 +1064,22 @@ impl Renderer {
 				}
 			],
 		});
-		let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+		let bind_group_3d = device.create_bind_group(&wgpu::BindGroupDescriptor {
 			layout: &bind_group_layout,
 			entries: &[
 				wgpu::BindGroupEntry {
 					binding: 0,
-					resource: uniform_buffer.as_entire_binding(),
+					resource: uniform_buffer_3d.as_entire_binding(),
+				}
+			],
+			label: None,
+		});
+		let bind_group_2d = device.create_bind_group(&wgpu::BindGroupDescriptor {
+			layout: &bind_group_layout,
+			entries: &[
+				wgpu::BindGroupEntry {
+					binding: 0,
+					resource: uniform_buffer_2d.as_entire_binding(),
 				}
 			],
 			label: None,
@@ -992,7 +1091,7 @@ impl Renderer {
 			immediate_size: 0,
 		});
 
-		let make_pipeline = |topology| {
+		let make_pipeline = |topology, blend| {
 			device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
 				label: None,
 				layout: Some(&layout),
@@ -1011,7 +1110,7 @@ impl Renderer {
 					entry_point: Some("fs_main"),
 					targets: &[Some(wgpu::ColorTargetState {
 						format,
-						blend: Some(wgpu::BlendState::REPLACE),
+						blend: Some(blend),
 						write_mask: wgpu::ColorWrites::ALL,
 					})],
 					compilation_options: Default::default(),
@@ -1023,10 +1122,15 @@ impl Renderer {
 			})
 		};
 
-		let pipelines = [
-			make_pipeline(wgpu::PrimitiveTopology::PointList),
-			make_pipeline(wgpu::PrimitiveTopology::LineList),
-			make_pipeline(wgpu::PrimitiveTopology::TriangleList),
+		let pipelines_3d = [
+			make_pipeline(wgpu::PrimitiveTopology::PointList, wgpu::BlendState::REPLACE),
+			make_pipeline(wgpu::PrimitiveTopology::LineList, wgpu::BlendState::REPLACE),
+			make_pipeline(wgpu::PrimitiveTopology::TriangleList, wgpu::BlendState::REPLACE),
+		];
+		let pipelines_2d = [ // TODO?
+			make_pipeline(wgpu::PrimitiveTopology::PointList, wgpu::BlendState::ALPHA_BLENDING),
+			make_pipeline(wgpu::PrimitiveTopology::LineList, wgpu::BlendState::ALPHA_BLENDING),
+			make_pipeline(wgpu::PrimitiveTopology::TriangleList, wgpu::BlendState::ALPHA_BLENDING),
 		];
 
 		Self {
@@ -1034,9 +1138,12 @@ impl Renderer {
 			device,
 			queue,
 			config,
-			pipelines,
-			uniform_buffer,
-			bind_group,
+			pipelines_3d,
+			pipelines_2d,
+			uniform_buffer_3d,
+			uniform_buffer_2d,
+			bind_group_3d,
+			bind_group_2d,
 		}
 	}
 }
@@ -1549,7 +1656,7 @@ fn gen_surface_world_params(rng: &mut ThreadRng) -> Vec<(float, float, float, fl
 }
 
 fn main_loop_old() {
-
+	// TODO: FPS
 	// let tick_end_timestamp = SystemTime::now();
 	// let ticktime = tick_end_timestamp.duration_since(tick_frame_begin_timestamp).unwrap();
 	// let target_fps = 60;
@@ -2096,184 +2203,4 @@ impl Chunk {
 		}
 	}
 }
-
-
-
-
-
-// #[derive(Debug)]
-// struct Camera {
-// 	pos: Vec3f,
-// 	forward: Vec3f,
-// 	up: Vec3f,
-// 	fov: float, // in radians
-// }
-// const NEAR: float = 0.1;
-// impl Camera {
-// 	fn reset_roll(&mut self) {
-// 		self.up = vec3y!(1.);
-// 	}
-//
-// 	/// returns (right, up, forward) vectors
-// 	fn basis(&self) -> (Vec3f, Vec3f, Vec3f) {
-// 		let f = self.forward.normed();
-// 		let r = f.cross(self.up).normed();
-// 		let u = r.cross(f);
-// 		(r, u, f)
-// 	}
-//
-// 	fn project_line(
-// 		&self,
-// 		line: (Vec3f, Vec3f),
-// 		width: float,
-// 		height: float,
-// 		// near: float,
-// 	) -> Option<(Vec2f, Vec2f)> {
-// 		let (a, b) = self.clip_line_near(line.0, line.1, NEAR)?;
-// 		let pa = self.project_point(a, width, height)?;
-// 		let pb = self.project_point(b, width, height)?;
-// 		clip_line_viewport(pa, pb, width, height)
-// 	}
-//
-// 	fn clip_line_near(&self, a: Vec3f, b: Vec3f, near: float) -> Option<(Vec3f, Vec3f)> {
-// 		let (_, _, forward) = self.basis();
-// 		let da = (a - self.pos) * forward;
-// 		let db = (b - self.pos) * forward;
-// 		if da >= near && db >= near { return Some((a, b)); }
-// 		if da < near && db < near { return None; }
-// 		let t = (near - da) / (db - da);
-// 		let intersect = Vec3f::new(
-// 			a.x + (b.x - a.x) * t,
-// 			a.y + (b.y - a.y) * t,
-// 			a.z + (b.z - a.z) * t,
-// 		);
-// 		if da < near {
-// 			Some((intersect, b))
-// 		} else {
-// 			Some((a, intersect))
-// 		}
-// 	}
-//
-// 	fn project_point(&self, p: Vec3f, width: float, height: float) -> Option<Vec2f> {
-// 		let (right, up, forward) = self.basis();
-//
-// 		// world -> camera space
-// 		let rel = p - self.pos;
-//
-// 		let x = rel * right;
-// 		let y = rel * up;
-// 		let z = rel * forward;
-//
-// 		// behind camera
-// 		if z <= 0. { return None; }
-//
-// 		let aspect = width / height;
-// 		let f = 1. / tan(self.fov * 0.5);
-//
-// 		// perspective projection (NDC)
-// 		let nx = (x / z) * f / aspect;
-// 		let ny = (y / z) * f;
-//
-// 		// to screen pixels
-// 		let sx = (nx + 1.) * 0.5 * width;
-// 		let sy = (1. - (ny + 1.) * 0.5) * height;
-//
-// 		Some(Vec2f { x: sx, y: sy })
-// 	}
-// }
-//
-// // TODO: rename
-// const _INSIDE: u8 = 0;
-// const _LEFT: u8 = 1;
-// const _RIGHT: u8 = 2;
-// const _BOTTOM: u8 = 4;
-// const _TOP: u8 = 8;
-//
-// fn clip_line_viewport(mut a: Vec2f, mut b: Vec2f, w: float, h: float) -> Option<(Vec2f, Vec2f)> {
-// 	let mut out_a = compute_outcode(a, w, h);
-// 	let mut out_b = compute_outcode(b, w, h);
-// 	loop {
-// 		if (out_a | out_b) == 0 { return Some((a, b)); }
-// 		if (out_a & out_b) != 0 { return None; }
-// 		let out = if out_a != 0 { out_a } else { out_b };
-// 		let mut x = 0.;
-// 		let mut y = 0.;
-// 		if (out & _TOP) != 0 {
-// 			x = a.x + (b.x - a.x) * (0. - a.y) / (b.y - a.y);
-// 			y = 0.;
-// 		} else if (out & _BOTTOM) != 0 {
-// 			x = a.x + (b.x - a.x) * (h - a.y) / (b.y - a.y);
-// 			y = h;
-// 		} else if (out & _RIGHT) != 0 {
-// 			y = a.y + (b.y - a.y) * (w - a.x) / (b.x - a.x);
-// 			x = w;
-// 		} else if (out & _LEFT) != 0 {
-// 			y = a.y + (b.y - a.y) * (0. - a.x) / (b.x - a.x);
-// 			x = 0.;
-// 		}
-// 		if out == out_a {
-// 			a = Vec2f::new(x, y);
-// 			out_a = compute_outcode(a, w, h);
-// 		} else {
-// 			b = Vec2f::new(x, y);
-// 			out_b = compute_outcode(b, w, h);
-// 		}
-// 	}
-// }
-//
-// fn compute_outcode(p: Vec2f, w: float, h: float) -> u8 {
-// 	let mut code = _INSIDE;
-// 	if p.x < 0. { code |= _LEFT; } else if p.x > w { code |= _RIGHT; }
-// 	if p.y < 0. { code |= _TOP; } else if p.y > h { code |= _BOTTOM; }
-// 	code
-// }
-
-
-
-
-
-// trait SdlFRectFromCenterSize {
-// 	fn from_center_size(cx: float, cy: float, sx: float, sy: float) -> Self;
-// 	fn from_center_size_(c: impl Into<Vec2f>, s: impl Into<Vec2f>) -> Self;
-// }
-// impl SdlFRectFromCenterSize for FRect {
-// 	fn from_center_size(cx: float, cy: float, sx: float, sy: float) -> Self {
-// 		Self {
-// 			x: cx - sx/2.,
-// 			y: cy - sy/2.,
-// 			w: sx,
-// 			h: sy,
-// 		}
-// 	}
-// 	fn from_center_size_(c: impl Into<Vec2f>, s: impl Into<Vec2f>) -> Self {
-// 		let c = c.into();
-// 		let s = s.into();
-// 		Self::from_center_size(c.x, c.y, s.x, s.y)
-// 	}
-// }
-
-
-
-// trait SdlKeyboardExtIsScancodesPressed {
-// 	fn is_scancodes_pressed_any(&self, scancodes: &[Scancode]) -> bool;
-// 	fn is_scancodes_pressed_all(&self, scancodes: &[Scancode]) -> bool;
-// }
-// impl SdlKeyboardExtIsScancodesPressed for KeyboardState<'_> {
-// 	fn is_scancodes_pressed_any(&self, scancodes: &[Scancode]) -> bool {
-// 		for scancode in scancodes {
-// 			if self.is_scancode_pressed(*scancode) {
-// 				return true
-// 			}
-// 		}
-// 		false
-// 	}
-// 	fn is_scancodes_pressed_all(&self, scancodes: &[Scancode]) -> bool {
-// 		for scancode in scancodes {
-// 			if !self.is_scancode_pressed(*scancode) {
-// 				return false
-// 			}
-// 		}
-// 		true
-// 	}
-// }
 

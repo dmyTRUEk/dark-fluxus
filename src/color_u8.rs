@@ -17,7 +17,7 @@ impl ColorU8 {
 	pub const GRAY   : Self = Self::new(127, 127, 127);
 	pub const WHITE  : Self = Self::new(255, 255, 255);
 	pub const RED    : Self = Self::new(255, 0, 0);
-	pub const GRENN  : Self = Self::new(0, 255, 0);
+	pub const GREEN  : Self = Self::new(0, 255, 0);
 	pub const BLUE   : Self = Self::new(0, 0, 255);
 	pub const CYAN   : Self = Self::new(0, 255, 255);
 	pub const MAGENTA: Self = Self::new(255, 0, 255);
