@@ -21,3 +21,4 @@
 - random shaders?
 - random differential equations simulator/"solver"
 - cellural automatas: game of life, langtons ant, etc
+- ui overlay like in cruelty squad

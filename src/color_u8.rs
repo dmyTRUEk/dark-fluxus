@@ -14,7 +14,7 @@ pub struct ColorU8 {
 
 impl ColorU8 {
 	pub const BLACK  : Self = Self::new(0, 0, 0);
-	pub const GRAY   : Self = Self::new(127, 127, 127);
+	pub const GRAY   : Self = Self::new(128, 128, 128);
 	pub const WHITE  : Self = Self::new(255, 255, 255);
 	pub const RED    : Self = Self::new(255, 0, 0);
 	pub const GREEN  : Self = Self::new(0, 255, 0);
@@ -22,11 +22,13 @@ impl ColorU8 {
 	pub const CYAN   : Self = Self::new(0, 255, 255);
 	pub const MAGENTA: Self = Self::new(255, 0, 255);
 	pub const YELLOW : Self = Self::new(255, 255, 0);
+	pub const GRAY_64: Self = Self::new(64, 64, 64);
+	pub const GRAY_32: Self = Self::new(32, 32, 32);
 
 	pub const fn new(r: u8, g: u8, b: u8) -> Self {
 		Self { r, g, b }
 	}
-	pub const fn from_int(n: u32) -> Self {
+	pub const fn from_int(_n: u32) -> Self {
 		todo!()
 	}
 

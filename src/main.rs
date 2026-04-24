@@ -17,10 +17,11 @@
 
 #![feature(
 	default_field_values,
+	generic_const_exprs,
 	vec_from_fn,
 )]
 
-use std::{f32::consts::{FRAC_PI_2, GOLDEN_RATIO, PI, TAU}, thread::sleep, time::{Duration, Instant, SystemTime}};
+use std::{f32::consts::{FRAC_PI_2, GOLDEN_RATIO, PI, TAU}, time::Instant};
 
 use either::Either;
 use rand::{RngExt, rng, rngs::ThreadRng};
@@ -33,7 +34,7 @@ mod color_u8;
 mod consts;
 mod extensions;
 mod float_type;
-// mod font_rendering;
+mod font_rendering;
 mod lorenz_attractor;
 mod math;
 mod math_aliases;
@@ -50,7 +51,7 @@ use color_u8::*;
 use consts::*;
 use extensions::*;
 use float_type::*;
-// use font_rendering::*;
+use font_rendering::*;
 use lorenz_attractor::*;
 use math::*;
 use math_aliases::*;
@@ -94,13 +95,6 @@ impl winit::application::ApplicationHandler for AppMaybeUninit {
 					.with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)))
 			).unwrap();
 
-		// let monitor = window.current_monitor();
-		// window.set_fullscreen(Some(Fullscreen::Borderless(monitor)));
-
-		// let monitor = window.current_monitor().unwrap();
-		// let video_mode = monitor.video_modes().next().unwrap();
-		// window.set_fullscreen(Some(Fullscreen::Exclusive(video_mode)));
-
 		let window_ref: &'static Window = Box::leak(Box::new(window));
 		window_ref.set_cursor_grab(winit::window::CursorGrabMode::Locked).unwrap();
 		window_ref.set_cursor_visible(false);
@@ -134,13 +128,13 @@ impl winit::application::ApplicationHandler for AppMaybeUninit {
 struct App {
 	window: &'static Window,
 	renderer: Renderer,
-	state: State,
+	state: GameState,
 	rng: ThreadRng,
 }
 impl App {
 	fn new(window: &'static Window, renderer: Renderer) -> Self {
 		let mut rng = rng();
-		let state = State::new(renderer.config.width as f32, renderer.config.height as f32, &mut rng);
+		let state = GameState::new(renderer.config.width as f32, renderer.config.height as f32, &mut rng);
 		Self {
 			window,
 			renderer,
@@ -185,7 +179,6 @@ impl App {
 				self.state.is_redraw_needed = true;
 			}
 			KeyboardInput { event: KeyEvent { logical_key: Named(F5), state: ElementState::Pressed, repeat: false, .. }, .. } if !is_overlay => {
-				dbg!("F5");
 				self.state.camera.next_movement_type();
 				self.state.is_redraw_needed = true;
 			}
@@ -193,7 +186,7 @@ impl App {
 				self.state.is_inventory_opened = !self.state.is_inventory_opened;
 				self.state.is_redraw_needed = true;
 			}
-			KeyboardInput { event: KeyEvent { logical_key: Named(ArrowUp), state: ElementState::Pressed, repeat: false, .. }, .. } if is_overlay => {
+			KeyboardInput { event: KeyEvent { logical_key: Named(ArrowUp), state: ElementState::Pressed, .. }, .. } if is_overlay => {
 				if self.state.is_paused {
 					self.state.pause_menu_item_index = self.state.pause_menu_item_index.dec_mod(self.state.pause_menu_items.len() as u32);
 				}
@@ -205,7 +198,7 @@ impl App {
 				}
 				self.state.is_redraw_needed = true;
 			}
-			KeyboardInput { event: KeyEvent { logical_key: Named(ArrowDown), state: ElementState::Pressed, repeat: false, .. }, .. } if is_overlay => {
+			KeyboardInput { event: KeyEvent { logical_key: Named(ArrowDown), state: ElementState::Pressed, .. }, .. } if is_overlay => {
 				if self.state.is_paused {
 					self.state.pause_menu_item_index = self.state.pause_menu_item_index.inc_mod(self.state.pause_menu_items.len() as u32);
 				}
@@ -230,8 +223,10 @@ impl App {
 							self.state.current_chunk_x = 0;
 							self.state.current_chunk_z = 0;
 						}
-						GetRandomItem => {
-							self.state.inventory_items.push(InventoryItem::new_random(&mut self.rng));
+						GetRandomItems => {
+							for _ in 0..100 {
+								self.state.inventory_items.push(InventoryItem::new_random(&mut self.rng));
+							}
 						}
 						ToggleTopology => {
 							self.state.is_alt_topology = !self.state.is_alt_topology;
@@ -333,6 +328,7 @@ impl App {
 	fn update(&mut self) {
 		let now = Instant::now();
 		let dt = now.duration_since(self.state.last_update_inst).as_secs_f32();
+		// TODO(fix): prevent huge dt (after pause)
 		self.state.last_update_inst = now;
 
 		let is_overlay = self.state.is_overlay();
@@ -350,7 +346,7 @@ impl App {
 		if !self.state.is_paused /* TODO: && exist what needs to be updated */ {
 			match self.state.dimension {
 				Dimension::Base => {
-					self.state.dim_base_la_for_floor_color.step(DIM_BASE_LA_SPEED);
+					self.state.dim_base_la_for_floor_color.step(DIM_BASE_LA_SPEED * dt);
 					for (_x, _z, chunk) in self.state.chunks.iter_mut() {
 						for (_pos, ro) in chunk.renderable_objects.iter_mut() {
 							ro.update(dt);
@@ -446,37 +442,19 @@ impl App {
 
 		self.state.frame_n += 1;
 
-		let mut all_points_3d: Vec<(Vec3, ColorU8)> = vec![];
-		let mut all_lines_3d: Vec<((Vec3, ColorU8), (Vec3, ColorU8))> = vec![];
-		// let mut all_chains_3d: Vec<Vec<Vec3>> = vec![];
-		let mut all_triangles_3d: Vec<((Vec3, ColorU8), (Vec3, ColorU8), (Vec3, ColorU8))> = vec![];
+		let mut all_3d_points: Vec<Point3d> = vec![];
+		let mut all_3d_lines: Vec<Line3d> = vec![];
+		let mut all_3d_lines_oc: Vec<Line3dOC> = vec![];
+		let mut all_3d_triangles: Vec<Triangle3d> = vec![];
 
-		let mut all_points_2d: Vec<(Vec3, ColorU8)> = vec![
-			// TODO: REMOVE ME
-			(Vec3::from_xy(410., 100.), ColorU8::RED),
-			(Vec3::from_xy(420., 100.), ColorU8::GREEN),
-			(Vec3::from_xy(430., 100.), ColorU8::BLUE),
-			(Vec3::from_xy(440., 100.), ColorU8::CYAN),
-			(Vec3::from_xy(450., 100.), ColorU8::MAGENTA),
-			(Vec3::from_xy(460., 100.), ColorU8::YELLOW),
-		];
-		let mut all_lines_2d: Vec<((Vec3, ColorU8), (Vec3, ColorU8))> = vec![
-			// TODO: REMOVE ME
-			(
-				(Vec3::from_xy(400., 100.), ColorU8::CYAN),
-				(Vec3::from_xy(100., 300.), ColorU8::MAGENTA),
-			)
-		];
-		let mut all_triangles_2d: Vec<((Vec3, ColorU8), (Vec3, ColorU8), (Vec3, ColorU8))> = vec![
-			// TODO: REMOVE ME
-			(
-				(Vec3::from_xy(100., 100.), ColorU8::RED),
-				(Vec3::from_xy(300., 100.), ColorU8::GREEN),
-				(Vec3::from_xy(100., 200.), ColorU8::BLUE)
-			),
-		];
+		let mut all_2d_points: Vec<Point2d> = vec![];
+		let mut all_2d_lines: Vec<Line2d> = vec![];
+		let mut all_2d_triangles: Vec<Triangle2d> = vec![];
+		let mut all_2d_rect_filled: Vec<Rectangle2dFilledOC> = vec![];
+		let mut all_2d_rect_hollow: Vec<Rectangle2dHollowOC> = vec![];
 
 		let (w, h) = (self.renderer.config.width, self.renderer.config.height);
+		let wh = (w, h);
 		let (wi, hi) = (w as i32, h as i32);
 		let (wf, hf) = (w as float, h as float);
 		let (wfh, hfh) = (wf / 2., hf / 2.);
@@ -491,39 +469,39 @@ impl App {
 					Either::Right(self.state.chunks.iter_around_wrapping_alt(self.state.current_chunk_x as i32, self.state.current_chunk_z as i32, self.state.render_distance))
 				};
 				for (dx, dz, _x, _z, _is_x_flipped_local, _is_z_flipped_local, chunk) in iter {
-					const STEP: float = 1.;
-					// let is_x_flipped = is_x_flipped_global ^ is_x_flipped_local;
-					// let is_z_flipped = is_z_flipped_global ^ is_z_flipped_local;
-					let mut x = -CHUNK_SIZE_HALF * (1. - 1e-2);
+					// let step = 2_f32.powi(max(dx.abs(), dz.abs()) - 1); // TODO: use if render_distance > something?
+					let step = 1.;
+					let mut x = -CHUNK_SIZE_HALF;
 					while x < CHUNK_SIZE_HALF {
-						let mut z = -CHUNK_SIZE_HALF * (1. - 1e-2);
+						let mut z = -CHUNK_SIZE_HALF;
 						while z < CHUNK_SIZE_HALF {
 							let pos = Vec3::new((dx as float)*CHUNK_SIZE + x, 0., (dz as float)*CHUNK_SIZE + z);
 							let pos = pos.flip_x_if(self.state.is_x_flipped_global);
 							let pos = pos.flip_z_if(self.state.is_z_flipped_global);
-							let c = {
-								// TODO
-								// let mut c = base_color(&dim_base_la_for_floor_color);
-								// let pos_rel_to_cam = pos - camera.position;
-								// if is_darkness_at_base {
-								// 	// TODO: better attenuation curve
-								// 	c = ((c as float) / (1. + 2e-3*pos_rel_to_cam.norm2())) as u8;
-								// }
-								// ColorU8::RGB(c, c, c)
-								chunk.color
+							let color = {
+								let mut c = base_color(&self.state.dim_base_la_for_floor_color);
+								let pos_rel_to_cam = pos - self.state.camera.position;
+								if self.state.is_darkness_at_base {
+									// TODO: better attenuation curve
+									c = ((c as float) / (1. + 2e-3*pos_rel_to_cam.length_squared())) as u8;
+								}
+								ColorU8::new(c, c, c)
+								// chunk.color
 							};
-							let lines = [
-								(Vec3::new(pos.x - STEP/3., 0., pos.z - STEP/3.),
-								 Vec3::new(pos.x + STEP/3., 0., pos.z + STEP/3.)),
-								(Vec3::new(pos.x - STEP/3., 0., pos.z + STEP/3.),
-								 Vec3::new(pos.x + STEP/3., 0., pos.z - STEP/3.)),
-							];
-							for (a, b) in lines.into_iter() {
-								all_lines_3d.push(((a, c), (b, c)));
-							}
-							z += STEP;
+							// let lines = [
+							// 	(Vec3::new(pos.x - step/3., 0., pos.z - step/3.),
+							// 	 Vec3::new(pos.x + step/3., 0., pos.z + step/3.)),
+							// 	(Vec3::new(pos.x - step/3., 0., pos.z + step/3.),
+							// 	 Vec3::new(pos.x + step/3., 0., pos.z - step/3.)),
+							// ];
+							// for (a, b) in lines.into_iter() {
+							// 	all_3d_lines_oc.push(Line3dOC::from(a, b, color));
+							// }
+							// all_3d_points.push(Point3d::from(pos, chunk.color));
+							all_3d_points.push(Point3d::from(pos, color));
+							z += step;
 						}
-						x += STEP;
+						x += step;
 					}
 				}
 				let iter = if !self.state.is_alt_topology {
@@ -539,7 +517,7 @@ impl App {
 						let shift: Vec3 = pos.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) +
 							Vec3::new((dx as float)*CHUNK_SIZE, 0., (dz as float)*CHUNK_SIZE)
 								.flip_x_if(self.state.is_x_flipped_global).flip_z_if(self.state.is_z_flipped_global);
-						let c = {
+						let color = {
 							let ColorU8 { mut r, mut g, mut b, .. } = chunk.color;
 							if self.state.is_darkness_at_base {
 								let pos_rel_to_cam = shift - self.state.camera.position;
@@ -554,28 +532,36 @@ impl App {
 							// TODO(optim): do these computations on gpu?
 							match renderable_shape {
 								Points(points) => {
-									all_points_3d.extend(
-										points.iter()
-											.map(|&p| (p.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift, c))
+									all_3d_points.extend(
+										points.iter().map(|p|
+											Point3d::from(
+												p.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+												color
+											)
+										)
 									);
 								}
 								Lines(lines) => {
-									for line in lines.iter() {
-										let (a, b) = line;
-										let a = a.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped);
-										let b = b.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped);
-										let a = a + shift;
-										let b = b + shift;
-										all_lines_3d.push(((a, c), (b, c)));
-									}
+									all_3d_lines_oc.extend(
+										lines.iter().map(|(a, b)|
+											Line3dOC::from(
+												a.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+												b.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+												color
+											)
+										)
+									);
 								}
 								Chain(chain) => {
-									for [a, b] in chain.array_windows() {
-										all_lines_3d.push((
-											(a.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift, c),
-											(b.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift, c)
-										));
-									}
+									all_3d_lines_oc.extend(
+										chain.array_windows().map(|[a, b]|
+											Line3dOC::from(
+												a.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+												b.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+												color
+											)
+										)
+									);
 								}
 							}
 						}
@@ -648,163 +634,158 @@ impl App {
 			}
 		}
 
-		// if self.state.is_extra_info_shown {
-		// 	let text_size = 3;
-		// 	canvas.set_draw_color(ColorU8::GRAY);
-		// 	let mut lines = vec![
-		// 		format!("XYZ: {:.3}, {:.3}, {:.3}", self.state.camera.position.x, self.state.camera.position.y, self.state.camera.position.z),
-		// 		format!("CHUNK XZ: {}, {}", self.state.current_chunk_x, self.state.current_chunk_z),
-		// 		format!("MOVE TYPE: {}", self.state.movement_type.to_str_uppercase()),
-		// 		format!("FOV: {:.3}", self.state.camera.fov_x.to_degrees()),
-		// 		format!("TOPOLOGY IS ALT: {}", self.state.is_alt_topology.to_string().to_uppercase()),
-		// 	];
-		// 	if self.state.is_alt_topology {
-		// 		lines.push(format!("is xz flipped global: {}, {}", self.state.is_x_flipped_global, self.state.is_z_flipped_global).to_uppercase());
-		// 	}
-		// 	for (i, line) in lines.iter().enumerate() {
-		// 		canvas.render_text(line, (5, 5 + 35*(i as i32)), text_size);
-		// 	}
-		//
-		// 	// // zqqx lang
-		// 	// for char_n in 0..5 {
-		// 	// 	let scale: u8 = 5;
-		// 	// 	let zqqx_char: [i8; 25] = array::from_fn(|i| {
-		// 	// 		let (i, j) = (i % 5, i / 5);
-		// 	// 		let cx = char_n as float;
-		// 	// 		let cy = ((i+j*5) as float).sqrt();
-		// 	// 		// let cz = ((j+i*5) as float).ln_1p();
-		// 	// 		let cz = (frame_n as float).ln_1p().ln_1p().ln_1p();
-		// 	// 		let coefs = vec3![cx, cy, cz].normed();
-		// 	// 		let t = lorenz_attractor.get_linear_combination(coefs.x, coefs.y, coefs.z);
-		// 	// 		let t = t.rem_euclid(1.);
-		// 	// 		(t * 255. - 128.) as i8
-		// 	// 	});
-		// 	// 	let bitmap = zqqx_lang.add_or_quantize(ZqqxChar::new(zqqx_char));
-		// 	// 	buffer.render_custom_char(
-		// 	// 		bitmap.quantize(),
-		// 	// 		((buffer.w as i32) - 200 + (((char_n*7)*scale) as i32), 10),
-		// 	// 		WHITE,
-		// 	// 		scale,
-		// 	// 	);
-		// 	// }
-		//
-		// 	// TODO
-		// 	// let frame_end_timestamp = SystemTime::now();
-		// 	// let frametime = frame_end_timestamp.duration_since(tick_frame_begin_timestamp).unwrap();
-		// 	// let fps = 1. / frametime.as_secs_f64();
-		// 	// // if fps < 60. { panic!() }
-		// 	// let fps_text = format!("\"FPS\": {fps:.1}");
-		// 	// canvas.render_text(&fps_text, (wi - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), text_size);
-		// }
+		// -------------------- UI --------------------
 
-		// TODO!
-		// if self.state.is_help_opened {
-		// 	const PADDING: float = 30.;
-		// 	const ITEM_Y: float = 30.;
-		// 	const ITEMS_N: u32 = 15;
-		// 	debug_assert_eq!(1, ITEMS_N % 2);
-		// 	const MENU_SIZE_X: float = 1000.;
-		// 	const MENU_SIZE_Y: float = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as float);
-		// 	const ITEM_X: float = MENU_SIZE_X - 2.*PADDING;
-		// 	canvas.set_draw_color(ColorU8::BLACK);
-		// 	canvas.fill_rect(FRect::from_center_size(wfh, hfh, MENU_SIZE_X, MENU_SIZE_Y)).unwrap();
-		// 	canvas.set_draw_color(ColorU8::WHITE);
-		// 	canvas.draw_rect(FRect::from_center_size(wfh, hfh, MENU_SIZE_X, MENU_SIZE_Y)).unwrap();
-		// 	const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY;
-		// 	const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
-		// 	// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
-		// 	const ITEM_TEXT_SIZE: u8 = 5;
-		// 	const ITEM_INNER_PADDING: float = (ITEM_Y - (ITEM_TEXT_SIZE as float)*(FONT_H as float)) / 2.;
-		// 	canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
-		// 	let i_init: u32 = self.state.help_line_index.saturating_sub((ITEMS_N-1)/2);
-		// 	let mut i: u32 = i_init;
-		// 	while i - i_init < ITEMS_N && i < self.state.help_lines.len() as u32 {
-		// 		let menu_item = &self.state.help_lines[i as usize];
-		// 		if i == self.state.help_line_index {
-		// 			canvas.set_draw_color(ITEM_SELECTED_COLOR);
-		// 		}
-		// 		let item_cx = wfh;
-		// 		let item_cy = hfh - MENU_SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
-		// 		// canvas.draw_rect(FRect::from_center_size(item_cx, item_cy, ITEM_X, ITEM_Y)).unwrap();
-		// 		canvas.render_text(menu_item, ((item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32, (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32), ITEM_TEXT_SIZE);
-		// 		if i == self.state.help_line_index {
-		// 			canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
-		// 		}
-		// 		i += 1;
-		// 	}
-		// }
-		//
-		// if self.state.is_inventory_opened {
-		// 	const PADDING: float = 30.;
-		// 	const ITEM_Y: float = 50.;
-		// 	const ITEMS_N: u32 = 11;
-		// 	debug_assert_eq!(1, ITEMS_N % 2);
-		// 	const MENU_SIZE_X: float = 900.;
-		// 	const MENU_SIZE_Y: float = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as float);
-		// 	const ITEM_X: float = MENU_SIZE_X - 2.*PADDING;
-		// 	canvas.set_draw_color(ColorU8::BLACK);
-		// 	canvas.fill_rect(FRect::from_center_size(wfh, hfh, MENU_SIZE_X, MENU_SIZE_Y)).unwrap();
-		// 	canvas.set_draw_color(ColorU8::WHITE);
-		// 	canvas.draw_rect(FRect::from_center_size(wfh, hfh, MENU_SIZE_X, MENU_SIZE_Y)).unwrap();
-		// 	const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY;
-		// 	const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
-		// 	// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
-		// 	const ITEM_TEXT_SIZE: u8 = 5;
-		// 	const ITEM_INNER_PADDING: float = (ITEM_Y - (ITEM_TEXT_SIZE as float)*(FONT_H as float)) / 2.;
-		// 	canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
-		// 	let i_init: u32 = self.state.inventory_item_index.saturating_sub((ITEMS_N-1)/2);
-		// 	let mut i: u32 = i_init;
-		// 	while i - i_init < ITEMS_N && i < self.state.inventory_items.len() as u32 {
-		// 		let inventory_item = &self.state.inventory_items[i as usize];
-		// 		if i == self.state.inventory_item_index {
-		// 			canvas.set_draw_color(ITEM_SELECTED_COLOR);
-		// 		}
-		// 		let item_cx = wfh;
-		// 		let item_cy = hfh - MENU_SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
-		// 		canvas.draw_rect(FRect::from_center_size(item_cx, item_cy, ITEM_X, ITEM_Y)).unwrap();
-		// 		canvas.render_text(&inventory_item.to_string(), ((item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32, (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32), ITEM_TEXT_SIZE);
-		// 		if i == self.state.inventory_item_index {
-		// 			canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
-		// 		}
-		// 		i += 1;
-		// 	}
-		// }
-		//
-		// if self.state.is_paused {
-		// 	const PADDING: float = 50.;
-		// 	const ITEM_Y: float = 80.;
-		// 	const ITEMS_N: u32 = 7;
-		// 	debug_assert_eq!(1, ITEMS_N % 2);
-		// 	const MENU_SIZE_X: float = 800.;
-		// 	const MENU_SIZE_Y: float = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as float);
-		// 	const ITEM_X: float = MENU_SIZE_X - 2.*PADDING;
-		// 	canvas.set_draw_color(ColorU8::BLACK);
-		// 	canvas.fill_rect(FRect::from_center_size(wfh, hfh, MENU_SIZE_X, MENU_SIZE_Y)).unwrap();
-		// 	canvas.set_draw_color(ColorU8::WHITE);
-		// 	canvas.draw_rect(FRect::from_center_size(wfh, hfh, MENU_SIZE_X, MENU_SIZE_Y)).unwrap();
-		// 	const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY;
-		// 	const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
-		// 	// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
-		// 	const ITEM_TEXT_SIZE: u8 = 5;
-		// 	const ITEM_INNER_PADDING: float = (ITEM_Y - (ITEM_TEXT_SIZE as float)*(FONT_H as float)) / 2.;
-		// 	canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
-		// 	let i_init: u32 = self.state.pause_menu_item_index.saturating_sub((ITEMS_N-1)/2);
-		// 	let mut i: u32 = i_init;
-		// 	while i - i_init < ITEMS_N && i < self.state.pause_menu_items.len() as u32 {
-		// 		let menu_item = &self.state.pause_menu_items[i as usize];
-		// 		if i == self.state.pause_menu_item_index {
-		// 			canvas.set_draw_color(ITEM_SELECTED_COLOR);
-		// 		}
-		// 		let item_cx = wfh;
-		// 		let item_cy = hfh - MENU_SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
-		// 		canvas.draw_rect(FRect::from_center_size(item_cx, item_cy, ITEM_X, ITEM_Y)).unwrap();
-		// 		canvas.render_text(menu_item.to_str(), ((item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32, (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32), ITEM_TEXT_SIZE);
-		// 		if i == self.state.pause_menu_item_index {
-		// 			canvas.set_draw_color(ITEM_UNSELECTED_COLOR);
-		// 		}
-		// 		i += 1;
-		// 	}
-		// }
+		if self.state.is_extra_info_shown {
+			let text_size = 3;
+			let color = ColorU8::GRAY_32;
+			let mut lines = vec![
+				format!("XYZ: {:.3}, {:.3}, {:.3}", self.state.camera.position.x, self.state.camera.position.y, self.state.camera.position.z),
+				format!("CHUNK XZ: {}, {}", self.state.current_chunk_x, self.state.current_chunk_z),
+				format!("MOVE TYPE: {}", self.state.camera.movement_type.to_str_uppercase()),
+				format!("FOV: {:.3}", self.state.camera.fov_x.to_degrees()),
+				format!("TOPOLOGY IS ALT: {}", self.state.is_alt_topology.to_string().to_uppercase()),
+			];
+			if self.state.is_alt_topology {
+				lines.push(format!("is xz flipped global: {}, {}", self.state.is_x_flipped_global, self.state.is_z_flipped_global).to_uppercase());
+			}
+			for (i, line) in lines.iter().enumerate() {
+				let pixels: Vec<_> = get_text_pixels(line, (5, 5 + 35*(i as i32)), text_size, wh)
+					.iter().map(|(x,y)| Point2d::from(*x, *y, color)).collect();
+				all_2d_points.extend(pixels);
+			}
+
+			// // zqqx lang
+			// for char_n in 0..5 {
+			// 	let scale: u8 = 5;
+			// 	let zqqx_char: [i8; 25] = array::from_fn(|i| {
+			// 		let (i, j) = (i % 5, i / 5);
+			// 		let cx = char_n as float;
+			// 		let cy = ((i+j*5) as float).sqrt();
+			// 		// let cz = ((j+i*5) as float).ln_1p();
+			// 		let cz = (frame_n as float).ln_1p().ln_1p().ln_1p();
+			// 		let coefs = vec3![cx, cy, cz].normed();
+			// 		let t = lorenz_attractor.get_linear_combination(coefs.x, coefs.y, coefs.z);
+			// 		let t = t.rem_euclid(1.);
+			// 		(t * 255. - 128.) as i8
+			// 	});
+			// 	let bitmap = zqqx_lang.add_or_quantize(ZqqxChar::new(zqqx_char));
+			// 	buffer.render_custom_char(
+			// 		bitmap.quantize(),
+			// 		((buffer.w as i32) - 200 + (((char_n*7)*scale) as i32), 10),
+			// 		WHITE,
+			// 		scale,
+			// 	);
+			// }
+
+			// TODO
+			let frame_end_timestamp = Instant::now();
+			let frametime = frame_end_timestamp.duration_since(self.state.last_update_inst);
+			let fps = 1. / frametime.as_secs_f64();
+			// if fps < 60. { panic!() }
+			let fps_text = format!("FPS?: {fps:.1}");
+			let pixels: Vec<_> = get_text_pixels(&fps_text, (wi - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), text_size, wh)
+				.iter().map(|(x,y)| Point2d::from(*x, *y, color)).collect();
+			all_2d_points.extend(pixels);
+		}
+
+		if self.state.is_help_opened {
+			const PADDING: float = 30.;
+			const ITEM_Y: float = 30.;
+			const ITEMS_N: u32 = 15;
+			debug_assert_eq!(1, ITEMS_N % 2);
+			const SIZE_X: float = 1000.;
+			const SIZE_Y: float = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as float);
+			const ITEM_X: float = SIZE_X - 2.*PADDING;
+			all_2d_rect_filled.push(Rectangle2dFilledOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
+			all_2d_rect_hollow.push(Rectangle2dHollowOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
+			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
+			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
+			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
+			const ITEM_TEXT_SIZE: u8 = 5;
+			const ITEM_INNER_PADDING: float = (ITEM_Y - (ITEM_TEXT_SIZE as float)*(FONT_H as float)) / 2.;
+			let i_init: u32 = self.state.help_line_index.saturating_sub((ITEMS_N-1)/2);
+			let mut i: u32 = i_init;
+			while i - i_init < ITEMS_N && i < self.state.help_lines.len() as u32 {
+				let help_line = &self.state.help_lines[i as usize];
+				let color = if i == self.state.help_line_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
+				let item_cx = wfh;
+				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
+				let text_x = (item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32;
+				let text_y = (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32;
+				all_2d_points.extend(
+					get_text_pixels(help_line, (text_x, text_y), ITEM_TEXT_SIZE, wh)
+						.iter().map(|(x,y)| Point2d::from(*x, *y, color))
+				);
+				i += 1;
+			}
+		}
+
+		if self.state.is_inventory_opened {
+			const PADDING: float = 30.;
+			const ITEM_Y: float = 50.;
+			const ITEMS_N: u32 = 11;
+			debug_assert_eq!(1, ITEMS_N % 2);
+			const SIZE_X: float = 900.;
+			const SIZE_Y: float = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as float);
+			const ITEM_X: float = SIZE_X - 2.*PADDING;
+			all_2d_rect_filled.push(Rectangle2dFilledOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
+			all_2d_rect_hollow.push(Rectangle2dHollowOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
+			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
+			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
+			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
+			const ITEM_TEXT_SIZE: u8 = 5;
+			const ITEM_INNER_PADDING: float = (ITEM_Y - (ITEM_TEXT_SIZE as float)*(FONT_H as float)) / 2.;
+			let i_init: u32 = self.state.inventory_item_index.saturating_sub((ITEMS_N-1)/2);
+			let mut i: u32 = i_init;
+			while i - i_init < ITEMS_N && i < self.state.inventory_items.len() as u32 {
+				let inventory_item = &self.state.inventory_items[i as usize];
+				let color = if i == self.state.inventory_item_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
+				let item_cx = wfh;
+				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
+				all_2d_rect_hollow.push(Rectangle2dHollowOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
+				let text_x = (item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32;
+				let text_y = (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32;
+				all_2d_points.extend(
+					get_text_pixels(&inventory_item.to_string(), (text_x, text_y), ITEM_TEXT_SIZE, wh)
+						.iter().map(|(x,y)| Point2d::from(*x, *y, color))
+				);
+				i += 1;
+			}
+		}
+
+		if self.state.is_paused {
+			const PADDING: float = 50.;
+			const ITEM_Y: float = 80.;
+			const ITEMS_N: u32 = 7;
+			debug_assert_eq!(1, ITEMS_N % 2);
+			const SIZE_X: float = 800.;
+			const SIZE_Y: float = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as float);
+			const ITEM_X: float = SIZE_X - 2.*PADDING;
+			all_2d_rect_filled.push(Rectangle2dFilledOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
+			all_2d_rect_hollow.push(Rectangle2dHollowOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
+			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
+			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
+			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
+			const ITEM_TEXT_SIZE: u8 = 5;
+			const ITEM_INNER_PADDING: float = (ITEM_Y - (ITEM_TEXT_SIZE as float)*(FONT_H as float)) / 2.;
+			let i_init: u32 = self.state.pause_menu_item_index.saturating_sub((ITEMS_N-1)/2);
+			let mut i: u32 = i_init;
+			while i - i_init < ITEMS_N && i < self.state.pause_menu_items.len() as u32 {
+				let menu_item = &self.state.pause_menu_items[i as usize];
+				let color = if i == self.state.pause_menu_item_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
+				let item_cx = wfh;
+				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
+				all_2d_rect_hollow.push(Rectangle2dHollowOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
+				let text_x = (item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32;
+				let text_y = (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32;
+				all_2d_points.extend(
+					get_text_pixels(menu_item.to_str(), (text_x, text_y), ITEM_TEXT_SIZE, wh)
+						.iter().map(|(x,y)| Point2d::from(*x, *y, color))
+				);
+				i += 1;
+			}
+		}
 
 		let mut encoder = self.renderer.device.create_command_encoder(&Default::default());
 		let view = frame.texture.create_view(&Default::default());
@@ -830,33 +811,24 @@ impl App {
 			let uniforms_3d = Uniforms { view_proj: view_proj_3d.to_cols_array_2d() };
 			self.renderer.queue.write_buffer(&self.renderer.uniform_buffer_3d, 0, bytemuck::bytes_of(&uniforms_3d));
 
-			let points_3d: Vec<Vertex> = all_points_3d.into_iter()
-				.map(|(p, c)| Vertex { position: p.to_array(), color: c.to_array() })
+			let triangles_3d: Vec<Vertex> = all_3d_triangles.into_iter().flat_map(|t| t.to_vertices())
 				.collect();
-			let lines_3d: Vec<Vertex> = all_lines_3d.into_iter()
-				.flat_map(|((p1,c1), (p2,c2))| [
-					Vertex { position: p1.to_array(), color: c1.to_array() },
-					Vertex { position: p2.to_array(), color: c2.to_array() },
-				])
+			let lines_3d: Vec<Vertex> = all_3d_lines.into_iter().flat_map(|l| l.to_vertices())
+				.chain(all_3d_lines_oc.into_iter().flat_map(|l| l.to_vertices()))
 				.collect();
-			let triangles_3d: Vec<Vertex> = all_triangles_3d.into_iter()
-				.flat_map(|((p1,c1), (p2,c2), (p3,c3))| [
-					Vertex { position: p1.to_array(), color: c1.to_array() },
-					Vertex { position: p2.to_array(), color: c2.to_array() },
-					Vertex { position: p3.to_array(), color: c3.to_array() },
-				])
+			let points_3d: Vec<Vertex> = all_3d_points.into_iter().map(|p| p.to_vertex())
 				.collect();
 
 			let counts_3d = [
-				points_3d.len() as u32,
-				lines_3d.len() as u32,
 				triangles_3d.len() as u32,
+				lines_3d.len() as u32,
+				points_3d.len() as u32,
 			];
 
 			let buffers_3d = [
 				self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
 					label: None,
-					contents: bytemuck::cast_slice(&points_3d),
+					contents: bytemuck::cast_slice(&triangles_3d),
 					usage: wgpu::BufferUsages::VERTEX,
 				}),
 				self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -866,7 +838,7 @@ impl App {
 				}),
 				self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
 					label: None,
-					contents: bytemuck::cast_slice(&triangles_3d),
+					contents: bytemuck::cast_slice(&points_3d),
 					usage: wgpu::BufferUsages::VERTEX,
 				}),
 			];
@@ -882,44 +854,29 @@ impl App {
 		}
 
 		{ // -------------------- 2D RENDER --------------------
-			let view_proj_2d = Mat4::orthographic_rh( // ortho projection
-				0.0,
-				self.renderer.config.width as f32,
-				self.renderer.config.height as f32,
-				0.0,
-				-1.0,
-				1.0,
-			);
+			let view_proj_2d = Mat4::orthographic_rh(0.0, wf, hf, 0.0, -1.0, 1.0); // orthographic projection
 			let uniforms_2d = Uniforms { view_proj: view_proj_2d.to_cols_array_2d() };
 			self.renderer.queue.write_buffer(&self.renderer.uniform_buffer_2d, 0, bytemuck::bytes_of(&uniforms_2d));
 
-			let points_2d: Vec<Vertex> = all_points_2d.into_iter()
-				.map(|(p, c)| Vertex { position: p.to_array(), color: c.to_array() })
+			let triangles_2d: Vec<Vertex> = all_2d_triangles.into_iter().flat_map(|t| t.to_vertices())
+				.chain(all_2d_rect_filled.into_iter().flat_map(|r| r.to_vertices()))
 				.collect();
-			let lines_2d: Vec<Vertex> = all_lines_2d.into_iter()
-				.flat_map(|((p1,c1), (p2,c2))| [
-					Vertex { position: p1.to_array(), color: c1.to_array() },
-					Vertex { position: p2.to_array(), color: c2.to_array() },
-				])
+			let lines_2d: Vec<Vertex> = all_2d_lines.into_iter().flat_map(|l| l.to_vertices())
+				.chain(all_2d_rect_hollow.into_iter().flat_map(|r| r.to_vertices()))
 				.collect();
-			let triangles_2d: Vec<Vertex> = all_triangles_2d.into_iter()
-				.flat_map(|((p1,c1), (p2,c2), (p3,c3))| [
-					Vertex { position: p1.to_array(), color: c1.to_array() },
-					Vertex { position: p2.to_array(), color: c2.to_array() },
-					Vertex { position: p3.to_array(), color: c3.to_array() },
-				])
+			let points_2d: Vec<Vertex> = all_2d_points.into_iter().map(|p| p.to_vertex())
 				.collect();
 
 			let counts_2d = [
-				points_2d.len() as u32,
-				lines_2d.len() as u32,
 				triangles_2d.len() as u32,
+				lines_2d.len() as u32,
+				points_2d.len() as u32,
 			];
 
 			let buffers_2d = [
 				self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
 					label: None,
-					contents: bytemuck::cast_slice(&points_2d),
+					contents: bytemuck::cast_slice(&triangles_2d),
 					usage: wgpu::BufferUsages::VERTEX,
 				}),
 				self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -929,7 +886,7 @@ impl App {
 				}),
 				self.renderer.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
 					label: None,
-					contents: bytemuck::cast_slice(&triangles_2d),
+					contents: bytemuck::cast_slice(&points_2d),
 					usage: wgpu::BufferUsages::VERTEX,
 				}),
 			];
@@ -1129,14 +1086,14 @@ impl Renderer {
 		};
 
 		let pipelines_3d = [
-			make_pipeline(wgpu::PrimitiveTopology::PointList, wgpu::BlendState::REPLACE),
-			make_pipeline(wgpu::PrimitiveTopology::LineList, wgpu::BlendState::REPLACE),
 			make_pipeline(wgpu::PrimitiveTopology::TriangleList, wgpu::BlendState::REPLACE),
+			make_pipeline(wgpu::PrimitiveTopology::LineList, wgpu::BlendState::REPLACE),
+			make_pipeline(wgpu::PrimitiveTopology::PointList, wgpu::BlendState::REPLACE),
 		];
 		let pipelines_2d = [ // TODO?
-			make_pipeline(wgpu::PrimitiveTopology::PointList, wgpu::BlendState::ALPHA_BLENDING),
-			make_pipeline(wgpu::PrimitiveTopology::LineList, wgpu::BlendState::ALPHA_BLENDING),
 			make_pipeline(wgpu::PrimitiveTopology::TriangleList, wgpu::BlendState::ALPHA_BLENDING),
+			make_pipeline(wgpu::PrimitiveTopology::LineList, wgpu::BlendState::ALPHA_BLENDING),
+			make_pipeline(wgpu::PrimitiveTopology::PointList, wgpu::BlendState::ALPHA_BLENDING),
 		];
 
 		Self {
@@ -1154,7 +1111,7 @@ impl Renderer {
 	}
 }
 
-struct State {
+struct GameState {
 	camera: Camera,
 	input: InputState,
 	last_update_inst: Instant,
@@ -1190,8 +1147,6 @@ struct State {
 	is_x_flipped_global: bool = false, // for alt topology
 	is_z_flipped_global: bool = false, // for alt topology
 
-	movement_type: MovementType = MovementType::Grounded,
-
 	tick_n: u64 = 0,
 	frame_n: u64 = 0,
 	is_extra_info_shown: bool = true,
@@ -1199,7 +1154,7 @@ struct State {
 	// zqqx_lang: ZqqxLang,
 }
 
-impl State {
+impl GameState {
 	fn new(w: f32, h: f32, rng: &mut ThreadRng) -> Self {
 		let last_update_inst = Instant::now();
 
@@ -1215,8 +1170,6 @@ impl State {
 			Chunk::new_random(rng)
 		});
 		// println!("chunks.len = {}", chunks.iter().count());
-
-		let camera = Camera::new(w / h);
 
 		Self {
 			last_update_inst,
@@ -1239,7 +1192,7 @@ impl State {
 			pause_menu_items: { use PauseMenuItem::*; vec![
 				Quit,
 				Back,
-				GetRandomItem,
+				GetRandomItems,
 				ToggleTopology,
 				ToggleDarkness,
 				ToggleUnlimitedFov,
@@ -1274,6 +1227,7 @@ struct Camera {
 }
 impl Camera {
 	const GROUNDED_CAMERA_Y: float = 1.5;
+	const DEFAULT_POSITION: Vec3 = Vec3::new(0., Self::GROUNDED_CAMERA_Y, 0.);
 
 	fn new(aspect_ratio: f32) -> Self {
 		Self {
@@ -1340,8 +1294,6 @@ impl Camera {
 	}
 
 	fn update_position(&mut self, input: &InputState, dt: f32) {
-		let speed = 0.5 * dt;
-
 		// dbg!(input);
 
 		let mut move_speed: float = 20.;
@@ -1412,7 +1364,7 @@ impl Camera {
 
 	fn update_orientation(&mut self, input: &mut InputState, dt: f32) {
 		const SENSITIVITY: f32 = 0.02; // TODO: must be dependent on fov?
-		const ROLL_SPEED: f32 = 1.;
+		const ROLL_SPEED: f32 = 2.;
 
 		let yaw = input.mouse_dx * SENSITIVITY; // NOTE: "dt" is in mouse_dx
 
@@ -1430,10 +1382,10 @@ impl Camera {
 			MovementType::FlyingGMlike => {}
 			MovementType::FpvLike => {
 				if input.roll_left {
-					roll += ROLL_SPEED * dt;
+					roll -= ROLL_SPEED * dt;
 				}
 				if input.roll_right {
-					roll -= ROLL_SPEED * dt;
+					roll += ROLL_SPEED * dt;
 				}
 				if input.reset_roll {
 					roll = 0.;
@@ -1441,7 +1393,7 @@ impl Camera {
 			}
 		}
 
-		let yaw_q = Quat::from_rotation_y(-yaw); // world-space yaw
+		let yaw_q = Quat::from_rotation_y(-yaw); // world-space yaw // TODO: must be camera-space? bc camera rotation is incorrect with roll
 		let pitch_q = Quat::from_axis_angle(self.right(), -clamped_pitch); // local-space pitch
 		let roll_q = Quat::from_axis_angle(self.forward(), roll); // local-space roll
 		self.orientation = yaw_q * pitch_q * roll_q * self.orientation;
@@ -1486,22 +1438,22 @@ impl Camera {
 	}
 
 	fn reset_position(&mut self) {
-		// const CAMERA_DEFAULT_POSITION: Vec3 = Vec3::ZERO.with_y(GROUNDED_CAMERA_Y);
-		// state.camera.pos = CAMERA_DEFAULT_POSITION;
-		todo!()
+		self.position = Self::DEFAULT_POSITION;
 	}
 
 	fn next_movement_type(&mut self) {
-		self.movement_type.next();
+		// clean up:
 		match self.movement_type { // #bqooaj
-			MovementType::Grounded => {
+			MovementType::Grounded => {}
+			MovementType::FlyingMClike => {}
+			MovementType::FlyingGMlike => {}
+			MovementType::FpvLike => {
 				self.position.y = Self::GROUNDED_CAMERA_Y;
 				self.reset_roll();
 			}
-			MovementType::FlyingMClike => {}
-			MovementType::FlyingGMlike => {}
-			MovementType::FpvLike => {}
 		}
+		// next movement type:
+		self.movement_type.next();
 	}
 }
 
@@ -1515,46 +1467,25 @@ struct Uniforms {
 struct InputState {
 	// "continuous":
 	// TODO!: rename into move_<direction>
-	forward: bool,
-	back: bool,
-	left: bool,
-	right: bool,
-	up: bool,
-	down: bool,
-	roll_left: bool,
-	roll_right: bool,
-	reset_roll: bool,
-	mouse_dx: f32,
-	mouse_dy: f32,
-	zoom_in: bool,
-	zoom_out: bool,
-	is_fast_move: bool,
+	forward: bool = false,
+	back: bool = false,
+	left: bool = false,
+	right: bool = false,
+	up: bool = false,
+	down: bool = false,
+	roll_left: bool = false,
+	roll_right: bool = false,
+	reset_roll: bool = false,
+	mouse_dx: f32 = 0.,
+	mouse_dy: f32 = 0.,
+	zoom_in: bool = false,
+	zoom_out: bool = false,
+	is_fast_move: bool = false,
 	// "discrete":
-	escape: bool,
-	f1: bool,
 }
 impl InputState {
 	fn new() -> Self {
-		Self {
-			// "continuous":
-			forward: false,
-			back: false,
-			left: false,
-			right: false,
-			up: false,
-			down: false,
-			roll_left: false,
-			roll_right: false,
-			reset_roll: false,
-			mouse_dx: 0.,
-			mouse_dy: 0.,
-			zoom_in: false,
-			zoom_out: false,
-			is_fast_move: false,
-			// "discrete":
-			escape: false,
-			f1: false,
-		}
+		Self { .. }
 	}
 	fn is_redraw_needed(&self) -> bool { // TODO: rename?
 		self.forward
@@ -1571,82 +1502,11 @@ impl InputState {
 	}
 }
 
-const POINTS: &[Vertex] = &[
-	Vertex { position: [0.9, 0., -3.], color: [1., 1., 1.] },
-];
-
-const LC: f32 = 0.0;
-const HC: f32 = 1.0;
-const LINES: &[Vertex] = &[
-	Vertex { position: [-0.5, -0.5, -3.], color: [1., 0., 0.] },
-	Vertex { position: [ 0.5, -0.5, -3.], color: [0., 1., 0.] },
-
-	Vertex { position: [-5., -5., -5.], color: [LC,LC,LC] },
-	Vertex { position: [-5., -5.,  5.], color: [LC,LC,HC] },
-
-	Vertex { position: [-5., -5., -5.], color: [LC,LC,LC] },
-	Vertex { position: [-5.,  5., -5.], color: [LC,HC,LC] },
-
-	Vertex { position: [-5., -5., -5.], color: [LC,LC,LC] },
-	Vertex { position: [ 5., -5., -5.], color: [HC,LC,LC] },
-
-	Vertex { position: [ 5.,  5.,  5.], color: [HC,HC,HC] },
-	Vertex { position: [ 5.,  5., -5.], color: [HC,HC,LC] },
-
-	Vertex { position: [ 5.,  5.,  5.], color: [HC,HC,HC] },
-	Vertex { position: [ 5., -5.,  5.], color: [HC,LC,HC] },
-
-	Vertex { position: [ 5.,  5.,  5.], color: [HC,HC,HC] },
-	Vertex { position: [-5.,  5.,  5.], color: [LC,HC,HC] },
-
-	Vertex { position: [-5., -5.,  5.], color: [LC,LC,HC] },
-	Vertex { position: [-5.,  5.,  5.], color: [LC,HC,HC] },
-
-	Vertex { position: [-5., -5.,  5.], color: [LC,LC,HC] },
-	Vertex { position: [ 5., -5.,  5.], color: [HC,LC,HC] },
-
-	Vertex { position: [-5.,  5., -5.], color: [LC,HC,LC] },
-	Vertex { position: [-5.,  5.,  5.], color: [LC,HC,HC] },
-
-	Vertex { position: [-5.,  5., -5.], color: [LC,HC,LC] },
-	Vertex { position: [ 5.,  5., -5.], color: [HC,HC,LC] },
-
-	Vertex { position: [ 5., -5., -5.], color: [HC,LC,LC] },
-	Vertex { position: [ 5., -5.,  5.], color: [HC,LC,HC] },
-
-	Vertex { position: [ 5., -5., -5.], color: [HC,LC,LC] },
-	Vertex { position: [ 5.,  5., -5.], color: [HC,HC,LC] },
-];
-
-const TRIANGLES: &[Vertex] = &[
-	Vertex { position: [ 0.0,  0.5, -3.], color: [1., 0., 0.] },
-	Vertex { position: [-0.5, -0.2, -3.], color: [0., 1., 0.] },
-	Vertex { position: [ 0.5, -0.2, -3.], color: [0., 0., 1.] },
-
-	Vertex { position: [ 0.0,  0.5,  3.], color: [1., 0., 0.] },
-	Vertex { position: [-0.5, -0.2,  3.], color: [0., 1., 0.] },
-	Vertex { position: [ 0.5, -0.2,  3.], color: [0., 0., 1.] },
-
-	Vertex { position: [-3.,  0.5,  0.0], color: [1., 0., 0.] },
-	Vertex { position: [-3., -0.2, -0.5], color: [0., 1., 0.] },
-	Vertex { position: [-3., -0.2,  0.5], color: [0., 0., 1.] },
-
-	Vertex { position: [ 3.,  0.5,  0.0], color: [1., 0., 0.] },
-	Vertex { position: [ 3., -0.2, -0.5], color: [0., 1., 0.] },
-	Vertex { position: [ 3., -0.2,  0.5], color: [0., 0., 1.] },
-
-	Vertex { position: [ 0.5,  3.,  0.0], color: [1., 0., 0.] },
-	Vertex { position: [-0.2,  3., -0.5], color: [0., 1., 0.] },
-	Vertex { position: [-0.2,  3.,  0.5], color: [0., 0., 1.] },
-
-	Vertex { position: [ 0.5, -3.,  0.0], color: [1., 0., 0.] },
-	Vertex { position: [-0.2, -3., -0.5], color: [0., 1., 0.] },
-	Vertex { position: [-0.2, -3.,  0.5], color: [0., 0., 1.] },
-];
 
 
 
-const DIM_BASE_LA_SPEED: float = 1e-5;
+
+const DIM_BASE_LA_SPEED: float = 1e-2;
 
 fn base_color(la: &LorenzAttractor) -> u8 {
 	let x = la.get_linear_combination(1., 1., 1.);
@@ -1658,7 +1518,7 @@ fn gen_surface_world_param(rng: &mut ThreadRng) -> (float, float, float, float) 
 	// returns amplitude, phase, cx, cz
 	(
 		rng.random_range(0. ..= 3_f32).powi(2),
-		rng.random_range(0. ..= 2.*PI),
+		rng.random_range(0. ..= TAU),
 		rng.random_range(-2. ..= 2.),
 		rng.random_range(-2. ..= 2.),
 	)
@@ -1735,11 +1595,12 @@ impl ToString for InventoryItem {
 enum PauseMenuItem {
 	Quit,
 	Back,
-	GetRandomItem,
+	GetRandomItems,
 	ToggleTopology,
 	ToggleDarkness,
 	ToggleUnlimitedFov,
 	ToggleShakyFov,
+	// TODO: inc/dec render_distance
 	Text(String), // just for test
 }
 impl PauseMenuItem {
@@ -1748,7 +1609,7 @@ impl PauseMenuItem {
 		match self {
 			Quit => "QUIT",
 			Back => "BACK",
-			GetRandomItem => "GET RANDOM ITEM",
+			GetRandomItems => "GET RANDOM ITEMS",
 			ToggleTopology => "TOGGLE TOPOLOGY",
 			ToggleDarkness => "TOGGLE DARKNESS",
 			ToggleUnlimitedFov => "TOGGLE UNLIMITED FOV",
@@ -1803,7 +1664,7 @@ enum RenderableObject {
 	// SpinningText?
 	Monolith { sizes: Vec<float> },
 	RotatingSimplex { initpoints_rotplanes_rotvels_phases: Vec<(Vec3, Vec3, float, float)> },
-	RotatingIcosahedron { size: float, global_rotvel: float, rotplanes_rotvels_angles: Vec<(Vec3, float, float)> },
+	RotatingIcosahedron { size: float, global_rotvel: float, rotplanes_rotvels_phases: Vec<(Vec3, float, float)> },
 	Kitty { size: float, rotvel: float, phase: float },
 	Graph3d { connect_n: u32, global_rotvel: float, initpoints_rotplanes_rotvels_phases: Vec<(Vec3, Vec3, float, float)> },
 	// TravelingSalesmanProblemSolver in realtime
@@ -1846,7 +1707,7 @@ impl RenderableObject {
 			1. => RenderableObject::RotatingIcosahedron {
 				size: rng.random_range(0.5 ..= 2.5),
 				global_rotvel: rng.random_range(0.01 ..= 1.),
-				rotplanes_rotvels_angles: Vec::from_fn(
+				rotplanes_rotvels_phases: Vec::from_fn(
 					rng.random_range(1 ..= 5),
 					|_i| (
 						Vec3::random_unit(rng),
@@ -1861,14 +1722,12 @@ impl RenderableObject {
 				phase: 0.,
 			},
 			0.2 => RenderableObject::Graph3d {
-				// connect_n: rng.random_range(1 ..= 6),
-				connect_n: 6, // FIXME
+				connect_n: rng.random_range(1 ..= 6),
 				global_rotvel: rng.random_range(0.01 ..= 2.),
 				initpoints_rotplanes_rotvels_phases: {
 					macro_rules! random_r { () => { rng.random_range(0.8 ..= 2.3_f32).powi(2) }; }
 					let equidistant_from_center = rng.random_bool(0.5).then(|| random_r!());
-					// let n = rng.random_range(10 ..= 200);
-					let n = 200; // FIXME
+					let n = rng.random_range(10 ..= 200);
 					(0..n).map(|_i| (
 						Vec3::random_unit(rng) * if let Some(s) = equidistant_from_center { s } else { random_r!() },
 						Vec3::random_unit(rng),
@@ -1905,7 +1764,7 @@ impl RenderableObject {
 				if last_points.len() as u32 > *max_len {
 					let _ = last_points.remove(0);
 				}
-				la.step(1e-2);
+				la.step(delta_time);
 			}
 			RotatingSimplex { initpoints_rotplanes_rotvels_phases } => {
 				for (_initpoint, _rotplane, rotation_velocity, phase) in initpoints_rotplanes_rotvels_phases.iter_mut() {
@@ -1916,17 +1775,23 @@ impl RenderableObject {
 					// debug_assert!(*phase >= 0.);
 				}
 			}
-			RotatingIcosahedron { rotplanes_rotvels_angles, global_rotvel, size: _ } => {
-				for (i, (_rotplane, rotation_velocity, angle)) in rotplanes_rotvels_angles.iter_mut().enumerate() {
-					*angle += *global_rotvel * *rotation_velocity * delta_time / ((i + 1) as float);
+			RotatingIcosahedron { rotplanes_rotvels_phases, global_rotvel, size: _ } => {
+				for (i, (_rotplane, rotation_velocity, phase)) in rotplanes_rotvels_phases.iter_mut().enumerate() {
+					*phase += *global_rotvel * *rotation_velocity * delta_time / ((i + 1) as float);
+					if *phase > TAU {
+						*phase -= TAU;
+					}
 				}
 			}
 			Kitty { phase, rotvel, .. } => {
 				*phase += *rotvel * delta_time;
+				if *phase > TAU {
+					*phase -= TAU;
+				}
 			}
 			Graph3d { initpoints_rotplanes_rotvels_phases, global_rotvel, .. } => {
 				for (_initpoint, _rotplane, rotation_velocity, phase) in initpoints_rotplanes_rotvels_phases.iter_mut() {
-					*phase += *rotation_velocity * *global_rotvel * delta_time;
+					*phase += *global_rotvel * *rotation_velocity * delta_time;
 					if *phase > TAU {
 						*phase -= TAU;
 					}
@@ -1994,7 +1859,7 @@ impl RenderableObject {
 				}
 				vec![Lines(lines)]
 			}
-			RotatingIcosahedron { size, rotplanes_rotvels_angles, .. } => {
+			RotatingIcosahedron { size, rotplanes_rotvels_phases, .. } => {
 				const PHI: float = GOLDEN_RATIO;
 				let mut vertices = [
 					// src: https://en.wikipedia.org/wiki/Regular_icosahedron
@@ -2011,9 +1876,9 @@ impl RenderableObject {
 					Vec3::new(0.,  1., -PHI),
 					Vec3::new(0.,  1.,  PHI),
 				].map(|v| v * *size);
-				for (rotplane, _rotvel, angle) in rotplanes_rotvels_angles.iter() {
+				for (rotplane, _rotvel, phase) in rotplanes_rotvels_phases.iter() {
 					for vertex in vertices.iter_mut() {
-						*vertex = vertex.rotate_axis(*rotplane, *angle);
+						*vertex = vertex.rotate_axis(*rotplane, *phase);
 					}
 				}
 				const NEARESTS_VERTICES_INDICES: [[u8; 5]; 12] = [
@@ -2161,7 +2026,7 @@ impl ToString for RenderableObject {
 			LorenzAttractor { size, la, last_points, max_len } => format!("lorenz attractor (size={size:.2})"),
 			Monolith { sizes } => format!("monolith"),
 			RotatingSimplex { initpoints_rotplanes_rotvels_phases } => format!("rotating simplex ({n} points)", n=initpoints_rotplanes_rotvels_phases.len()),
-			RotatingIcosahedron { size, global_rotvel, rotplanes_rotvels_angles } => format!("rotating icosahedron ({n} rotation vectors)", n=rotplanes_rotvels_angles.len()),
+			RotatingIcosahedron { size, global_rotvel, rotplanes_rotvels_phases } => format!("rotating icosahedron ({n} rotation vectors)", n=rotplanes_rotvels_phases.len()),
 			Kitty { size, rotvel, phase } => format!("kitty (size={size:.2})"),
 			Graph3d { connect_n, global_rotvel, initpoints_rotplanes_rotvels_phases } => format!("graph 3d ({n} points, {nc} connect)", n=initpoints_rotplanes_rotvels_phases.len(), nc=connect_n),
 		}.to_uppercase()
@@ -2197,7 +2062,7 @@ impl Chunk {
 			color: ColorU8::new(rng.random(), rng.random(), rng.random()),
 			renderable_objects: {
 				match_random_weighted! { rng,
-					1. => vec![], // empty / void / nothing
+					400. => vec![], // empty / void / nothing
 					1. => vec![(
 						Vec3::from_y(rng.random_range(1. ..= 5.)),
 						RenderableObject::new_random(rng),
@@ -2216,6 +2081,272 @@ impl Chunk {
 				}
 			}
 		}
+	}
+}
+
+
+
+
+
+/// point 3d, no color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Point3dNC {
+	x: float,
+	y: float,
+	z: float,
+}
+impl From<Vec3> for Point3dNC {
+	fn from(v: Vec3) -> Self {
+		Self { x: v.x, y: v.y, z: v.z }
+	}
+}
+
+/// point 3d, with color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Point3d {
+	x: float,
+	y: float,
+	z: float,
+	color: ColorU8,
+}
+impl Point3d {
+	fn from(v: Vec3, color: ColorU8) -> Self {
+		Self { x: v.x, y: v.y, z: v.z, color }
+	}
+	fn to_vertex(self) -> Vertex {
+		let Self { x, y, z, color } = self;
+		Vertex { position: [x, y, z], color: color.to_array() }
+	}
+}
+
+/// line 3d, two colors
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Line3d {
+	a: Point3d,
+	b: Point3d,
+}
+impl Line3d {
+	fn to_vertices(self) -> [Vertex; 2] {
+		let Self { a, b } = self;
+		[
+			Vertex { position: [a.x, a.y, a.z], color: a.color.to_array() },
+			Vertex { position: [b.x, b.y, b.z], color: b.color.to_array() },
+		]
+	}
+}
+
+/// line 3d, one color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Line3dOC {
+	a: Point3dNC,
+	b: Point3dNC,
+	color: ColorU8,
+}
+impl Line3dOC {
+	fn from(a: impl Into<Point3dNC>, b: impl Into<Point3dNC>, color: ColorU8) -> Self {
+		Self { a: a.into(), b: b.into(), color }
+	}
+	fn to_vertices(self) -> [Vertex; 2] {
+		let Self { a, b, color } = self;
+		let color = color.to_array();
+		[
+			Vertex { position: [a.x, a.y, a.z], color },
+			Vertex { position: [b.x, b.y, b.z], color },
+		]
+	}
+}
+
+/// triangle 3d, three colors
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Triangle3d {
+	a: Point3d,
+	b: Point3d,
+	c: Point3d,
+}
+impl Triangle3d {
+	fn to_vertices(self) -> [Vertex; 3] {
+		let Self { a, b, c } = self;
+		[
+			Vertex { position: [a.x, a.y, a.z], color: a.color.to_array() },
+			Vertex { position: [b.x, b.y, b.z], color: b.color.to_array() },
+			Vertex { position: [c.x, c.y, c.z], color: b.color.to_array() },
+		]
+	}
+}
+
+/// triangle 3d, one color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Triangle3dOC {
+	a: Point3dNC,
+	b: Point3dNC,
+	c: Point3dNC,
+	color: ColorU8,
+}
+impl Triangle3dOC {
+	fn to_vertices(self) -> [Vertex; 3] {
+		let Self { a, b, c, color } = self;
+		let color = color.to_array();
+		[
+			Vertex { position: [a.x, a.y, a.z], color },
+			Vertex { position: [b.x, b.y, b.z], color },
+			Vertex { position: [c.x, c.y, c.z], color },
+		]
+	}
+}
+
+
+
+
+
+/// point 2d, no color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Point2dNC {
+	x: float,
+	y: float,
+}
+
+/// point 2d, with color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Point2d {
+	x: float,
+	y: float,
+	color: ColorU8,
+}
+impl Point2d {
+	fn from(x: impl Into_<float>, y: impl Into_<float>, color: ColorU8) -> Self {
+		Self { x: x.into_(), y: y.into_(), color }
+	}
+	fn to_vertex(self) -> Vertex {
+		let Self { x, y, color } = self;
+		Vertex { position: [x, y, 0.], color: color.to_array() }
+	}
+}
+
+/// line 2d, two colors
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Line2d {
+	a: Point2d,
+	b: Point2d,
+}
+impl Line2d {
+	fn to_vertices(self) -> [Vertex; 2] {
+		let Self { a, b } = self;
+		[
+			Vertex { position: [a.x, a.y, 0.], color: a.color.to_array() },
+			Vertex { position: [b.x, b.y, 0.], color: b.color.to_array() },
+		]
+	}
+}
+
+/// line 2d, one color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Line2dOC {
+	a: Point2dNC,
+	b: Point2dNC,
+	color: ColorU8,
+}
+impl Line2dOC {
+	fn to_vertices(self) -> [Vertex; 2] {
+		let Self { a, b, color } = self;
+		let color = color.to_array();
+		[
+			Vertex { position: [a.x, a.y, 0.], color },
+			Vertex { position: [b.x, b.y, 0.], color },
+		]
+	}
+}
+
+/// triangle 2d, three colors
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Triangle2d {
+	a: Point2d,
+	b: Point2d,
+	c: Point2d,
+}
+impl Triangle2d {
+	fn to_vertices(self) -> [Vertex; 3] {
+		let Self { a, b, c } = self;
+		[
+			Vertex { position: [a.x, a.y, 0.], color: a.color.to_array() },
+			Vertex { position: [b.x, b.y, 0.], color: b.color.to_array() },
+			Vertex { position: [c.x, c.y, 0.], color: c.color.to_array() },
+		]
+	}
+}
+
+/// triangle 2d, one color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Triangle2dOC {
+	a: Point2dNC,
+	b: Point2dNC,
+	c: Point2dNC,
+	color: ColorU8,
+}
+impl Triangle2dOC {
+	fn to_vertices(self) -> [Vertex; 3] {
+		let Self { a, b, c, color } = self;
+		let color = color.to_array();
+		[
+			Vertex { position: [a.x, a.y, 0.], color },
+			Vertex { position: [b.x, b.y, 0.], color },
+			Vertex { position: [c.x, c.y, 0.], color },
+		]
+	}
+}
+
+/// rectangle 2d, filled, one color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Rectangle2dFilledOC {
+	x: float, // center
+	y: float, // center
+	w: float,
+	h: float,
+	color: ColorU8,
+}
+impl Rectangle2dFilledOC {
+	// fn new(x: float, y: float, w: float, h: float) -> Self {
+	// 	Self { w, h }
+	// }
+	fn to_vertices(self) -> [Vertex; 6] {
+		self.to_triangles().map(|t| t.to_vertices()).flatten()
+	}
+	fn to_triangles(self) -> [Triangle2dOC; 2] {
+		let Self { x, y, w, h, color } = self;
+		let w = w / 2.;
+		let h = h / 2.;
+		[
+			Triangle2dOC { a: Point2dNC { x: x-w, y: y-h }, b: Point2dNC { x: x+w, y: y-h }, c: Point2dNC { x: x-w, y: y+h }, color },
+			Triangle2dOC { a: Point2dNC { x: x+w, y: y+h }, b: Point2dNC { x: x+w, y: y-h }, c: Point2dNC { x: x-w, y: y+h }, color },
+		]
+	}
+}
+
+/// rectangle 2d, filled, one color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Rectangle2dHollowOC {
+	x: float, // center
+	y: float, // center
+	w: float,
+	h: float,
+	color: ColorU8,
+}
+impl Rectangle2dHollowOC {
+	// fn new(x: float, y: float, w: float, h: float) -> Self {
+	// 	Self { w, h }
+	// }
+	fn to_vertices(self) -> [Vertex; 8] {
+		self.to_lines().map(|l| l.to_vertices()).flatten()
+	}
+	fn to_lines(self) -> [Line2dOC; 4] {
+		let Self { x, y, w, h, color } = self;
+		let w = w / 2.;
+		let h = h / 2.;
+		[
+			Line2dOC { a: Point2dNC { x: x-w, y: y-h }, b: Point2dNC { x: x-w, y: y+h }, color },
+			Line2dOC { a: Point2dNC { x: x-w, y: y+h }, b: Point2dNC { x: x+w, y: y+h }, color },
+			Line2dOC { a: Point2dNC { x: x+w, y: y+h }, b: Point2dNC { x: x+w, y: y-h }, color },
+			Line2dOC { a: Point2dNC { x: x+w, y: y-h }, b: Point2dNC { x: x-w, y: y-h }, color },
+		]
 	}
 }
 

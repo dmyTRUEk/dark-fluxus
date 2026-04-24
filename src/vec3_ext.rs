@@ -3,16 +3,16 @@
 use glam::Vec3;
 use rand::{RngExt, rngs::ThreadRng};
 
-use crate::{extensions::BoolSelect, float_type::float};
+use crate::{extensions::{BoolSelect, Into_}, float_type::float};
 
 
 pub trait ExtVec3 {
-	fn from_x(x: float) -> Self;
-	fn from_y(y: float) -> Self;
-	fn from_z(z: float) -> Self;
-	fn from_yz(y: float, z: float) -> Self;
-	fn from_xz(x: float, z: float) -> Self;
-	fn from_xy(x: float, y: float) -> Self;
+	fn from_x(x: impl Into_<float>) -> Self;
+	fn from_y(y: impl Into_<float>) -> Self;
+	fn from_z(z: impl Into_<float>) -> Self;
+	fn from_yz(y: impl Into_<float>, z: impl Into_<float>) -> Self;
+	fn from_xz(x: impl Into_<float>, z: impl Into_<float>) -> Self;
+	fn from_xy(x: impl Into_<float>, y: impl Into_<float>) -> Self;
 	fn random_unit_cube(rng: &mut ThreadRng) -> Self;
 	fn random_unit(rng: &mut ThreadRng) -> Self;
 	fn flip_x_if(self, flip: bool) -> Self;
@@ -20,12 +20,12 @@ pub trait ExtVec3 {
 	fn flip_z_if(self, flip: bool) -> Self;
 }
 impl ExtVec3 for Vec3 {
-	fn from_x(x: float) -> Self { Self::ZERO.with_x(x) }
-	fn from_y(y: float) -> Self { Self::ZERO.with_y(y) }
-	fn from_z(z: float) -> Self { Self::ZERO.with_z(z) }
-	fn from_yz(y: float, z: float) -> Self { Self::new(0., y, z) }
-	fn from_xz(x: float, z: float) -> Self { Self::new(x, 0., z) }
-	fn from_xy(x: float, y: float) -> Self { Self::new(x, y, 0.) }
+	fn from_x(x: impl Into_<float>) -> Self { Self::ZERO.with_x(x.into_()) }
+	fn from_y(y: impl Into_<float>) -> Self { Self::ZERO.with_y(y.into_()) }
+	fn from_z(z: impl Into_<float>) -> Self { Self::ZERO.with_z(z.into_()) }
+	fn from_yz(y: impl Into_<float>, z: impl Into_<float>) -> Self { Self::new(0., y.into_(), z.into_()) }
+	fn from_xz(x: impl Into_<float>, z: impl Into_<float>) -> Self { Self::new(x.into_(), 0., z.into_()) }
+	fn from_xy(x: impl Into_<float>, y: impl Into_<float>) -> Self { Self::new(x.into_(), y.into_(), 0.) }
 	fn random_unit_cube(rng: &mut ThreadRng) -> Self {
 		Self {
 			x: rng.random_range(-1. ..= 1.),

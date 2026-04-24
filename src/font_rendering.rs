@@ -1,69 +1,23 @@
 //! simple font rendering
 
-use sdl3::{render::{Canvas, FPoint}, video::Window};
-
-use crate::vec2d::Vec2i;
-
-
-
-pub trait CanvasRenderText {
-	fn render_char(&mut self, char: char, pos: (i32, i32), scale: u8);
-	fn render_text(&mut self, text: &str, pos: (i32, i32), scale: u8);
-	fn render_char_unchecked(&mut self, char: char, pos: (i32, i32), scale: u8);
-	fn render_text_unchecked(&mut self, text: &str, pos: (i32, i32), scale: u8);
-	fn render_custom_char(&mut self, bitmap: [u8; 25], pos: (i32, i32), scale: u8);
-	// TODO(feat): render 3d text
-}
-
-impl CanvasRenderText for Canvas<Window> {
-	// TODO(optim): use `fill_rect` instead of billion points
-	fn render_char(&mut self, char: char, pos: (i32, i32), scale: u8) {
-		let pixels = calc_char(char, pos, scale, self.window().size());
-		let points: Vec<FPoint> = pixels.into_iter().map(|pixel| pixel.into()).collect();
-		self.draw_points(points.as_slice()).unwrap();
-	}
-	fn render_text(&mut self, text: &str, pos: (i32, i32), scale: u8) {
-		let pixels = calc_text(text, pos, scale, self.window().size());
-		let points: Vec<FPoint> = pixels.into_iter().map(|pixel| pixel.into()).collect();
-		self.draw_points(points.as_slice()).unwrap();
-	}
-	fn render_char_unchecked(&mut self, char: char, pos: (i32, i32), scale: u8) {
-		let pixels = calc_char_unchecked(char, pos, scale);
-		let points: Vec<FPoint> = pixels.into_iter().map(|pixel| pixel.into()).collect();
-		self.draw_points(points.as_slice()).unwrap();
-	}
-	fn render_text_unchecked(&mut self, text: &str, pos: (i32, i32), scale: u8) {
-		let pixels = calc_text_unchecked(text, pos, scale);
-		let points: Vec<FPoint> = pixels.into_iter().map(|pixel| pixel.into()).collect();
-		self.draw_points(points.as_slice()).unwrap();
-	}
-	fn render_custom_char(&mut self, bitmap: [u8; 25], pos: (i32, i32), scale: u8) {
-		let pixels = calc_custom_char(bitmap, pos, scale, self.window().size());
-		let points: Vec<FPoint> = pixels.into_iter().map(|pixel| pixel.into()).collect();
-		self.draw_points(points.as_slice()).unwrap();
-	}
-}
-
-
-
 // TODO(refactor)?: RenderText<W, H>
 pub const FONT_W: u8 = 5;
 pub const FONT_H: u8 = 5;
 
-fn calc_text(text: &str, mut pos: (i32, i32), scale: u8, window_wh: (u32, u32)) -> Vec<Vec2i> {
+pub fn get_text_pixels(text: &str, mut pos: (i32, i32), scale: u8, window_wh: (u32, u32)) -> Vec<(i32, i32)> {
 	assert!(scale > 0);
-	let mut pixels: Vec<Vec2i> = vec![];
+	let mut pixels: Vec<(i32, i32)> = vec![];
 	for c in text.chars() {
-		pixels.extend(calc_char(c, pos, scale, window_wh));
+		pixels.extend(get_char_pixels(c, pos, scale, window_wh));
 		pos.0 += ((FONT_W as i32) + 1) * (scale as i32);
 	}
 	pixels
 }
 
-fn calc_char(char: char, pos: (i32, i32), scale: u8, window_wh: (u32, u32)) -> Vec<Vec2i> {
+fn get_char_pixels(char: char, pos: (i32, i32), scale: u8, window_wh: (u32, u32)) -> Vec<(i32, i32)> {
 	assert!(scale > 0);
 	let bitmap: Bitmap = get_bitmap_for(char);
-	let mut pixels: Vec<Vec2i> = vec![];
+	let mut pixels: Vec<(i32, i32)> = vec![];
 	for y in 0 .. FONT_H as i32 {
 		for x in 0 .. FONT_W as i32 {
 			if bitmap[(y * (FONT_W as i32) + x) as usize] == 1 {
@@ -79,7 +33,7 @@ fn calc_char(char: char, pos: (i32, i32), scale: u8, window_wh: (u32, u32)) -> V
 						let X = base_x + dx;
 						if X >= window_wh.0 as i32 { break }
 						if X < 0 { continue }
-						pixels.push(Vec2i::new(X, Y));
+						pixels.push((X, Y));
 					}
 				}
 			}
@@ -88,20 +42,20 @@ fn calc_char(char: char, pos: (i32, i32), scale: u8, window_wh: (u32, u32)) -> V
 	pixels
 }
 
-fn calc_text_unchecked(text: &str, mut pos: (i32, i32), scale: u8) -> Vec<Vec2i> {
+fn get_text_pixels_unchecked(text: &str, mut pos: (i32, i32), scale: u8) -> Vec<(i32, i32)> {
 	assert!(scale > 0);
-	let mut pixels: Vec<Vec2i> = vec![];
+	let mut pixels: Vec<(i32, i32)> = vec![];
 	for c in text.chars() {
-		pixels.extend(calc_char_unchecked(c, pos, scale));
+		pixels.extend(get_char_pixels_unchecked(c, pos, scale));
 		pos.0 += ((FONT_W as i32) + 1) * (scale as i32);
 	}
 	pixels
 }
 
-fn calc_char_unchecked(char: char, pos: (i32, i32), scale: u8) -> Vec<Vec2i> {
+fn get_char_pixels_unchecked(char: char, pos: (i32, i32), scale: u8) -> Vec<(i32, i32)> {
 	assert!(scale > 0);
 	let bitmap: Bitmap = get_bitmap_for(char);
-	let mut pixels: Vec<Vec2i> = vec![];
+	let mut pixels: Vec<(i32, i32)> = vec![];
 	for y in 0 .. FONT_H as i32 {
 		for x in 0 .. FONT_W as i32 {
 			if bitmap[(y * (FONT_W as i32) + x) as usize] == 1 {
@@ -113,7 +67,7 @@ fn calc_char_unchecked(char: char, pos: (i32, i32), scale: u8) -> Vec<Vec2i> {
 					let Y = base_y + dy;
 					for dx in 0 .. scale as i32 {
 						let X = base_x + dx;
-						pixels.push(Vec2i::new(X, Y));
+						pixels.push((X, Y));
 					}
 				}
 			}
@@ -122,9 +76,9 @@ fn calc_char_unchecked(char: char, pos: (i32, i32), scale: u8) -> Vec<Vec2i> {
 	pixels
 }
 
-fn calc_custom_char(bitmap: [u8; 25], pos: (i32, i32), scale: u8, window_wh: (u32, u32)) -> Vec<Vec2i> {
+fn get_custom_char_pixels(bitmap: [u8; 25], pos: (i32, i32), scale: u8, window_wh: (u32, u32)) -> Vec<(i32, i32)> {
 	assert!(scale > 0);
-	let mut pixels: Vec<Vec2i> = vec![];
+	let mut pixels: Vec<(i32, i32)> = vec![];
 	for y in 0 .. FONT_H as i32 {
 		for x in 0 .. FONT_W as i32 {
 			if bitmap[(y * (FONT_W as i32) + x) as usize] == 1 {
@@ -140,7 +94,7 @@ fn calc_custom_char(bitmap: [u8; 25], pos: (i32, i32), scale: u8, window_wh: (u3
 						let X = base_x + dx;
 						if X >= window_wh.0 as i32 { break }
 						if X < 0 { continue }
-						pixels.push(Vec2i::new(X, Y));
+						pixels.push((X, Y));
 					}
 				}
 			}
