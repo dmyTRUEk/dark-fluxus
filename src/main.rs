@@ -546,17 +546,6 @@ impl App {
 										)
 									);
 								}
-								Lines3dNC_(lines) => {
-									all_3d_lines_oc.extend(
-										lines.iter().map(|Line3dNC { a, b }|
-											Line3dOC::from(
-												a.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
-												b.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
-												color
-											)
-										)
-									);
-								}
 								Lines3d_(lines) => {
 									all_3d_lines.extend(
 										lines.iter().map(|Line3d { a, b }|
@@ -573,6 +562,17 @@ impl App {
 										)
 									);
 								}
+								Lines3dNC_(lines) => {
+									all_3d_lines_oc.extend(
+										lines.iter().map(|Line3dNC { a, b }|
+											Line3dOC::from(
+												a.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+												b.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+												color
+											)
+										)
+									);
+								}
 								LineStrip3dNC_(points) => {
 									all_3d_lines_oc.extend(
 										points.array_windows().map(|[a, b]|
@@ -584,7 +584,61 @@ impl App {
 										)
 									);
 								}
-								_ => todo!()
+								Triangles3d_(triangles) => {
+									all_3d_triangles.extend(
+										triangles.iter().map(|Triangle3d { a, b, c }|
+											Triangle3d::new(
+												Point3d::new(
+													a.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+													a.color
+												),
+												Point3d::new(
+													b.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+													b.color
+												),
+												Point3d::new(
+													c.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+													c.color
+												)
+											)
+										)
+									);
+								}
+								Quads3d_(quads) => {
+									all_3d_triangles.extend(
+										quads.iter().flat_map(|Quad3d { a, b, c, d }| [
+											Triangle3d::new(
+												Point3d::new(
+													a.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+													a.color
+												),
+												Point3d::new(
+													b.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+													b.color
+												),
+												Point3d::new(
+													c.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+													c.color
+												)
+											),
+											Triangle3d::new(
+												Point3d::new(
+													b.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+													b.color
+												),
+												Point3d::new(
+													c.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+													c.color
+												),
+												Point3d::new(
+													d.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+													d.color
+												)
+											),
+										])
+									);
+								}
+								_ => unimplemented!("{renderable_shape:?}")
 							}
 						}
 					}
@@ -1688,8 +1742,8 @@ enum RenderableObject {
 	Kitty { size: f32, rotvel: f32, phase: f32 },
 	Graph3d { connect_n: u32, global_rotvel: f32, initpoints_rotplanes_rotvels_phases: Vec<(Vec3, Vec3, f32, f32)> },
 	// TravelingSalesmanProblemSolver in realtime
-	// 3d rotating color cube
 	RGBCubeHollow { size: f32, global_rotvel: f32, rotplanes_rotvels_phases: Vec<(Vec3, f32, f32)> },
+	RGBCube { size: f32, global_rotvel: f32, rotplanes_rotvels_phases: Vec<(Vec3, f32, f32)> },
 }
 impl RenderableObject {
 	fn new_random(rng: &mut ThreadRng) -> Self {
@@ -1770,6 +1824,18 @@ impl RenderableObject {
 					)
 				),
 			},
+			0.1 => RenderableObject::RGBCube {
+				size: rng.random_range(0.5 ..= 1.7_f32).powi(2),
+				global_rotvel: rng.random_range(0.01 ..= 1.),
+				rotplanes_rotvels_phases: Vec::from_fn(
+					rng.random_range(1 ..= 5),
+					|_i| (
+						Vec3::random_unit(rng),
+						rng.random_range(0.1 ..= 2.),
+						rng.random_range(0. ..= TAU),
+					)
+				),
+			},
 		}
 	}
 	fn is_time_dependent(&self) -> bool {
@@ -1781,6 +1847,7 @@ impl RenderableObject {
 			| Kitty { .. }
 			| Graph3d { .. }
 			| RGBCubeHollow { .. }
+			| RGBCube { .. }
 			=> true,
 			| Cube { .. }
 			| Monolith { .. }
@@ -1807,7 +1874,10 @@ impl RenderableObject {
 					if *phase > TAU { *phase -= TAU; }
 				}
 			}
-			Icosahedron { rotplanes_rotvels_phases, global_rotvel, .. } => {
+			Icosahedron { global_rotvel, rotplanes_rotvels_phases, .. }
+			| RGBCubeHollow { global_rotvel, rotplanes_rotvels_phases, .. }
+			| RGBCube { global_rotvel, rotplanes_rotvels_phases, .. }
+			=> {
 				for (i, (_rotplane, rotation_velocity, phase)) in rotplanes_rotvels_phases.iter_mut().enumerate() {
 					*phase += *global_rotvel * *rotation_velocity * delta_time / ((i + 1) as f32);
 					if *phase > TAU { *phase -= TAU; }
@@ -1817,15 +1887,9 @@ impl RenderableObject {
 				*phase += *rotvel * delta_time;
 				if *phase > TAU { *phase -= TAU; }
 			}
-			Graph3d { initpoints_rotplanes_rotvels_phases, global_rotvel, .. } => {
+			Graph3d { global_rotvel, initpoints_rotplanes_rotvels_phases, .. } => {
 				for (_initpoint, _rotplane, rotation_velocity, phase) in initpoints_rotplanes_rotvels_phases.iter_mut() {
 					*phase += *global_rotvel * *rotation_velocity * delta_time;
-					if *phase > TAU { *phase -= TAU; }
-				}
-			}
-			RGBCubeHollow { global_rotvel, rotplanes_rotvels_phases, .. } => {
-				for (i, (_rotplane, rotation_velocity, phase)) in rotplanes_rotvels_phases.iter_mut().enumerate() {
-					*phase += *global_rotvel * *rotation_velocity * delta_time / ((i + 1) as f32);
 					if *phase > TAU { *phase -= TAU; }
 				}
 			}
@@ -2076,6 +2140,33 @@ impl RenderableObject {
 					Line3d::new(vertices[6], vertices[7]),
 				])]
 			}
+			RGBCube { size, rotplanes_rotvels_phases, .. } => {
+				let size = *size;
+				let mut vertices = [
+					Point3d::new(Vec3::new( size,  size,  size), ColorU8::from_int(0x000000)), // 0 : 1 2 4 : 1 2 4
+					Point3d::new(Vec3::new( size,  size, -size), ColorU8::from_int(0x0000ff)), // 1 : 0 3 5 : 3 5
+					Point3d::new(Vec3::new( size, -size,  size), ColorU8::from_int(0x00ff00)), // 2 : 0 3 6 : 3 6
+					Point3d::new(Vec3::new( size, -size, -size), ColorU8::from_int(0x00ffff)), // 3 : 1 2 7 : 7
+					Point3d::new(Vec3::new(-size,  size,  size), ColorU8::from_int(0xff0000)), // 4 : 0 5 6 : 5 6
+					Point3d::new(Vec3::new(-size,  size, -size), ColorU8::from_int(0xff00ff)), // 5 : 1 4 7 : 7
+					Point3d::new(Vec3::new(-size, -size,  size), ColorU8::from_int(0xffff00)), // 6 : 2 4 7 : 7
+					Point3d::new(Vec3::new(-size, -size, -size), ColorU8::from_int(0xffffff)), // 7 : 3 5 6 : -
+					// faces: 0123 0145 0246 1357 2367 4567
+				];
+				for (rotplane, _rotvel, phase) in rotplanes_rotvels_phases.iter() {
+					for v in vertices.iter_mut() {
+						v.v = v.v.rotate_axis(*rotplane, *phase);
+					}
+				}
+				vec![Quads3d_(vec![
+					Quad3d::new(vertices[0], vertices[1], vertices[2], vertices[3]),
+					Quad3d::new(vertices[0], vertices[1], vertices[4], vertices[5]),
+					Quad3d::new(vertices[0], vertices[2], vertices[4], vertices[6]),
+					Quad3d::new(vertices[1], vertices[3], vertices[5], vertices[7]),
+					Quad3d::new(vertices[2], vertices[3], vertices[6], vertices[7]),
+					Quad3d::new(vertices[4], vertices[5], vertices[6], vertices[7]),
+				])]
+			}
 		}
 	}
 }
@@ -2092,6 +2183,7 @@ impl ToString for RenderableObject {
 			Kitty { size, rotvel, phase } => format!("kitty (size={size:.2})"),
 			Graph3d { connect_n, global_rotvel, initpoints_rotplanes_rotvels_phases } => format!("graph 3d ({n} points, {nc} connect)", n=initpoints_rotplanes_rotvels_phases.len(), nc=connect_n),
 			RGBCubeHollow { size, global_rotvel, rotplanes_rotvels_phases } => format!("color cube hollow (size={size:.2})"),
+			RGBCube { size, global_rotvel, rotplanes_rotvels_phases } => format!("color cube hollow (size={size:.2})"),
 		}.to_uppercase()
 	}
 }
@@ -2157,6 +2249,9 @@ enum RenderableShape {
 	// TriangleStrip3d_(Points?),
 	// TriangleStrip3dOC_(Points?, ColorU8),
 	// TriangleStrip3dNC_(Points?),
+	Quads3d_(Vec<Quad3d>),
+	Quads3dOC_(Vec<Quad3dOC>, ColorU8),
+	Quads3dNC_(Vec<Quad3dNC>),
 
 	Points2d_(Vec<Point2d>),
 	Points2dOC_(Vec<Point2dNC>, ColorU8),
@@ -2302,13 +2397,18 @@ struct Triangle3d {
 	b: Point3d,
 	c: Point3d,
 }
+impl Triangle3d {
+	fn new(a: Point3d, b: Point3d, c: Point3d) -> Self {
+		Self { a, b, c }
+	}
+}
 impl ToVertices<3> for Triangle3d {
 	fn to_vertices(self) -> [Vertex; 3] {
 		let Self { a, b, c } = self;
 		[
 			Vertex { position: [a.v.x, a.v.y, a.v.z], color: a.color.to_array() },
 			Vertex { position: [b.v.x, b.v.y, b.v.z], color: b.color.to_array() },
-			Vertex { position: [c.v.x, c.v.y, c.v.z], color: b.color.to_array() },
+			Vertex { position: [c.v.x, c.v.y, c.v.z], color: c.color.to_array() },
 		]
 	}
 }
@@ -2348,6 +2448,74 @@ impl ToVerticesNC<3> for Triangle3dNC {
 			Vertex { position: [a.x, a.y, a.z], color },
 			Vertex { position: [b.x, b.y, b.z], color },
 			Vertex { position: [c.x, c.y, c.z], color },
+		]
+	}
+}
+
+/// quad 3d, three colors
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Quad3d {
+	a: Point3d,
+	b: Point3d,
+	c: Point3d,
+	d: Point3d,
+}
+impl Quad3d {
+	fn new(a: Point3d, b: Point3d, c: Point3d, d: Point3d) -> Self {
+		Self { a, b, c, d }
+	}
+}
+impl ToVertices<4> for Quad3d {
+	fn to_vertices(self) -> [Vertex; 4] {
+		let Self { a, b, c, d } = self;
+		[
+			Vertex { position: [a.v.x, a.v.y, a.v.z], color: a.color.to_array() },
+			Vertex { position: [b.v.x, b.v.y, b.v.z], color: b.color.to_array() },
+			Vertex { position: [c.v.x, c.v.y, c.v.z], color: c.color.to_array() },
+			Vertex { position: [d.v.x, d.v.y, d.v.z], color: d.color.to_array() },
+		]
+	}
+}
+
+/// quad 3d, one color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Quad3dOC {
+	a: Vec3,
+	b: Vec3,
+	c: Vec3,
+	d: Vec3,
+	color: ColorU8,
+}
+impl ToVertices<4> for Quad3dOC {
+	fn to_vertices(self) -> [Vertex; 4] {
+		let Self { a, b, c, d, color } = self;
+		let color = color.to_array();
+		[
+			Vertex { position: [a.x, a.y, a.z], color },
+			Vertex { position: [b.x, b.y, b.z], color },
+			Vertex { position: [c.x, c.y, c.z], color },
+			Vertex { position: [d.x, d.y, d.z], color },
+		]
+	}
+}
+
+/// quad 3d, no color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Quad3dNC {
+	a: Vec3,
+	b: Vec3,
+	c: Vec3,
+	d: Vec3,
+}
+impl ToVerticesNC<4> for Quad3dNC {
+	fn to_vertices(self, color: ColorU8) -> [Vertex; 4] {
+		let Self { a, b, c, d } = self;
+		let color = color.to_array();
+		[
+			Vertex { position: [a.x, a.y, a.z], color },
+			Vertex { position: [b.x, b.y, b.z], color },
+			Vertex { position: [c.x, c.y, c.z], color },
+			Vertex { position: [d.x, d.y, d.z], color },
 		]
 	}
 }
