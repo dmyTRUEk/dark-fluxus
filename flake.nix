@@ -13,20 +13,13 @@
 			inherit system;
 			overlays = [ (import rust-overlay) ];
 		};
-		targetPkgsLinux = pkgs.pkgsCross.gnu64;
-		targetPkgsWindows = pkgs.pkgsCross.mingwW64;
 	in {
 		devShells.${system}.default = pkgs.mkShell rec {
 			packages = with pkgs; [
 				#clang llvmPackages.libclang cmake # for llama-cpp-2
-				# sdl3
 				wayland libxkbcommon # for winit
 				vulkan-loader # for wgpu
 			];
-			# RUSTFLAGS = [
-			# 	"-L${targetPkgsLinux.sdl3}/lib"
-			# 	"-L${targetPkgsWindows.sdl3}/lib"
-			# ];
 			LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath packages; # for wgpu
 			WGPU_BACKEND = "vulkan"; # options: vulkan, metal, dx12, gl
 		};
@@ -43,7 +36,6 @@
 				cargoLock.lockFile = ./Cargo.lock;
 				nativeBuildInputs = with pkgs; [
 					rust-bin.nightly.latest.default # nightly toolchain from the overlay
-					# sdl3
 					wayland libxkbcommon # for winit
 					vulkan-loader # for wgpu
 				];
