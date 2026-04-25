@@ -1301,11 +1301,9 @@ impl Camera {
 	}
 
 	fn update_position(&mut self, input: &InputState, dt: f32) {
-		// dbg!(input);
-
-		let mut move_speed: float = 12.;
+		let mut move_speed: float = 15.;
 		if input.is_fast_move {
-			move_speed *= 3.;
+			move_speed *= 5.;
 		}
 		if input.forward {
 			match self.movement_type {
