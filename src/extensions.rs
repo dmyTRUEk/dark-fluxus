@@ -1,7 +1,5 @@
 //! extensions
 
-use crate::float_type::float;
-
 
 
 pub trait IndexOfMaxMin<T> {
@@ -48,7 +46,7 @@ pub trait Into_<T> {
 }
 impl<T> Into_<T> for T { fn into_(self) -> T { self } }
 // impl<T, S: Into<T>> MyInto<T> for S { fn into_(self) -> T { self.into() } }
-impl Into_<float> for i32 { fn into_(self) -> float { self as float } }
+impl Into_<f32> for i32 { fn into_(self) -> f32 { self as f32 } }
 
 
 

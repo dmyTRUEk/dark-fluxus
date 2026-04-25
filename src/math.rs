@@ -1,9 +1,7 @@
 //! math
 
-use crate::float_type::float;
 
 
-
-pub fn lerp(t: float, a: float, b: float) -> float { a + (b - a) * t }
-pub fn unlerp(x: float, a: float, b: float) -> float { (x - a) / (b - a) }
+pub fn lerp(t: f32, a: f32, b: f32) -> f32 { a + (b - a) * t }
+pub fn unlerp(x: f32, a: f32, b: f32) -> f32 { (x - a) / (b - a) }
 

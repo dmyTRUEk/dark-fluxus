@@ -2,8 +2,6 @@
 
 use wgpu::Color;
 
-use crate::float_type::float;
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ColorU8 {
@@ -35,8 +33,8 @@ impl ColorU8 {
 		Self::new(n, n, n)
 	}
 
-	pub fn to_array(self) -> [float; 3] {
-		[self.r, self.g, self.b].map(|c| (c as float) / 255.)
+	pub fn to_array(self) -> [f32; 3] {
+		[self.r, self.g, self.b].map(|c| (c as f32) / 255.)
 	}
 }
 

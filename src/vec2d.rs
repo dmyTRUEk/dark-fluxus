@@ -6,12 +6,11 @@ use rand::{RngExt, rngs::ThreadRng};
 use sdl3::render::FPoint;
 
 use crate::extensions::{BoolSelect, Into_};
-use crate::float_type::float;
 use crate::vec3d::{Vec3d, Vec3f};
 
 
 
-pub type Vec2f = Vec2d<float>;
+pub type Vec2f = Vec2d<f32>;
 pub type Vec2i = Vec2d<i32>;
 
 #[macro_export] macro_rules! vec2 { ($x:expr, $y:expr) => { Vec2d::new($x, $y) }; }
@@ -53,8 +52,8 @@ impl<T> Vec2d<T> where T: Add<T,Output=T> + Mul<T,Output=T> + Copy {
 impl Vec2f {
 	pub const ORT_X: Self = Self::from_x(1.);
 	pub const ORT_Y: Self = Self::from_y(1.);
-	pub const fn from_x(x: float) -> Self { Self { x, y: 0. } }
-	pub const fn from_y(y: float) -> Self { Self { x: 0., y } }
+	pub const fn from_x(x: f32) -> Self { Self { x, y: 0. } }
+	pub const fn from_y(y: f32) -> Self { Self { x: 0., y } }
 	pub fn random_unit_cube(rng: &mut ThreadRng) -> Self {
 		Self {
 			x: rng.random_range(-1. ..= 1.),
@@ -64,21 +63,21 @@ impl Vec2f {
 	pub fn random_unit(rng: &mut ThreadRng) -> Self {
 		Self::random_unit_cube(rng).normed()
 	}
-	pub fn norm2(self) -> float { self.dot(self) }
-	pub fn norm(self) -> float { self.norm2().sqrt() }
+	pub fn norm2(self) -> f32 { self.dot(self) }
+	pub fn norm(self) -> f32 { self.norm2().sqrt() }
 	pub fn normed(self) -> Self { self / self.norm() }
 	pub fn normalize(&mut self) { *self = self.normed() }
-	pub fn normed_to(self, len: float) -> Self { self.normed() * len }
-	pub fn normalize_to(&mut self, len: float) { *self = self.normed_to(len) }
-	pub fn dist2_to(self, other: Self) -> float { (self - other).norm2() }
-	pub fn dist_to(self, other: Self) -> float { self.dist2_to(other).sqrt() }
+	pub fn normed_to(self, len: f32) -> Self { self.normed() * len }
+	pub fn normalize_to(&mut self, len: f32) { *self = self.normed_to(len) }
+	pub fn dist2_to(self, other: Self) -> f32 { (self - other).norm2() }
+	pub fn dist_to(self, other: Self) -> f32 { self.dist2_to(other).sqrt() }
 	pub fn _0xy(self) -> Vec3f { self.txy(0.) }
 	pub fn _0yx(self) -> Vec3f { self.tyx(0.) }
 	pub fn x0y(self) -> Vec3f { self.xty(0.) }
 	pub fn y0x(self) -> Vec3f { self.ytx(0.) }
 	pub fn xy0(self) -> Vec3f { self.xyt(0.) }
 	pub fn yx0(self) -> Vec3f { self.yxt(0.) }
-	pub fn rotate(self, _angle: float) -> Self {
+	pub fn rotate(self, _angle: f32) -> Self {
 		todo!()
 	}
 	pub fn flip_x_if(self, condition: bool) -> Self { Self { x: condition.select(-self.x, self.x), ..self } }
@@ -212,7 +211,7 @@ impl From<Vec2f> for FPoint {
 }
 impl From<Vec2i> for FPoint {
 	fn from(v: Vec2i) -> Self {
-		FPoint::new(v.x as float, v.y as float)
+		FPoint::new(v.x as f32, v.y as f32)
 	}
 }
 

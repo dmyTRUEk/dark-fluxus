@@ -33,7 +33,6 @@ use glam::{Mat4, Vec3, Quat};
 mod color_u8;
 mod consts;
 mod extensions;
-mod float_type;
 mod font_rendering;
 mod lorenz_attractor;
 mod math;
@@ -50,7 +49,6 @@ mod zqqx_lang;
 use color_u8::*;
 use consts::*;
 use extensions::*;
-use float_type::*;
 use font_rendering::*;
 use lorenz_attractor::*;
 use math::*;
@@ -64,8 +62,6 @@ use vec2_ext::*;
 use vec3_ext::*;
 // use zqqx_lang::*;
 
-
-// TODO(refactor): f32 -> float
 
 
 fn main() {
@@ -465,7 +461,7 @@ impl App {
 		let (w, h) = (self.renderer.config.width, self.renderer.config.height);
 		let wh = (w, h);
 		let (wi, _hi) = (w as i32, h as i32);
-		let (wf, hf) = (w as float, h as float);
+		let (wf, hf) = (w as f32, h as f32);
 		let (wfh, hfh) = (wf / 2., hf / 2.);
 		// let wh_ratio = wf / hf;
 		// let hw_ratio = hf / wf;
@@ -484,7 +480,7 @@ impl App {
 					while x < CHUNK_SIZE_HALF {
 						let mut z = -CHUNK_SIZE_HALF;
 						while z < CHUNK_SIZE_HALF {
-							let pos = Vec3::new((dx as float)*CHUNK_SIZE + x, 0., (dz as float)*CHUNK_SIZE + z);
+							let pos = Vec3::new((dx as f32)*CHUNK_SIZE + x, 0., (dz as f32)*CHUNK_SIZE + z);
 							let pos = pos.flip_x_if(self.state.is_x_flipped_global);
 							let pos = pos.flip_z_if(self.state.is_z_flipped_global);
 							let color = {
@@ -492,7 +488,7 @@ impl App {
 								let pos_rel_to_cam = pos - self.state.camera.position;
 								if self.state.is_darkness_at_base {
 									// TODO: better attenuation curve
-									c = ((c as float) / (1. + 2e-3*pos_rel_to_cam.length_squared())) as u8;
+									c = ((c as f32) / (1. + 2e-3*pos_rel_to_cam.length_squared())) as u8;
 								}
 								ColorU8::new(c, c, c)
 								// chunk.color
@@ -524,16 +520,16 @@ impl App {
 					for (pos, ro) in chunk.renderable_objects.iter() {
 						use RenderableShape::*;
 						let shift: Vec3 = pos.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) +
-							Vec3::new((dx as float)*CHUNK_SIZE, 0., (dz as float)*CHUNK_SIZE)
+							Vec3::new((dx as f32)*CHUNK_SIZE, 0., (dz as f32)*CHUNK_SIZE)
 								.flip_x_if(self.state.is_x_flipped_global).flip_z_if(self.state.is_z_flipped_global);
 						let color = {
 							let ColorU8 { mut r, mut g, mut b, .. } = chunk.color;
 							if self.state.is_darkness_at_base {
 								let pos_rel_to_cam = shift - self.state.camera.position;
 								// TODO: better attenuation curve
-								r = ((r as float) / (1. + 1e-2*pos_rel_to_cam.length_squared())) as u8;
-								g = ((g as float) / (1. + 1e-2*pos_rel_to_cam.length_squared())) as u8;
-								b = ((b as float) / (1. + 1e-2*pos_rel_to_cam.length_squared())) as u8;
+								r = ((r as f32) / (1. + 1e-2*pos_rel_to_cam.length_squared())) as u8;
+								g = ((g as f32) / (1. + 1e-2*pos_rel_to_cam.length_squared())) as u8;
+								b = ((b as f32) / (1. + 1e-2*pos_rel_to_cam.length_squared())) as u8;
 							}
 							ColorU8::new(r, g, b)
 						};
@@ -579,7 +575,7 @@ impl App {
 			}
 			Dimension::SurfaceWorld => {
 				const MESH_SIZE: u32 = 100;
-				const MESH_STEP: float = 0.2;
+				const MESH_STEP: f32 = 0.2;
 				const LODS: &[(u32, ColorU8)] = &[
 					(27, ColorU8::gray(4)),
 					(9, ColorU8::gray(16)),
@@ -587,20 +583,20 @@ impl App {
 					(1, ColorU8::WHITE),
 				];
 				let params = &self.state.surface_world_params;
-				fn surface_at(x: float, z: float, params: &[(f32, f32, f32, f32)]) -> float {
+				fn surface_at(x: f32, z: f32, params: &[(f32, f32, f32, f32)]) -> f32 {
 					params.iter().map(|(amplitude, phase, cx, cz)| {
 						// TODO(optim): bench if taking /n out of here makes it faster
-						amplitude * sin(phase + cx*x + cz*z) / (params.len() as float)//.powf(*amplitude)
+						amplitude * sin(phase + cx*x + cz*z) / (params.len() as f32)//.powf(*amplitude)
 					}).sum()
 				}
 				for (lod_n, lod_color) in LODS {
 					// canvas.set_draw_color(*lod_color);
-					let mesh_step = MESH_STEP * (*lod_n as float);
-					let cx = self.state.camera.position.x - (MESH_SIZE as float - 1.) * mesh_step / 2.;
-					let cz = self.state.camera.position.z - (MESH_SIZE as float - 1.) * mesh_step / 2.;
+					let mesh_step = MESH_STEP * (*lod_n as f32);
+					let cx = self.state.camera.position.x - (MESH_SIZE as f32 - 1.) * mesh_step / 2.;
+					let cz = self.state.camera.position.z - (MESH_SIZE as f32 - 1.) * mesh_step / 2.;
 					let surface = Vec2D::from_fn(MESH_SIZE, MESH_SIZE, |x, z| {
-						let x = (x as float) * mesh_step;
-						let z = (z as float) * mesh_step;
+						let x = (x as f32) * mesh_step;
+						let z = (z as f32) * mesh_step;
 						surface_at(x + cx - cx.rem_euclid(mesh_step), z + cz - cz.rem_euclid(mesh_step), params)
 					});
 					let cx = cx - cx.rem_euclid(mesh_step);
@@ -609,9 +605,9 @@ impl App {
 					// let mut lines_x = Vec::with_capacity((MESH_SIZE+1) as usize); // TODO: remove +1?
 					// let mut lines_z = Vec::with_capacity((MESH_SIZE+1) as usize); // TODO: remove +1?
 					for z in 0..MESH_SIZE-1 {
-						let zf = (z as float) * mesh_step;
+						let zf = (z as f32) * mesh_step;
 						for x in 0..MESH_SIZE-1 {
-							let xf = (x as float) * mesh_step;
+							let xf = (x as f32) * mesh_step;
 							let a = Vec3::new(xf+cx, surface[(x,z)], zf+cz);
 							let b = Vec3::new(xf+cx+mesh_step, surface[(x+1,z)], zf+cz);
 							all_3d_lines_oc.push(Line3dOC::from(a, b, *lod_color));
@@ -622,16 +618,16 @@ impl App {
 					}
 					for x in 0..MESH_SIZE-1 {
 						let z = MESH_SIZE-1;
-						let zf = (z as float) * mesh_step;
-						let xf = (x as float) * mesh_step;
+						let zf = (z as f32) * mesh_step;
+						let xf = (x as f32) * mesh_step;
 						let a = Vec3::new(xf+cx, surface[(x,z)], zf+cz);
 						let b = Vec3::new(xf+cx+mesh_step, surface[(x+1,z)], zf+cz);
 						all_3d_lines_oc.push(Line3dOC::from(a, b, *lod_color));
 					}
 					for z in 0..MESH_SIZE-1 {
 						let x = MESH_SIZE-1;
-						let xf = (x as float) * mesh_step;
-						let zf = (z as float) * mesh_step;
+						let xf = (x as f32) * mesh_step;
+						let zf = (z as f32) * mesh_step;
 						let a = Vec3::new(xf+cx, surface[(x,z)], zf+cz);
 						let b = Vec3::new(xf+cx, surface[(x,z+1)], zf+cz+mesh_step);
 						all_3d_lines_oc.push(Line3dOC::from(a, b, *lod_color));
@@ -666,10 +662,10 @@ impl App {
 			// 	let scale: u8 = 5;
 			// 	let zqqx_char: [i8; 25] = array::from_fn(|i| {
 			// 		let (i, j) = (i % 5, i / 5);
-			// 		let cx = char_n as float;
-			// 		let cy = ((i+j*5) as float).sqrt();
-			// 		// let cz = ((j+i*5) as float).ln_1p();
-			// 		let cz = (frame_n as float).ln_1p().ln_1p().ln_1p();
+			// 		let cx = char_n as f32;
+			// 		let cy = ((i+j*5) as f32).sqrt();
+			// 		// let cz = ((j+i*5) as f32).ln_1p();
+			// 		let cz = (frame_n as f32).ln_1p().ln_1p().ln_1p();
 			// 		let coefs = vec3![cx, cy, cz].normed();
 			// 		let t = lorenz_attractor.get_linear_combination(coefs.x, coefs.y, coefs.z);
 			// 		let t = t.rem_euclid(1.);
@@ -696,27 +692,27 @@ impl App {
 		}
 
 		if self.state.is_help_opened {
-			const PADDING: float = 30.;
-			const ITEM_Y: float = 30.;
+			const PADDING: f32 = 30.;
+			const ITEM_Y: f32 = 30.;
 			const ITEMS_N: u32 = 15;
 			debug_assert_eq!(1, ITEMS_N % 2);
-			const SIZE_X: float = 1000.;
-			const SIZE_Y: float = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as float);
-			const ITEM_X: float = SIZE_X - 2.*PADDING;
+			const SIZE_X: f32 = 1000.;
+			const SIZE_Y: f32 = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as f32);
+			const ITEM_X: f32 = SIZE_X - 2.*PADDING;
 			all_2d_rect_filled.push(Rectangle2dFilledOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
 			all_2d_rect_hollow.push(Rectangle2dHollowOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
 			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
 			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
 			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
 			const ITEM_TEXT_SIZE: u8 = 5;
-			const ITEM_INNER_PADDING: float = (ITEM_Y - (ITEM_TEXT_SIZE as float)*(FONT_H as float)) / 2.;
+			const ITEM_INNER_PADDING: f32 = (ITEM_Y - (ITEM_TEXT_SIZE as f32)*(FONT_H as f32)) / 2.;
 			let i_init: u32 = self.state.help_line_index.saturating_sub((ITEMS_N-1)/2);
 			let mut i: u32 = i_init;
 			while i - i_init < ITEMS_N && i < self.state.help_lines.len() as u32 {
 				let help_line = &self.state.help_lines[i as usize];
 				let color = if i == self.state.help_line_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
 				let item_cx = wfh;
-				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
+				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
 				let text_x = (item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32;
 				let text_y = (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32;
 				all_2d_points.extend(
@@ -728,27 +724,27 @@ impl App {
 		}
 
 		if self.state.is_inventory_opened {
-			const PADDING: float = 30.;
-			const ITEM_Y: float = 50.;
+			const PADDING: f32 = 30.;
+			const ITEM_Y: f32 = 50.;
 			const ITEMS_N: u32 = 11;
 			debug_assert_eq!(1, ITEMS_N % 2);
-			const SIZE_X: float = 900.;
-			const SIZE_Y: float = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as float);
-			const ITEM_X: float = SIZE_X - 2.*PADDING;
+			const SIZE_X: f32 = 900.;
+			const SIZE_Y: f32 = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as f32);
+			const ITEM_X: f32 = SIZE_X - 2.*PADDING;
 			all_2d_rect_filled.push(Rectangle2dFilledOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
 			all_2d_rect_hollow.push(Rectangle2dHollowOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
 			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
 			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
 			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
 			const ITEM_TEXT_SIZE: u8 = 5;
-			const ITEM_INNER_PADDING: float = (ITEM_Y - (ITEM_TEXT_SIZE as float)*(FONT_H as float)) / 2.;
+			const ITEM_INNER_PADDING: f32 = (ITEM_Y - (ITEM_TEXT_SIZE as f32)*(FONT_H as f32)) / 2.;
 			let i_init: u32 = self.state.inventory_item_index.saturating_sub((ITEMS_N-1)/2);
 			let mut i: u32 = i_init;
 			while i - i_init < ITEMS_N && i < self.state.inventory_items.len() as u32 {
 				let inventory_item = &self.state.inventory_items[i as usize];
 				let color = if i == self.state.inventory_item_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
 				let item_cx = wfh;
-				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
+				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
 				all_2d_rect_hollow.push(Rectangle2dHollowOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
 				let text_x = (item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32;
 				let text_y = (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32;
@@ -761,27 +757,27 @@ impl App {
 		}
 
 		if self.state.is_paused {
-			const PADDING: float = 50.;
-			const ITEM_Y: float = 80.;
+			const PADDING: f32 = 50.;
+			const ITEM_Y: f32 = 80.;
 			const ITEMS_N: u32 = 7;
 			debug_assert_eq!(1, ITEMS_N % 2);
-			const SIZE_X: float = 800.;
-			const SIZE_Y: float = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as float);
-			const ITEM_X: float = SIZE_X - 2.*PADDING;
+			const SIZE_X: f32 = 800.;
+			const SIZE_Y: f32 = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as f32);
+			const ITEM_X: f32 = SIZE_X - 2.*PADDING;
 			all_2d_rect_filled.push(Rectangle2dFilledOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
 			all_2d_rect_hollow.push(Rectangle2dHollowOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
 			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
 			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
 			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
 			const ITEM_TEXT_SIZE: u8 = 5;
-			const ITEM_INNER_PADDING: float = (ITEM_Y - (ITEM_TEXT_SIZE as float)*(FONT_H as float)) / 2.;
+			const ITEM_INNER_PADDING: f32 = (ITEM_Y - (ITEM_TEXT_SIZE as f32)*(FONT_H as f32)) / 2.;
 			let i_init: u32 = self.state.pause_menu_item_index.saturating_sub((ITEMS_N-1)/2);
 			let mut i: u32 = i_init;
 			while i - i_init < ITEMS_N && i < self.state.pause_menu_items.len() as u32 {
 				let menu_item = &self.state.pause_menu_items[i as usize];
 				let color = if i == self.state.pause_menu_item_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
 				let item_cx = wfh;
-				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as float);
+				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
 				all_2d_rect_hollow.push(Rectangle2dHollowOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
 				let text_x = (item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32;
 				let text_y = (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32;
@@ -931,7 +927,7 @@ impl App {
 
 
 
-// TODO(optim): separate into Vertex3d and Vertex2d (remove one float lol)
+// TODO(optim): separate into Vertex3d and Vertex2d (remove one f32 lol)
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
@@ -1143,7 +1139,7 @@ struct GameState {
 	is_inventory_opened: bool = false,
 	inventory_item_index: u32 = 0,
 
-	surface_world_params: Vec<(float, float, float, float)>,
+	surface_world_params: Vec<(f32, f32, f32, f32)>,
 
 	chunks: Vec2D<Chunk>,
 	render_distance: u32 = 2,
@@ -1233,7 +1229,7 @@ struct Camera {
 	is_shaky_fov: bool,
 }
 impl Camera {
-	const GROUNDED_CAMERA_Y: float = 1.5;
+	const GROUNDED_CAMERA_Y: f32 = 1.5;
 	const DEFAULT_POSITION: Vec3 = Vec3::new(0., Self::GROUNDED_CAMERA_Y, 0.);
 
 	fn new(aspect_ratio: f32) -> Self {
@@ -1301,7 +1297,7 @@ impl Camera {
 	}
 
 	fn update_position(&mut self, input: &InputState, dt: f32) {
-		let mut move_speed: float = 15.;
+		let mut move_speed: f32 = 15.;
 		if input.is_fast_move {
 			move_speed *= 5.;
 		}
@@ -1409,10 +1405,10 @@ impl Camera {
 	}
 
 	fn update_fov(&mut self, input: &InputState, dt: f32, rng: &mut ThreadRng) {
-		const FOV_MIN: float = 1e-1_f32.to_radians();
-		const FOV_MAX: float = 170_f32.to_radians();
-		const FOV_RANGE: float = FOV_MAX - FOV_MIN;
-		const FOV_CHANGE_SPEED: float = 3.;
+		const FOV_MIN: f32 = 1e-1_f32.to_radians();
+		const FOV_MAX: f32 = 170_f32.to_radians();
+		const FOV_RANGE: f32 = FOV_MAX - FOV_MIN;
+		const FOV_CHANGE_SPEED: f32 = 3.;
 
 		if self.is_shaky_fov {
 			self.fov_x = self.fov_x + rng.random_range(-0.1 ..= 0.1) * dt;
@@ -1511,7 +1507,7 @@ impl InputState {
 
 
 
-const DIM_BASE_LA_SPEED: float = 1e-2;
+const DIM_BASE_LA_SPEED: f32 = 1e-2;
 
 fn base_color(la: &LorenzAttractor) -> u8 {
 	let x = la.get_linear_combination(1., 1., 1.);
@@ -1519,7 +1515,7 @@ fn base_color(la: &LorenzAttractor) -> u8 {
 	c
 }
 
-fn gen_surface_world_param(rng: &mut ThreadRng) -> (float, float, float, float) {
+fn gen_surface_world_param(rng: &mut ThreadRng) -> (f32, f32, f32, f32) {
 	// returns amplitude, phase, cx, cz
 	(
 		rng.random_range(0. ..= 3_f32).powi(2),
@@ -1528,7 +1524,7 @@ fn gen_surface_world_param(rng: &mut ThreadRng) -> (float, float, float, float) 
 		rng.random_range(-2. ..= 2.),
 	)
 }
-fn gen_surface_world_params(rng: &mut ThreadRng) -> Vec<(float, float, float, float)> {
+fn gen_surface_world_params(rng: &mut ThreadRng) -> Vec<(f32, f32, f32, f32)> {
 	Vec::from_fn(
 		rng.random_range(2. ..= 7_f32).powi(2).round() as usize,
 		|_i| gen_surface_world_param(rng)
@@ -1666,14 +1662,14 @@ impl MovementType {
 
 #[derive(Debug, Clone)]
 enum RenderableObject {
-	Cube { size: float },
-	LorenzAttractor { size: float, la: LorenzAttractor, last_points: Vec<Vec3>, max_len: u32 },
+	Cube { size: f32 },
+	LorenzAttractor { size: f32, la: LorenzAttractor, last_points: Vec<Vec3>, max_len: u32 },
 	// SpinningText?
-	Monolith { sizes: Vec<float> },
-	Simplex { initpoints_rotplanes_rotvels_phases: Vec<(Vec3, Vec3, float, float)> },
-	Icosahedron { size: float, global_rotvel: float, rotplanes_rotvels_phases: Vec<(Vec3, float, float)> },
-	Kitty { size: float, rotvel: float, phase: float },
-	Graph3d { connect_n: u32, global_rotvel: float, initpoints_rotplanes_rotvels_phases: Vec<(Vec3, Vec3, float, float)> },
+	Monolith { sizes: Vec<f32> },
+	Simplex { initpoints_rotplanes_rotvels_phases: Vec<(Vec3, Vec3, f32, f32)> },
+	Icosahedron { size: f32, global_rotvel: f32, rotplanes_rotvels_phases: Vec<(Vec3, f32, f32)> },
+	Kitty { size: f32, rotvel: f32, phase: f32 },
+	Graph3d { connect_n: u32, global_rotvel: f32, initpoints_rotplanes_rotvels_phases: Vec<(Vec3, Vec3, f32, f32)> },
 	// TravelingSalesmanProblemSolver in realtime
 	// 3d rotating color cube
 	// 3d rotating hollow color cube
@@ -1761,7 +1757,7 @@ impl RenderableObject {
 			=> false,
 		}
 	}
-	fn update(&mut self, delta_time: float) {
+	fn update(&mut self, delta_time: f32) {
 		use RenderableObject::*;
 		match self {
 			| Cube { .. }
@@ -1786,7 +1782,7 @@ impl RenderableObject {
 			}
 			Icosahedron { rotplanes_rotvels_phases, global_rotvel, size: _ } => {
 				for (i, (_rotplane, rotation_velocity, phase)) in rotplanes_rotvels_phases.iter_mut().enumerate() {
-					*phase += *global_rotvel * *rotation_velocity * delta_time / ((i + 1) as float);
+					*phase += *global_rotvel * *rotation_velocity * delta_time / ((i + 1) as f32);
 					if *phase > TAU {
 						*phase -= TAU;
 					}
@@ -1869,7 +1865,7 @@ impl RenderableObject {
 				vec![Lines(lines)]
 			}
 			Icosahedron { size, rotplanes_rotvels_phases, .. } => {
-				const PHI: float = GOLDEN_RATIO;
+				const PHI: f32 = GOLDEN_RATIO;
 				let mut vertices = [
 					// src: https://en.wikipedia.org/wiki/Regular_icosahedron
 					Vec3::new(-PHI, 0., -1.),
@@ -1920,10 +1916,10 @@ impl RenderableObject {
 			}
 			Kitty { size, phase, .. } => {
 				// TODO(fix): wrong in alt topology with is_x_flipped/is_z_flipped
-				let angles_of_points_on_circle_20: Vec<float> = {
+				let angles_of_points_on_circle_20: Vec<f32> = {
 					const N: u32 = 20;
-					let tau_div_n = TAU / (N as float);
-					Vec::from_fn(N as usize, |i| (i as float) * tau_div_n)
+					let tau_div_n = TAU / (N as f32);
+					Vec::from_fn(N as usize, |i| (i as f32) * tau_div_n)
 				};
 				let (cam_r, cam_u, cam_f) = camera.basis();
 				let points_outline: Vec<Vec3> = angles_of_points_on_circle_20.iter()
@@ -1943,10 +1939,10 @@ impl RenderableObject {
 						}
 					})
 					.collect();
-				let angles_of_points_on_circle_10: Vec<float> = {
+				let angles_of_points_on_circle_10: Vec<f32> = {
 					const N: u32 = 10;
-					let tau_div_n = TAU / (N as float);
-					Vec::from_fn(N as usize, |i| (i as float) * tau_div_n)
+					let tau_div_n = TAU / (N as f32);
+					Vec::from_fn(N as usize, |i| (i as f32) * tau_div_n)
 				};
 				let points_eye_left: Vec<Vec3> = angles_of_points_on_circle_10.iter()
 					.chain(std::iter::once(angles_of_points_on_circle_10.first().unwrap()))
@@ -2006,7 +2002,7 @@ impl RenderableObject {
 				for i in 0 .. points.len() {
 					let mut distances = vec![];
 					for j in 0 .. points.len() { // or from i+1 ?
-						let dist2 = if i != j { points[i].distance_squared(points[j]) } else { float::MAX };
+						let dist2 = if i != j { points[i].distance_squared(points[j]) } else { f32::MAX };
 						distances.push((j as u32, dist2));
 					}
 					distances.sort_by(|(_j1, d1), (_j2, d2)| d1.partial_cmp(d2).unwrap());
@@ -2058,8 +2054,8 @@ enum RenderableShape {
 
 
 const CHUNKS_N: u32 = 17;
-const CHUNK_SIZE: float = 20.;
-const CHUNK_SIZE_HALF: float = CHUNK_SIZE / 2.;
+const CHUNK_SIZE: f32 = 20.;
+const CHUNK_SIZE_HALF: f32 = CHUNK_SIZE / 2.;
 struct Chunk {
 	color: ColorU8,
 	renderable_objects: Vec<(Vec3, RenderableObject)>,
@@ -2100,9 +2096,9 @@ impl Chunk {
 /// point 3d, no color
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Point3dNC {
-	x: float,
-	y: float,
-	z: float,
+	x: f32,
+	y: f32,
+	z: f32,
 }
 impl From<Vec3> for Point3dNC {
 	fn from(v: Vec3) -> Self {
@@ -2113,9 +2109,9 @@ impl From<Vec3> for Point3dNC {
 /// point 3d, with color
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Point3d {
-	x: float,
-	y: float,
-	z: float,
+	x: f32,
+	y: f32,
+	z: f32,
 	color: ColorU8,
 }
 impl Point3d {
@@ -2210,19 +2206,19 @@ impl Triangle3dOC {
 /// point 2d, no color
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Point2dNC {
-	x: float,
-	y: float,
+	x: f32,
+	y: f32,
 }
 
 /// point 2d, with color
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Point2d {
-	x: float,
-	y: float,
+	x: f32,
+	y: f32,
 	color: ColorU8,
 }
 impl Point2d {
-	fn from(x: impl Into_<float>, y: impl Into_<float>, color: ColorU8) -> Self {
+	fn from(x: impl Into_<f32>, y: impl Into_<f32>, color: ColorU8) -> Self {
 		Self { x: x.into_(), y: y.into_(), color }
 	}
 	fn to_vertex(self) -> Vertex {
@@ -2306,14 +2302,14 @@ impl Triangle2dOC {
 /// rectangle 2d, filled, one color
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Rectangle2dFilledOC {
-	x: float, // center
-	y: float, // center
-	w: float,
-	h: float,
+	x: f32, // center
+	y: f32, // center
+	w: f32,
+	h: f32,
 	color: ColorU8,
 }
 impl Rectangle2dFilledOC {
-	// fn new(x: float, y: float, w: float, h: float) -> Self {
+	// fn new(x: f32, y: f32, w: f32, h: f32) -> Self {
 	// 	Self { w, h }
 	// }
 	fn to_vertices(self) -> [Vertex; 6] {
@@ -2333,14 +2329,14 @@ impl Rectangle2dFilledOC {
 /// rectangle 2d, filled, one color
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Rectangle2dHollowOC {
-	x: float, // center
-	y: float, // center
-	w: float,
-	h: float,
+	x: f32, // center
+	y: f32, // center
+	w: f32,
+	h: f32,
 	color: ColorU8,
 }
 impl Rectangle2dHollowOC {
-	// fn new(x: float, y: float, w: float, h: float) -> Self {
+	// fn new(x: f32, y: f32, w: f32, h: f32) -> Self {
 	// 	Self { w, h }
 	// }
 	fn to_vertices(self) -> [Vertex; 8] {
