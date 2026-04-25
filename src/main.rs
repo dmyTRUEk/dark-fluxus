@@ -971,6 +971,7 @@ impl Renderer {
 		let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).unwrap();
 
 		let caps = surface.get_capabilities(&adapter);
+		// dbg!(&caps);
 		let format = caps.formats[0];
 
 		let size = window.inner_size();
@@ -980,7 +981,7 @@ impl Renderer {
 			format,
 			width: size.width,
 			height: size.height,
-			present_mode: caps.present_modes[0],
+			present_mode: wgpu::PresentMode::AutoVsync,
 			alpha_mode: caps.alpha_modes[0],
 			view_formats: vec![],
 			desired_maximum_frame_latency: 2,
