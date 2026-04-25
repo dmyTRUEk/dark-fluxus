@@ -286,12 +286,14 @@ impl App {
 					Character(c) if c == "w" || c == "W" || c == "p" || c == "P" => input.forward = is_pressed,
 					Character(c) if c == "s" || c == "S" || c == ";" || c == ":" => input.back = is_pressed,
 					Character(c) if c == "a" || c == "A" || c == "l" || c == "L" => input.left = is_pressed,
-					Character(c) if c == "d" || c == "D" || c == "'" || c == "\"" => input.right = is_pressed,
+					Character(c) if c == "d" || c == "D" || c == "'" || c == "\""=> input.right = is_pressed,
 					Character(c) if c == "q" || c == "Q" || c == "o" || c == "O" => input.roll_left = is_pressed,
 					Character(c) if c == "e" || c == "E" || c == "[" || c == "{" => input.roll_right = is_pressed,
 					Character(c) if c == "r" || c == "R"                         => input.reset_roll = is_pressed,
 					Named(Space)         => input.up = is_pressed,
 					Named(Control | Alt) => input.down = is_pressed,
+					Character(c) if c == "=" || c == "+" => input.zoom_in = is_pressed,
+					Character(c) if c == "-" || c == "_" => input.zoom_out = is_pressed,
 					_ => {}
 				}
 				// TODO: dont use physical keys?
@@ -1411,14 +1413,6 @@ impl Camera {
 		const FOV_RANGE: f32 = FOV_MAX - FOV_MIN;
 		const FOV_CHANGE_SPEED: f32 = 3.;
 
-		if self.is_shaky_fov {
-			self.fov_x = self.fov_x + rng.random_range(-0.1 ..= 0.1) * dt;
-				// .clamp(1_f32.to_radians(), 170_f32.to_radians());
-		}
-		if !self.is_unlimited_fov {
-			self.fov_x = self.fov_x.clamp(FOV_MIN*1.1, FOV_MAX/1.1);
-		}
-
 		if input.zoom_in {
 			if self.is_unlimited_fov {
 				self.fov_x -= dt;
@@ -1432,6 +1426,14 @@ impl Camera {
 			} else {
 				self.fov_x = FOV_MIN + FOV_RANGE * sigmoid(asigmoid((self.fov_x-FOV_MIN)/FOV_RANGE) + FOV_CHANGE_SPEED*dt);
 			}
+		}
+
+		if self.is_shaky_fov {
+			self.fov_x += rng.random_range(-0.1 ..= 0.1) * dt;
+				// .clamp(1_f32.to_radians(), 170_f32.to_radians());
+		}
+		if !self.is_unlimited_fov {
+			self.fov_x = self.fov_x.clamp(FOV_MIN*1.1, FOV_MAX/1.1);
 		}
 	}
 
