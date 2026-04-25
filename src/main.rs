@@ -1670,12 +1670,13 @@ enum RenderableObject {
 	LorenzAttractor { size: float, la: LorenzAttractor, last_points: Vec<Vec3>, max_len: u32 },
 	// SpinningText?
 	Monolith { sizes: Vec<float> },
-	RotatingSimplex { initpoints_rotplanes_rotvels_phases: Vec<(Vec3, Vec3, float, float)> },
-	RotatingIcosahedron { size: float, global_rotvel: float, rotplanes_rotvels_phases: Vec<(Vec3, float, float)> },
+	Simplex { initpoints_rotplanes_rotvels_phases: Vec<(Vec3, Vec3, float, float)> },
+	Icosahedron { size: float, global_rotvel: float, rotplanes_rotvels_phases: Vec<(Vec3, float, float)> },
 	Kitty { size: float, rotvel: float, phase: float },
 	Graph3d { connect_n: u32, global_rotvel: float, initpoints_rotplanes_rotvels_phases: Vec<(Vec3, Vec3, float, float)> },
 	// TravelingSalesmanProblemSolver in realtime
 	// 3d rotating color cube
+	// 3d rotating hollow color cube
 }
 impl RenderableObject {
 	fn new_random(rng: &mut ThreadRng) -> Self {
@@ -1699,7 +1700,7 @@ impl RenderableObject {
 					|_i| rng.random_range(0.5 ..= 2.7_f32).powi(2)
 				),
 			},
-			1. => RenderableObject::RotatingSimplex {
+			1. => RenderableObject::Simplex {
 				initpoints_rotplanes_rotvels_phases: {
 					macro_rules! random_r { () => { rng.random_range(0.8 ..= 2.3_f32).powi(2) }; }
 					let equidistant_from_center = rng.random_bool(0.5).then(|| random_r!());
@@ -1712,7 +1713,7 @@ impl RenderableObject {
 					)).collect()
 				},
 			},
-			1. => RenderableObject::RotatingIcosahedron {
+			1. => RenderableObject::Icosahedron {
 				size: rng.random_range(0.5 ..= 2.5),
 				global_rotvel: rng.random_range(0.01 ..= 1.),
 				rotplanes_rotvels_phases: Vec::from_fn(
@@ -1750,8 +1751,8 @@ impl RenderableObject {
 		use RenderableObject::*;
 		match self {
 			| LorenzAttractor { .. }
-			| RotatingSimplex { .. }
-			| RotatingIcosahedron { .. }
+			| Simplex { .. }
+			| Icosahedron { .. }
 			| Kitty { .. }
 			| Graph3d { .. }
 			=> true,
@@ -1774,7 +1775,7 @@ impl RenderableObject {
 				}
 				la.step(delta_time);
 			}
-			RotatingSimplex { initpoints_rotplanes_rotvels_phases } => {
+			Simplex { initpoints_rotplanes_rotvels_phases } => {
 				for (_initpoint, _rotplane, rotation_velocity, phase) in initpoints_rotplanes_rotvels_phases.iter_mut() {
 					*phase += *rotation_velocity * delta_time;
 					if *phase > TAU {
@@ -1783,7 +1784,7 @@ impl RenderableObject {
 					// debug_assert!(*phase >= 0.);
 				}
 			}
-			RotatingIcosahedron { rotplanes_rotvels_phases, global_rotvel, size: _ } => {
+			Icosahedron { rotplanes_rotvels_phases, global_rotvel, size: _ } => {
 				for (i, (_rotplane, rotation_velocity, phase)) in rotplanes_rotvels_phases.iter_mut().enumerate() {
 					*phase += *global_rotvel * *rotation_velocity * delta_time / ((i + 1) as float);
 					if *phase > TAU {
@@ -1851,7 +1852,7 @@ impl RenderableObject {
 					]
 				}).flatten().collect())]
 			}
-			RotatingSimplex { initpoints_rotplanes_rotvels_phases } => {
+			Simplex { initpoints_rotplanes_rotvels_phases } => {
 				let points: Vec<Vec3> = initpoints_rotplanes_rotvels_phases.iter()
 					.map(|(initpoint, rotplane, _rotvel, phase)| {
 						initpoint.rotate_axis(*rotplane, *phase)
@@ -1867,7 +1868,7 @@ impl RenderableObject {
 				}
 				vec![Lines(lines)]
 			}
-			RotatingIcosahedron { size, rotplanes_rotvels_phases, .. } => {
+			Icosahedron { size, rotplanes_rotvels_phases, .. } => {
 				const PHI: float = GOLDEN_RATIO;
 				let mut vertices = [
 					// src: https://en.wikipedia.org/wiki/Regular_icosahedron
@@ -2033,8 +2034,8 @@ impl ToString for RenderableObject {
 			Cube { size } => format!("cube (size={size:.2})"),
 			LorenzAttractor { size, la, last_points, max_len } => format!("lorenz attractor (size={size:.2})"),
 			Monolith { sizes } => format!("monolith"),
-			RotatingSimplex { initpoints_rotplanes_rotvels_phases } => format!("rotating simplex ({n} points)", n=initpoints_rotplanes_rotvels_phases.len()),
-			RotatingIcosahedron { size, global_rotvel, rotplanes_rotvels_phases } => format!("rotating icosahedron ({n} rotation vectors)", n=rotplanes_rotvels_phases.len()),
+			Simplex { initpoints_rotplanes_rotvels_phases } => format!("simplex ({n} points)", n=initpoints_rotplanes_rotvels_phases.len()),
+			Icosahedron { size, global_rotvel, rotplanes_rotvels_phases } => format!("icosahedron ({n} rotation vectors)", n=rotplanes_rotvels_phases.len()),
 			Kitty { size, rotvel, phase } => format!("kitty (size={size:.2})"),
 			Graph3d { connect_n, global_rotvel, initpoints_rotplanes_rotvels_phases } => format!("graph 3d ({n} points, {nc} connect)", n=initpoints_rotplanes_rotvels_phases.len(), nc=connect_n),
 		}.to_uppercase()
