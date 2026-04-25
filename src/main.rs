@@ -1435,13 +1435,14 @@ impl Camera {
 	}
 
 	fn update_orientation(&mut self, input: &mut InputState, dt: f32) {
-		const SENSITIVITY: f32 = 0.02; // TODO: must be dependent on fov?
+		const SENSITIVITY: f32 = 0.01; // TODO: must be dependent on fov?
 		const ROLL_SPEED: f32 = 2.;
+		let sensitivity = SENSITIVITY * self.fov_x;
 
-		let yaw = input.mouse_dx * SENSITIVITY; // NOTE: "dt" is in mouse_dx
+		let yaw = input.mouse_dx * sensitivity; // NOTE: "dt" is in mouse_dx
 
 		const MAX_PITCH: f32 = FRAC_PI_2 * 0.99;
-		let pitch_delta = input.mouse_dy * SENSITIVITY; // NOTE: "dt" is in mouse_dy
+		let pitch_delta = input.mouse_dy * sensitivity; // NOTE: "dt" is in mouse_dy
 		let forward = self.forward();
 		let current_pitch = forward.y.asin();
 		let new_pitch = (current_pitch - pitch_delta).clamp(-MAX_PITCH, MAX_PITCH);
