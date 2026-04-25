@@ -240,6 +240,15 @@ impl App {
 						ToggleShakyFov => {
 							self.state.camera.toggle_shaky_fov();
 						}
+						ToggleVsync => {
+							use wgpu::PresentMode::*;
+							let present_mode = &mut self.renderer.config.present_mode;
+							*present_mode = match present_mode {
+								AutoVsync | Fifo | FifoRelaxed => { AutoNoVsync }
+								AutoNoVsync | Immediate | Mailbox => { AutoVsync }
+							};
+							self.reconfigure_surface();
+						}
 						Text(_) => {}
 					}
 					self.state.is_paused = false;
@@ -971,7 +980,6 @@ impl Renderer {
 		let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).unwrap();
 
 		let caps = surface.get_capabilities(&adapter);
-		// dbg!(&caps);
 		let format = caps.formats[0];
 
 		let size = window.inner_size();
@@ -1195,6 +1203,7 @@ impl GameState {
 				ToggleDarkness,
 				ToggleUnlimitedFov,
 				ToggleShakyFov,
+				ToggleVsync,
 			]},
 			dim_base_la_for_floor_color,
 			inventory_items,
@@ -1598,6 +1607,7 @@ enum PauseMenuItem {
 	ToggleDarkness,
 	ToggleUnlimitedFov,
 	ToggleShakyFov,
+	ToggleVsync,
 	// TODO: inc/dec render_distance
 	Text(String), // just for test
 }
@@ -1612,6 +1622,7 @@ impl PauseMenuItem {
 			ToggleDarkness => "TOGGLE DARKNESS",
 			ToggleUnlimitedFov => "TOGGLE UNLIMITED FOV",
 			ToggleShakyFov => "TOGGLE SHAKY FOV",
+			ToggleVsync => "TOGGLE VSYNC",
 			Text(text) => text,
 		}
 	}
