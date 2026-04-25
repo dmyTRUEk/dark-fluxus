@@ -40,8 +40,6 @@ mod math_aliases;
 mod typesafe_rng;
 mod utils_io;
 mod vec2D;
-// mod vec2d;
-// mod vec3d;
 mod vec2_ext;
 mod vec3_ext;
 mod zqqx_lang;
@@ -56,12 +54,12 @@ use math_aliases::*;
 use typesafe_rng::*;
 // use utils_io::*;
 use vec2D::*;
-// use vec2d::*;
-// use vec3d::*;
 use vec2_ext::*;
 use vec3_ext::*;
 // use zqqx_lang::*;
 
+
+// TODO(refactor): use .. instead of ..= for floats
 
 
 fn main() {
@@ -505,7 +503,7 @@ impl App {
 							// 	all_3d_lines_oc.push(Line3dOC::from(a, b, color));
 							// }
 							// all_3d_points.push(Point3d::from(pos, chunk.color));
-							all_3d_points.push(Point3d::from(pos, color));
+							all_3d_points.push(Point3d::new(pos, color));
 							z += step;
 						}
 						x += step;
@@ -541,7 +539,7 @@ impl App {
 								Points3dNC_(points) => {
 									all_3d_points.extend(
 										points.iter().map(|p|
-											Point3d::from(
+											Point3d::new(
 												p.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
 												color
 											)
@@ -555,6 +553,22 @@ impl App {
 												a.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
 												b.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
 												color
+											)
+										)
+									);
+								}
+								Lines3d_(lines) => {
+									all_3d_lines.extend(
+										lines.iter().map(|Line3d { a, b }|
+											Line3d::new(
+												Point3d::new(
+													a.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+													a.color
+												),
+												Point3d::new(
+													b.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
+													b.color
+												)
 											)
 										)
 									);
@@ -1675,7 +1689,7 @@ enum RenderableObject {
 	Graph3d { connect_n: u32, global_rotvel: f32, initpoints_rotplanes_rotvels_phases: Vec<(Vec3, Vec3, f32, f32)> },
 	// TravelingSalesmanProblemSolver in realtime
 	// 3d rotating color cube
-	// 3d rotating hollow color cube
+	RGBCubeHollow { size: f32, global_rotvel: f32, rotplanes_rotvels_phases: Vec<(Vec3, f32, f32)> },
 }
 impl RenderableObject {
 	fn new_random(rng: &mut ThreadRng) -> Self {
@@ -1744,6 +1758,18 @@ impl RenderableObject {
 					)).collect()
 				},
 			},
+			0.1 => RenderableObject::RGBCubeHollow {
+				size: rng.random_range(0.5 ..= 1.7_f32).powi(2),
+				global_rotvel: rng.random_range(0.01 ..= 1.),
+				rotplanes_rotvels_phases: Vec::from_fn(
+					rng.random_range(1 ..= 5),
+					|_i| (
+						Vec3::random_unit(rng),
+						rng.random_range(0.1 ..= 2.),
+						rng.random_range(0. ..= TAU),
+					)
+				),
+			},
 		}
 	}
 	fn is_time_dependent(&self) -> bool {
@@ -1754,6 +1780,7 @@ impl RenderableObject {
 			| Icosahedron { .. }
 			| Kitty { .. }
 			| Graph3d { .. }
+			| RGBCubeHollow { .. }
 			=> true,
 			| Cube { .. }
 			| Monolith { .. }
@@ -1793,6 +1820,12 @@ impl RenderableObject {
 			Graph3d { initpoints_rotplanes_rotvels_phases, global_rotvel, .. } => {
 				for (_initpoint, _rotplane, rotation_velocity, phase) in initpoints_rotplanes_rotvels_phases.iter_mut() {
 					*phase += *global_rotvel * *rotation_velocity * delta_time;
+					if *phase > TAU { *phase -= TAU; }
+				}
+			}
+			RGBCubeHollow { global_rotvel, rotplanes_rotvels_phases, .. } => {
+				for (i, (_rotplane, rotation_velocity, phase)) in rotplanes_rotvels_phases.iter_mut().enumerate() {
+					*phase += *global_rotvel * *rotation_velocity * delta_time / ((i + 1) as f32);
 					if *phase > TAU { *phase -= TAU; }
 				}
 			}
@@ -2011,6 +2044,38 @@ impl RenderableObject {
 				}
 				vec![Lines3dNC_(lines)]
 			}
+			RGBCubeHollow { size, rotplanes_rotvels_phases, .. } => {
+				let size = *size;
+				let mut vertices = [
+					Point3d::new(Vec3::new( size,  size,  size), ColorU8::from_int(0x000000)), // 0
+					Point3d::new(Vec3::new( size,  size, -size), ColorU8::from_int(0x0000ff)), // 1
+					Point3d::new(Vec3::new( size, -size,  size), ColorU8::from_int(0x00ff00)), // 2
+					Point3d::new(Vec3::new( size, -size, -size), ColorU8::from_int(0x00ffff)), // 3
+					Point3d::new(Vec3::new(-size,  size,  size), ColorU8::from_int(0xff0000)), // 4
+					Point3d::new(Vec3::new(-size,  size, -size), ColorU8::from_int(0xff00ff)), // 5
+					Point3d::new(Vec3::new(-size, -size,  size), ColorU8::from_int(0xffff00)), // 6
+					Point3d::new(Vec3::new(-size, -size, -size), ColorU8::from_int(0xffffff)), // 7
+				];
+				for (rotplane, _rotvel, phase) in rotplanes_rotvels_phases.iter() {
+					for v in vertices.iter_mut() {
+						v.v = v.v.rotate_axis(*rotplane, *phase);
+					}
+				}
+				vec![Lines3d_(vec![
+					Line3d::new(vertices[0], vertices[1]),
+					Line3d::new(vertices[0], vertices[2]),
+					Line3d::new(vertices[0], vertices[4]),
+					Line3d::new(vertices[1], vertices[3]),
+					Line3d::new(vertices[1], vertices[5]),
+					Line3d::new(vertices[2], vertices[3]),
+					Line3d::new(vertices[2], vertices[6]),
+					Line3d::new(vertices[3], vertices[7]),
+					Line3d::new(vertices[4], vertices[5]),
+					Line3d::new(vertices[4], vertices[6]),
+					Line3d::new(vertices[5], vertices[7]),
+					Line3d::new(vertices[6], vertices[7]),
+				])]
+			}
 		}
 	}
 }
@@ -2026,6 +2091,7 @@ impl ToString for RenderableObject {
 			Icosahedron { size, global_rotvel, rotplanes_rotvels_phases } => format!("icosahedron ({n} rotation vectors)", n=rotplanes_rotvels_phases.len()),
 			Kitty { size, rotvel, phase } => format!("kitty (size={size:.2})"),
 			Graph3d { connect_n, global_rotvel, initpoints_rotplanes_rotvels_phases } => format!("graph 3d ({n} points, {nc} connect)", n=initpoints_rotplanes_rotvels_phases.len(), nc=connect_n),
+			RGBCubeHollow { size, global_rotvel, rotplanes_rotvels_phases } => format!("color cube hollow (size={size:.2})"),
 		}.to_uppercase()
 	}
 }
@@ -2138,25 +2204,23 @@ impl ToVertexNC for Vec3 {
 /// point 3d, with color
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Point3d {
-	x: f32,
-	y: f32,
-	z: f32,
+	v: Vec3,
 	color: ColorU8,
 }
 impl Point3d {
-	fn from(v: Vec3, color: ColorU8) -> Self {
-		Self { x: v.x, y: v.y, z: v.z, color }
+	fn new(v: Vec3, color: ColorU8) -> Self {
+		Self { v, color }
 	}
 }
 impl From<(Vec3, ColorU8)> for Point3d {
 	fn from((v, color): (Vec3, ColorU8)) -> Self {
-		Self::from(v, color)
+		Self { v, color }
 	}
 }
 impl ToVertex for Point3d {
 	fn to_vertex(self) -> Vertex {
-		let Self { x, y, z, color } = self;
-		Vertex { position: [x, y, z], color: color.to_array() }
+		let Self { v, color } = self;
+		Vertex { position: v.to_array(), color: color.to_array() }
 	}
 }
 
@@ -2166,12 +2230,17 @@ struct Line3d {
 	a: Point3d,
 	b: Point3d,
 }
+impl Line3d {
+	fn new(a: Point3d, b: Point3d) -> Self {
+		Self { a, b }
+	}
+}
 impl ToVertices<2> for Line3d {
 	fn to_vertices(self) -> [Vertex; 2] {
 		let Self { a, b } = self;
 		[
-			Vertex { position: [a.x, a.y, a.z], color: a.color.to_array() },
-			Vertex { position: [b.x, b.y, b.z], color: b.color.to_array() },
+			Vertex { position: [a.v.x, a.v.y, a.v.z], color: a.color.to_array() },
+			Vertex { position: [b.v.x, b.v.y, b.v.z], color: b.color.to_array() },
 		]
 	}
 }
@@ -2237,9 +2306,9 @@ impl ToVertices<3> for Triangle3d {
 	fn to_vertices(self) -> [Vertex; 3] {
 		let Self { a, b, c } = self;
 		[
-			Vertex { position: [a.x, a.y, a.z], color: a.color.to_array() },
-			Vertex { position: [b.x, b.y, b.z], color: b.color.to_array() },
-			Vertex { position: [c.x, c.y, c.z], color: b.color.to_array() },
+			Vertex { position: [a.v.x, a.v.y, a.v.z], color: a.color.to_array() },
+			Vertex { position: [b.v.x, b.v.y, b.v.z], color: b.color.to_array() },
+			Vertex { position: [c.v.x, c.v.y, c.v.z], color: b.color.to_array() },
 		]
 	}
 }

@@ -26,8 +26,12 @@ impl ColorU8 {
 	pub const fn new(r: u8, g: u8, b: u8) -> Self {
 		Self { r, g, b }
 	}
-	pub const fn from_int(_n: u32) -> Self {
-		todo!()
+	pub const fn from_int(n: u32) -> Self {
+		Self {
+			r: ((n & 0x00ff0000) >> 16) as u8,
+			g: ((n & 0x0000ff00) >> 8) as u8,
+			b: (n & 0x000000ff) as u8,
+		}
 	}
 	pub const fn gray(n: u8) -> Self {
 		Self::new(n, n, n)
