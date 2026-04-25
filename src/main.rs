@@ -333,7 +333,7 @@ impl App {
 	fn update(&mut self) {
 		let now = Instant::now();
 		let dt = now.duration_since(self.state.last_update_inst).as_secs_f32();
-		// TODO(fix): prevent huge dt (after pause)
+		// TODO!(fix): prevent huge dt (after pause)
 		self.state.last_update_inst = now;
 
 		let is_overlay = self.state.is_overlay();
@@ -536,7 +536,7 @@ impl App {
 						for renderable_shape in ro.get_renderable_shapes(&self.state.camera) {
 							// TODO(optim): do these computations on gpu?
 							match renderable_shape {
-								Points(points) => {
+								Points3dNC_(points) => {
 									all_3d_points.extend(
 										points.iter().map(|p|
 											Point3d::from(
@@ -546,9 +546,9 @@ impl App {
 										)
 									);
 								}
-								Lines(lines) => {
+								Lines3dNC_(lines) => {
 									all_3d_lines_oc.extend(
-										lines.iter().map(|(a, b)|
+										lines.iter().map(|Line3dNC { a, b }|
 											Line3dOC::from(
 												a.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
 												b.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
@@ -557,9 +557,9 @@ impl App {
 										)
 									);
 								}
-								Chain(chain) => {
+								LineStrip3dNC_(points) => {
 									all_3d_lines_oc.extend(
-										chain.array_windows().map(|[a, b]|
+										points.array_windows().map(|[a, b]|
 											Line3dOC::from(
 												a.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
 												b.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
@@ -568,6 +568,7 @@ impl App {
 										)
 									);
 								}
+								_ => todo!()
 							}
 						}
 					}
@@ -1774,33 +1775,23 @@ impl RenderableObject {
 			Simplex { initpoints_rotplanes_rotvels_phases } => {
 				for (_initpoint, _rotplane, rotation_velocity, phase) in initpoints_rotplanes_rotvels_phases.iter_mut() {
 					*phase += *rotation_velocity * delta_time;
-					if *phase > TAU {
-						*phase -= TAU;
-					}
-					// debug_assert!(*phase >= 0.);
+					if *phase > TAU { *phase -= TAU; }
 				}
 			}
-			Icosahedron { rotplanes_rotvels_phases, global_rotvel, size: _ } => {
+			Icosahedron { rotplanes_rotvels_phases, global_rotvel, .. } => {
 				for (i, (_rotplane, rotation_velocity, phase)) in rotplanes_rotvels_phases.iter_mut().enumerate() {
 					*phase += *global_rotvel * *rotation_velocity * delta_time / ((i + 1) as f32);
-					if *phase > TAU {
-						*phase -= TAU;
-					}
+					if *phase > TAU { *phase -= TAU; }
 				}
 			}
 			Kitty { phase, rotvel, .. } => {
 				*phase += *rotvel * delta_time;
-				if *phase > TAU {
-					*phase -= TAU;
-				}
+				if *phase > TAU { *phase -= TAU; }
 			}
 			Graph3d { initpoints_rotplanes_rotvels_phases, global_rotvel, .. } => {
 				for (_initpoint, _rotplane, rotation_velocity, phase) in initpoints_rotplanes_rotvels_phases.iter_mut() {
 					*phase += *global_rotvel * *rotation_velocity * delta_time;
-					if *phase > TAU {
-						*phase -= TAU;
-					}
-					// debug_assert!(*phase >= 0.);
+					if *phase > TAU { *phase -= TAU; }
 				}
 			}
 		}
@@ -1811,40 +1802,39 @@ impl RenderableObject {
 		match self {
 			Cube { size } => {
 				let s = size / 2.;
-				// TODO(optim): use Chain
-				vec![Lines(vec![
-					(Vec3::new(-s,-s,-s), Vec3::new(-s,-s, s)),
-					(Vec3::new(-s,-s,-s), Vec3::new(-s, s,-s)),
-					(Vec3::new(-s, s, s), Vec3::new(-s,-s, s)),
-					(Vec3::new(-s, s, s), Vec3::new(-s, s,-s)),
+				vec![Lines3dNC_(vec![
+					(Vec3::new(-s,-s,-s), Vec3::new(-s,-s, s)).into(),
+					(Vec3::new(-s,-s,-s), Vec3::new(-s, s,-s)).into(),
+					(Vec3::new(-s, s, s), Vec3::new(-s,-s, s)).into(),
+					(Vec3::new(-s, s, s), Vec3::new(-s, s,-s)).into(),
 					//
-					(Vec3::new( s,-s,-s), Vec3::new( s,-s, s)),
-					(Vec3::new( s,-s,-s), Vec3::new( s, s,-s)),
-					(Vec3::new( s, s, s), Vec3::new( s,-s, s)),
-					(Vec3::new( s, s, s), Vec3::new( s, s,-s)),
+					(Vec3::new( s,-s,-s), Vec3::new( s,-s, s)).into(),
+					(Vec3::new( s,-s,-s), Vec3::new( s, s,-s)).into(),
+					(Vec3::new( s, s, s), Vec3::new( s,-s, s)).into(),
+					(Vec3::new( s, s, s), Vec3::new( s, s,-s)).into(),
 					//
-					(Vec3::new(-s,-s,-s), Vec3::new( s,-s,-s)),
-					(Vec3::new( s, s, s), Vec3::new(-s, s, s)),
-					(Vec3::new(-s,-s, s), Vec3::new( s,-s, s)),
-					(Vec3::new(-s, s,-s), Vec3::new( s, s,-s)),
+					(Vec3::new(-s,-s,-s), Vec3::new( s,-s,-s)).into(),
+					(Vec3::new( s, s, s), Vec3::new(-s, s, s)).into(),
+					(Vec3::new(-s,-s, s), Vec3::new( s,-s, s)).into(),
+					(Vec3::new(-s, s,-s), Vec3::new( s, s,-s)).into(),
 				])]
 			}
 			LorenzAttractor { size, last_points, .. } => {
-				vec![Chain(last_points.iter().map(|&p| p * *size).collect())]
+				vec![LineStrip3dNC_(last_points.iter().map(|&p| p * *size).collect())]
 			}
 			Monolith { sizes } => {
-				vec![Lines(sizes.iter().map(|size| {
+				vec![Lines3dNC_(sizes.iter().map(|size| {
 					let s = size / 2.;
 					vec![
-						(Vec3::new(-s,-s,-s), Vec3::new(-s,-s, s)),
-						(Vec3::new(-s,-s,-s), Vec3::new(-s, s,-s)),
-						(Vec3::new(-s, s, s), Vec3::new(-s,-s, s)),
-						(Vec3::new(-s, s, s), Vec3::new(-s, s,-s)),
+						(Vec3::new(-s,-s,-s), Vec3::new(-s,-s, s)).into(),
+						(Vec3::new(-s,-s,-s), Vec3::new(-s, s,-s)).into(),
+						(Vec3::new(-s, s, s), Vec3::new(-s,-s, s)).into(),
+						(Vec3::new(-s, s, s), Vec3::new(-s, s,-s)).into(),
 						//
-						(Vec3::new( s,-s,-s), Vec3::new( s,-s, s)),
-						(Vec3::new( s,-s,-s), Vec3::new( s, s,-s)),
-						(Vec3::new( s, s, s), Vec3::new( s,-s, s)),
-						(Vec3::new( s, s, s), Vec3::new( s, s,-s)),
+						(Vec3::new( s,-s,-s), Vec3::new( s,-s, s)).into(),
+						(Vec3::new( s,-s,-s), Vec3::new( s, s,-s)).into(),
+						(Vec3::new( s, s, s), Vec3::new( s,-s, s)).into(),
+						(Vec3::new( s, s, s), Vec3::new( s, s,-s)).into(),
 					]
 				}).flatten().collect())]
 			}
@@ -1859,10 +1849,10 @@ impl RenderableObject {
 					for j in i+1 .. points.len() {
 						let a = points[i];
 						let b = points[j];
-						lines.push((a, b));
+						lines.push(Line3dNC::new(a, b));
 					}
 				}
-				vec![Lines(lines)]
+				vec![Lines3dNC_(lines)]
 			}
 			Icosahedron { size, rotplanes_rotvels_phases, .. } => {
 				const PHI: f32 = GOLDEN_RATIO;
@@ -1908,11 +1898,11 @@ impl RenderableObject {
 					for nearest_vertex_index in nearest_vertices_indices {
 						if nearest_vertex_index < vertex_index { continue }
 						// if nearest_vertex_index == VERTEX_TO_REMOVE { continue }
-						lines.push((vertex, vertices[nearest_vertex_index as usize]));
+						lines.push(Line3dNC::new(vertex, vertices[nearest_vertex_index as usize]));
 					}
 				}
 				debug_assert_eq!(30, lines.len());
-				vec![Lines(lines)]
+				vec![Lines3dNC_(lines)]
 			}
 			Kitty { size, phase, .. } => {
 				// TODO(fix): wrong in alt topology with is_x_flipped/is_z_flipped
@@ -1986,10 +1976,10 @@ impl RenderableObject {
 					})
 					.collect();
 				vec![
-					Chain(points_outline),
-					Chain(points_eye_left),
-					Chain(points_eye_right),
-					Chain(points_smile),
+					LineStrip3dNC_(points_outline),
+					LineStrip3dNC_(points_eye_left),
+					LineStrip3dNC_(points_eye_right),
+					LineStrip3dNC_(points_smile),
 				]
 			}
 			Graph3d { connect_n, initpoints_rotplanes_rotvels_phases, .. } => {
@@ -2014,10 +2004,10 @@ impl RenderableObject {
 						if (i as u32) >= *j { continue }
 						let a = points[i];
 						let b = points[*j as usize];
-						lines.push((a, b));
+						lines.push(Line3dNC{a, b});
 					}
 				}
-				vec![Lines(lines)]
+				vec![Lines3dNC_(lines)]
 			}
 		}
 	}
@@ -2036,17 +2026,6 @@ impl ToString for RenderableObject {
 			Graph3d { connect_n, global_rotvel, initpoints_rotplanes_rotvels_phases } => format!("graph 3d ({n} points, {nc} connect)", n=initpoints_rotplanes_rotvels_phases.len(), nc=connect_n),
 		}.to_uppercase()
 	}
-}
-
-
-
-
-
-#[derive(Debug)]
-enum RenderableShape {
-	Points(Vec<Vec3>),
-	Lines(Vec<(Vec3, Vec3)>),
-	Chain(Vec<Vec3>), // TODO(rename): LineStrip
 }
 
 
@@ -2093,18 +2072,66 @@ impl Chunk {
 
 
 
-/// point 3d, no color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Point3dNC {
-	x: f32,
-	y: f32,
-	z: f32,
+#[derive(Debug)]
+enum RenderableShape {
+	Points3d_(Vec<Point3d>),
+	Points3dOC_(Vec<Vec3>, ColorU8),
+	Points3dNC_(Vec<Vec3>),
+	Lines3d_(Vec<Line3d>),
+	Lines3dOC_(Vec<Line3dNC>, ColorU8),
+	Lines3dNC_(Vec<Line3dNC>),
+	LineStrip3d_(Vec<Point3d>),
+	LineStrip3dOC_(Vec<Vec3>, ColorU8),
+	LineStrip3dNC_(Vec<Vec3>),
+	Triangles3d_(Vec<Triangle3d>),
+	Triangles3dOC_(Vec<Triangle3dNC>, ColorU8),
+	Triangles3dNC_(Vec<Triangle3dNC>),
+	// TriangleStrip3d_(Points?),
+	// TriangleStrip3dOC_(Points?, ColorU8),
+	// TriangleStrip3dNC_(Points?),
+
+	Points2d_(Vec<Point2d>),
+	Points2dOC_(Vec<Point2dNC>, ColorU8),
+	Points2dNC_(Vec<Point2dNC>),
+	Lines2d_(Vec<Line2d>),
+	Lines2dOC_(Vec<Line2dNC>, ColorU8),
+	Lines2dNC_(Vec<Line2dNC>),
+	LineStrip2d_(Vec<Point2d>),
+	LineStrip2dOC_(Vec<Point2dNC>, ColorU8),
+	LineStrip2dNC_(Vec<Point2dNC>),
+	Triangles2d_(Vec<Triangle2d>),
+	Triangles2dOC_(Vec<Triangle2dNC>, ColorU8),
+	Triangles2dNC_(Vec<Triangle2dNC>),
+	// TriangleStrip2d_(Points?),
+	// TriangleStrip2dOC_(Points?, ColorU8),
+	// TriangleStrip2dNC_(Points?),
 }
-impl From<Vec3> for Point3dNC {
-	fn from(v: Vec3) -> Self {
-		Self { x: v.x, y: v.y, z: v.z }
+
+
+
+
+
+trait ToVertex { fn to_vertex(self) -> Vertex; }
+trait ToVertexNC { fn to_vertex(self, color: ColorU8) -> Vertex; }
+trait ToVertices<const N: usize> { fn to_vertices(self) -> [Vertex; N]; }
+trait ToVerticesNC<const N: usize> { fn to_vertices(self, color: ColorU8) -> [Vertex; N]; }
+// trait ToVerticesVec { fn to_vertices(self) -> Vec<Vertex>; }
+// trait ToVerticesVecNC { fn to_vertices(self, color: ColorU8) -> Vec<Vertex>; }
+
+
+
+impl ToVertexNC for Vec3 {
+	fn to_vertex(self, color: ColorU8) -> Vertex {
+		let Self { x, y, z } = self;
+		Vertex { position: [x, y, z], color: color.to_array() }
 	}
 }
+// impl ToVertexNC for Vec3 {
+// 	fn to_vertex(self, color: ColorU8) -> Vertex {
+// 		let Self { x, y, z } = self;
+// 		Vertex { position: [x, y, z], color: color.to_array() }
+// 	}
+// }
 
 /// point 3d, with color
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -2118,6 +2145,13 @@ impl Point3d {
 	fn from(v: Vec3, color: ColorU8) -> Self {
 		Self { x: v.x, y: v.y, z: v.z, color }
 	}
+}
+impl From<(Vec3, ColorU8)> for Point3d {
+	fn from((v, color): (Vec3, ColorU8)) -> Self {
+		Self::from(v, color)
+	}
+}
+impl ToVertex for Point3d {
 	fn to_vertex(self) -> Vertex {
 		let Self { x, y, z, color } = self;
 		Vertex { position: [x, y, z], color: color.to_array() }
@@ -2130,7 +2164,7 @@ struct Line3d {
 	a: Point3d,
 	b: Point3d,
 }
-impl Line3d {
+impl ToVertices<2> for Line3d {
 	fn to_vertices(self) -> [Vertex; 2] {
 		let Self { a, b } = self;
 		[
@@ -2143,16 +2177,45 @@ impl Line3d {
 /// line 3d, one color
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Line3dOC {
-	a: Point3dNC,
-	b: Point3dNC,
+	a: Vec3,
+	b: Vec3,
 	color: ColorU8,
 }
 impl Line3dOC {
-	fn from(a: impl Into<Point3dNC>, b: impl Into<Point3dNC>, color: ColorU8) -> Self {
+	fn from(a: impl Into<Vec3>, b: impl Into<Vec3>, color: ColorU8) -> Self {
 		Self { a: a.into(), b: b.into(), color }
 	}
+}
+impl ToVertices<2> for Line3dOC {
 	fn to_vertices(self) -> [Vertex; 2] {
 		let Self { a, b, color } = self;
+		let color = color.to_array();
+		[
+			Vertex { position: [a.x, a.y, a.z], color },
+			Vertex { position: [b.x, b.y, b.z], color },
+		]
+	}
+}
+
+/// line 3d, no color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Line3dNC {
+	a: Vec3,
+	b: Vec3,
+}
+impl Line3dNC {
+	fn new(a: Vec3, b: Vec3) -> Self {
+		Self { a, b }
+	}
+}
+impl From<(Vec3, Vec3)> for Line3dNC {
+	fn from((a, b): (Vec3, Vec3)) -> Self {
+		Self { a, b }
+	}
+}
+impl ToVerticesNC<2> for Line3dNC {
+	fn to_vertices(self, color: ColorU8) -> [Vertex; 2] {
+		let Self { a, b } = self;
 		let color = color.to_array();
 		[
 			Vertex { position: [a.x, a.y, a.z], color },
@@ -2168,7 +2231,7 @@ struct Triangle3d {
 	b: Point3d,
 	c: Point3d,
 }
-impl Triangle3d {
+impl ToVertices<3> for Triangle3d {
 	fn to_vertices(self) -> [Vertex; 3] {
 		let Self { a, b, c } = self;
 		[
@@ -2182,14 +2245,33 @@ impl Triangle3d {
 /// triangle 3d, one color
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Triangle3dOC {
-	a: Point3dNC,
-	b: Point3dNC,
-	c: Point3dNC,
+	a: Vec3,
+	b: Vec3,
+	c: Vec3,
 	color: ColorU8,
 }
-impl Triangle3dOC {
+impl ToVertices<3> for Triangle3dOC {
 	fn to_vertices(self) -> [Vertex; 3] {
 		let Self { a, b, c, color } = self;
+		let color = color.to_array();
+		[
+			Vertex { position: [a.x, a.y, a.z], color },
+			Vertex { position: [b.x, b.y, b.z], color },
+			Vertex { position: [c.x, c.y, c.z], color },
+		]
+	}
+}
+
+/// triangle 3d, no color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Triangle3dNC {
+	a: Vec3,
+	b: Vec3,
+	c: Vec3,
+}
+impl ToVerticesNC<3> for Triangle3dNC {
+	fn to_vertices(self, color: ColorU8) -> [Vertex; 3] {
+		let Self { a, b, c } = self;
 		let color = color.to_array();
 		[
 			Vertex { position: [a.x, a.y, a.z], color },
@@ -2209,6 +2291,12 @@ struct Point2dNC {
 	x: f32,
 	y: f32,
 }
+impl ToVertexNC for Point2dNC {
+	fn to_vertex(self, color: ColorU8) -> Vertex {
+		let Self { x, y } = self;
+		Vertex { position: [x, y, 0.], color: color.to_array() }
+	}
+}
 
 /// point 2d, with color
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -2221,6 +2309,8 @@ impl Point2d {
 	fn from(x: impl Into_<f32>, y: impl Into_<f32>, color: ColorU8) -> Self {
 		Self { x: x.into_(), y: y.into_(), color }
 	}
+}
+impl ToVertex for Point2d {
 	fn to_vertex(self) -> Vertex {
 		let Self { x, y, color } = self;
 		Vertex { position: [x, y, 0.], color: color.to_array() }
@@ -2233,7 +2323,7 @@ struct Line2d {
 	a: Point2d,
 	b: Point2d,
 }
-impl Line2d {
+impl ToVertices<2> for Line2d {
 	fn to_vertices(self) -> [Vertex; 2] {
 		let Self { a, b } = self;
 		[
@@ -2250,9 +2340,26 @@ struct Line2dOC {
 	b: Point2dNC,
 	color: ColorU8,
 }
-impl Line2dOC {
+impl ToVertices<2> for Line2dOC {
 	fn to_vertices(self) -> [Vertex; 2] {
 		let Self { a, b, color } = self;
+		let color = color.to_array();
+		[
+			Vertex { position: [a.x, a.y, 0.], color },
+			Vertex { position: [b.x, b.y, 0.], color },
+		]
+	}
+}
+
+/// line 2d, no color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Line2dNC {
+	a: Point2dNC,
+	b: Point2dNC,
+}
+impl ToVerticesNC<2> for Line2dNC {
+	fn to_vertices(self, color: ColorU8) -> [Vertex; 2] {
+		let Self { a, b } = self;
 		let color = color.to_array();
 		[
 			Vertex { position: [a.x, a.y, 0.], color },
@@ -2268,7 +2375,7 @@ struct Triangle2d {
 	b: Point2d,
 	c: Point2d,
 }
-impl Triangle2d {
+impl ToVertices<3> for Triangle2d {
 	fn to_vertices(self) -> [Vertex; 3] {
 		let Self { a, b, c } = self;
 		[
@@ -2287,9 +2394,28 @@ struct Triangle2dOC {
 	c: Point2dNC,
 	color: ColorU8,
 }
-impl Triangle2dOC {
+impl ToVertices<3> for Triangle2dOC {
 	fn to_vertices(self) -> [Vertex; 3] {
 		let Self { a, b, c, color } = self;
+		let color = color.to_array();
+		[
+			Vertex { position: [a.x, a.y, 0.], color },
+			Vertex { position: [b.x, b.y, 0.], color },
+			Vertex { position: [c.x, c.y, 0.], color },
+		]
+	}
+}
+
+/// triangle 2d, no color
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Triangle2dNC {
+	a: Point2dNC,
+	b: Point2dNC,
+	c: Point2dNC,
+}
+impl ToVerticesNC<3> for Triangle2dNC {
+	fn to_vertices(self, color: ColorU8) -> [Vertex; 3] {
+		let Self { a, b, c } = self;
 		let color = color.to_array();
 		[
 			Vertex { position: [a.x, a.y, 0.], color },
@@ -2309,12 +2435,6 @@ struct Rectangle2dFilledOC {
 	color: ColorU8,
 }
 impl Rectangle2dFilledOC {
-	// fn new(x: f32, y: f32, w: f32, h: f32) -> Self {
-	// 	Self { w, h }
-	// }
-	fn to_vertices(self) -> [Vertex; 6] {
-		self.to_triangles().map(|t| t.to_vertices()).flatten()
-	}
 	fn to_triangles(self) -> [Triangle2dOC; 2] {
 		let Self { x, y, w, h, color } = self;
 		let w = w / 2.;
@@ -2323,6 +2443,11 @@ impl Rectangle2dFilledOC {
 			Triangle2dOC { a: Point2dNC { x: x-w, y: y-h }, b: Point2dNC { x: x+w, y: y-h }, c: Point2dNC { x: x-w, y: y+h }, color },
 			Triangle2dOC { a: Point2dNC { x: x+w, y: y+h }, b: Point2dNC { x: x+w, y: y-h }, c: Point2dNC { x: x-w, y: y+h }, color },
 		]
+	}
+}
+impl ToVertices<6> for Rectangle2dFilledOC {
+	fn to_vertices(self) -> [Vertex; 6] {
+		self.to_triangles().map(|t| t.to_vertices()).flatten()
 	}
 }
 
@@ -2336,12 +2461,6 @@ struct Rectangle2dHollowOC {
 	color: ColorU8,
 }
 impl Rectangle2dHollowOC {
-	// fn new(x: f32, y: f32, w: f32, h: f32) -> Self {
-	// 	Self { w, h }
-	// }
-	fn to_vertices(self) -> [Vertex; 8] {
-		self.to_lines().map(|l| l.to_vertices()).flatten()
-	}
 	fn to_lines(self) -> [Line2dOC; 4] {
 		let Self { x, y, w, h, color } = self;
 		let w = w / 2.;
@@ -2352,6 +2471,11 @@ impl Rectangle2dHollowOC {
 			Line2dOC { a: Point2dNC { x: x+w, y: y+h }, b: Point2dNC { x: x+w, y: y-h }, color },
 			Line2dOC { a: Point2dNC { x: x+w, y: y-h }, b: Point2dNC { x: x-w, y: y-h }, color },
 		]
+	}
+}
+impl ToVertices<8> for Rectangle2dHollowOC {
+	fn to_vertices(self) -> [Vertex; 8] {
+		self.to_lines().map(|l| l.to_vertices()).flatten()
 	}
 }
 
