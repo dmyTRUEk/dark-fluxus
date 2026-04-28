@@ -1744,6 +1744,7 @@ impl InventoryItem {
 		match_random_weighted! { rng,
 			0.1 => SurfaceWorld,
 			1. => RenderableObject_(RenderableObject::new_random(rng)),
+			0.5 => GameOfLife { seed: string_from_number_u64(rng.random(), &ALPHABET_UPPERCASE) },
 		}
 	}
 }
