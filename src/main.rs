@@ -24,7 +24,6 @@
 
 use std::{f32::consts::{FRAC_PI_2, GOLDEN_RATIO, PI, TAU}, time::Instant};
 
-use either::Either;
 use rand::{RngExt, rng, rngs::ThreadRng};
 use pollster::block_on;
 use wgpu::util::DeviceExt;
@@ -217,7 +216,7 @@ impl App {
 				}
 				self.state.is_redraw_needed = true;
 			}
-			KeyboardInput { event: KeyEvent { logical_key: Named(Enter), state: ElementState::Pressed, repeat: false, .. }, .. } if is_overlay => {
+			KeyboardInput { event: KeyEvent { logical_key: Named(Enter), state: ElementState::Pressed, repeat: false, .. }, .. } => {
 				if self.state.is_paused {
 					use PauseMenuItem::*;
 					match self.state.pause_menu_items[self.state.pause_menu_item_index as usize] {
@@ -285,6 +284,15 @@ impl App {
 					self.state.is_inventory_opened = false;
 					self.state.is_redraw_needed = true;
 				}
+				else {
+					match self.state.dimension {
+						Dimension::Base => {}
+						Dimension::SurfaceWorld => {}
+						Dimension::GameOfLife { .. } => {
+							self.state.game_of_life_is_fast = !self.state.game_of_life_is_fast;
+						}
+					}
+				}
 			}
 			KeyboardInput { event, .. } => { // handle "continuous" input
 				// dbg!(&event);
@@ -293,6 +301,7 @@ impl App {
 				let input = &mut self.state.input;
 				// TODO: use only one type of keys: physical or logical?
 				match event.logical_key {
+					// TODO!(fix): ukr (and other) layouts
 					Character(c) if c == "w" || c == "W" || c == "p" || c == "P" => input.forward = is_pressed,
 					Character(c) if c == "s" || c == "S" || c == ";" || c == ":" => input.back = is_pressed,
 					Character(c) if c == "a" || c == "A" || c == "l" || c == "L" => input.left = is_pressed,
@@ -429,7 +438,7 @@ impl App {
 				}
 				Dimension::SurfaceWorld => {}
 				Dimension::GameOfLife { .. } => {
-					if self.state.tick_n > 200 && (self.state.tick_n.is_multiple_of(10) || self.state.input.is_fast_move) {
+					if self.state.game_of_life_is_fast || self.state.tick_n.is_multiple_of(10) {
 						self.state.game_of_life_state.update();
 					}
 					self.state.is_redraw_needed = true;
@@ -488,11 +497,10 @@ impl App {
 
 		match self.state.dimension {
 			Dimension::Base => {
-				let iter = if !self.state.is_alt_topology {
-					Either::Left(self.state.chunks.iter_around_wrapping(self.state.current_chunk_x as i32, self.state.current_chunk_z as i32, self.state.render_distance))
-				} else {
-					Either::Right(self.state.chunks.iter_around_wrapping_alt(self.state.current_chunk_x as i32, self.state.current_chunk_z as i32, self.state.render_distance))
-				};
+				let iter = (!self.state.is_alt_topology).select_either(
+					self.state.chunks.iter_around_wrapping(self.state.current_chunk_x as i32, self.state.current_chunk_z as i32, self.state.render_distance),
+					self.state.chunks.iter_around_wrapping_alt(self.state.current_chunk_x as i32, self.state.current_chunk_z as i32, self.state.render_distance)
+				);
 				for (dx, dz, _x, _z, _is_x_flipped_local, _is_z_flipped_local, _chunk) in iter {
 					// let step = 2_f32.powi(max(dx.abs(), dz.abs()) - 1); // TODO: use if render_distance > something?
 					let step = 1.;
@@ -529,11 +537,10 @@ impl App {
 						x += step;
 					}
 				}
-				let iter = if !self.state.is_alt_topology {
-					Either::Left(self.state.chunks.iter_around_wrapping(self.state.current_chunk_x as i32, self.state.current_chunk_z as i32, self.state.render_distance))
-				} else {
-					Either::Right(self.state.chunks.iter_around_wrapping_alt(self.state.current_chunk_x as i32, self.state.current_chunk_z as i32, self.state.render_distance))
-				};
+				let iter = (!self.state.is_alt_topology).select_either(
+					self.state.chunks.iter_around_wrapping(self.state.current_chunk_x as i32, self.state.current_chunk_z as i32, self.state.render_distance),
+					self.state.chunks.iter_around_wrapping_alt(self.state.current_chunk_x as i32, self.state.current_chunk_z as i32, self.state.render_distance)
+				);
 				for (dx, dz, _x, _z, is_x_flipped_local, is_z_flipped_local, chunk) in iter {
 					let is_x_flipped = self.state.is_x_flipped_global ^ is_x_flipped_local;
 					let is_z_flipped = self.state.is_z_flipped_global ^ is_z_flipped_local;
@@ -1317,6 +1324,7 @@ struct GameState {
 
 	// TODO(refactor)?: move into Dimension::GameOfLife
 	game_of_life_state: GameOfLifeState,
+	game_of_life_is_fast: bool = false,
 }
 
 impl GameState {
@@ -1406,7 +1414,7 @@ impl Camera {
 			aspect_ratio,
 			fov_x: 100_f32.to_radians(),
 			near: 0.1,
-			far: 1000.,
+			far: 10_000.,
 			movement_type: MovementType::Grounded,
 			is_unlimited_fov: false,
 			is_shaky_fov: false,
@@ -1531,7 +1539,7 @@ impl Camera {
 	}
 
 	fn update_orientation(&mut self, input: &mut InputState, dt: f32) {
-		const SENSITIVITY: f32 = 0.01; // TODO: must be dependent on fov?
+		const SENSITIVITY: f32 = 0.007;
 		const ROLL_SPEED: f32 = 2.;
 		let sensitivity = SENSITIVITY * self.fov_x;
 

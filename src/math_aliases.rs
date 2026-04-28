@@ -11,6 +11,7 @@ pub fn max<T: PartialOrd>(a: T, b: T) -> T {
 
 
 
+pub fn abs(x: f32) -> f32 { x.abs() }
 pub fn sin(x: f32) -> f32 { x.sin() }
 pub fn cos(x: f32) -> f32 { x.cos() }
 pub fn asin(x: f32) -> f32 { x.asin() }

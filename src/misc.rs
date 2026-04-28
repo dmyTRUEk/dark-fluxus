@@ -1,6 +1,12 @@
 //! misc
 
-pub fn ispiral() -> impl Iterator<Item = (i32, i32)> {
+use std::f32::consts::TAU;
+
+use crate::math_aliases::{cos, sin};
+
+
+
+pub fn int_square_spiral() -> impl Iterator<Item=(i32,i32)> {
 	let mut x = 0;
 	let mut y = 0;
 	let mut dx = 1;
@@ -36,12 +42,48 @@ pub fn ispiral() -> impl Iterator<Item = (i32, i32)> {
 }
 
 #[test]
-fn ispiral_() {
+fn int_square_spiral_() {
 	assert_eq!(
 		[(0,0), (1,0), (1,1), (0,1), (-1,1), (-1,0), (-1,-1), (0,-1), (1,-1), (2,-1), (2,0), (2,1), (2,2), (1,2), (0,2), (-1,2), (-2,2)].to_vec(),
-		ispiral().take(17).collect::<Vec<(i32, i32)>>()
+		int_square_spiral().take(17).collect::<Vec<(i32, i32)>>()
 	)
 }
+
+
+
+pub fn int_circle_spiral() -> impl Iterator<Item=(i32,i32)> {
+	let mut radius = 0;
+	let mut i = 0;
+	fn angle_from_i(i: u32, radius: u32) -> f32 { (i as f32) / (radius as f32) }
+	std::iter::from_fn(move || {
+		// eprintln!("radius={radius}, i={i:.2}");
+		//let circ = TAU * (radius as f32);
+		//let num_of_points = circ;
+		//let angle = TAU * (i as f32) / num_of_points;
+		// equivalent:
+		let mut angle = angle_from_i(i, radius);
+		if angle > TAU {
+			radius += 1;
+			i = 0;
+			angle = angle_from_i(i, radius);
+		}
+		i += 1;
+		// dbg!(angle);
+		let x = (radius as f32) * cos(angle);
+		let y = (radius as f32) * sin(angle);
+		let x = x.round() as i32;
+		let y = y.round() as i32;
+		Some((x, y))
+	})
+}
+
+// #[test]
+// fn int_circle_spiral_() {
+// 	assert_eq!(
+// 		[(0,0), (1,0), (1,1), (0,1), (-1,1), (-1,0), (-1,-1), (0,-1), (1,-1), (2,-1), (2,0), (2,1), (2,2), (1,2), (0,2), (-1,2), (-2,2)].to_vec(),
+// 		int_circle_spiral().take(17).collect::<Vec<(i32, i32)>>()
+// 	)
+// }
 
 
 

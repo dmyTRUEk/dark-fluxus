@@ -1,5 +1,7 @@
 //! extensions
 
+use either::Either;
+
 
 
 pub trait IndexOfMaxMin<T> {
@@ -79,6 +81,19 @@ pub trait BoolSelect<T> {
 impl<T> BoolSelect<T> for bool {
 	fn select(self, true_val: T, false_val: T) -> T {
 		if self { true_val } else { false_val }
+	}
+}
+
+pub trait BoolSelectEither<T, U> {
+	fn select_either(self, true_val: T, false_val: U) -> Either<T, U>;
+}
+impl<T, U> BoolSelectEither<T, U> for bool {
+	fn select_either(self, true_val: T, false_val: U) -> Either<T, U> {
+		if self {
+			Either::Left(true_val)
+		} else {
+			Either::Right(false_val)
+		}
 	}
 }
 

@@ -2,10 +2,11 @@
 
 use std::collections::HashSet;
 
+use either::{Either, IntoEither};
 use glam::IVec2;
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 
-use crate::{math::{lerp, min_max}, math_aliases::log2, misc::ispiral, utils::hash_str_to_u64};
+use crate::{extensions::BoolSelectEither, math::{lerp, min_max}, misc::{int_circle_spiral, int_square_spiral}, utils::hash_str_to_u64};
 
 
 
@@ -19,21 +20,35 @@ impl GameOfLifeState {
 		let mut rng = StdRng::seed_from_u64(seed);
 
 		let ratio: f32 = (seed as f32) / (u64::MAX as f32);
+		// debug_assert!(0. <= ratio && ratio <= 1.);
 		let density_1 = rng.random_range(0. ..= ratio);
 		let density_2 = rng.random_range(ratio ..= 1.);
 		let (density_min, density_max) = min_max(density_1, density_2);
-		let density = lerp(ratio, density_min, density_max);
+		let mut density = lerp(ratio, density_min, density_max);
+		// debug_assert!(0. <= density && density <= 1.);
 
-		let mut n: u32 = 1 + (log2(seed as f32) / ratio).round() as u32;
+		let radius: u32 = 1 + ((seed.count_ones() as f32) / ratio).round() as u32;
+		fn norm((x, y): (i32, i32)) -> u32 { x.unsigned_abs() + y.unsigned_abs() }
 
 		let mut alive_cells = HashSet::new();
-		for p in ispiral() {
+		let iter = (rng.random_range(0. ..= 1.) < 0.5).select_either(
+			int_square_spiral(),
+			int_circle_spiral()
+		);
+		for p in iter {
 			if rng.random_range(0. ..= 1.) < density {
-				let inserted = alive_cells.insert(p.into());
-				debug_assert!(inserted);
-				n -= 1;
+				let _inserted = alive_cells.insert(p.into());
+				// debug_assert!(inserted); // works only for square spiral
 			}
-			if n == 0 { break }
+			let is_out_of_radius = norm(p) > radius;
+			if is_out_of_radius {
+				let is_rng = rng.random_range(0. ..= 1.) < ratio / (density * (radius.pow(3) as f32));
+				if is_rng {
+					break
+				} else {
+					density *= 0.99999;
+				}
+			}
 		}
 		Self { alive_cells }
 	}
