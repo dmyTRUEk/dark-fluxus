@@ -244,8 +244,8 @@ impl App {
 							use wgpu::PresentMode::*;
 							let present_mode = &mut self.renderer.config.present_mode;
 							*present_mode = match present_mode {
-								AutoVsync | Fifo | FifoRelaxed => { AutoNoVsync }
-								AutoNoVsync | Immediate | Mailbox => { AutoVsync }
+								AutoVsync | Fifo | FifoRelaxed => { Renderer::VSYNC_OFF }
+								AutoNoVsync | Immediate | Mailbox => { Renderer::VSYNC_ON }
 							};
 							self.reconfigure_surface();
 						}
@@ -1046,6 +1046,10 @@ struct Renderer {
 	bind_group_2d: wgpu::BindGroup,
 }
 impl Renderer {
+	const VSYNC_OFF: wgpu::PresentMode = wgpu::PresentMode::AutoNoVsync;
+	const VSYNC_ON: wgpu::PresentMode = wgpu::PresentMode::Fifo;
+	// const VSYNC_ON: wgpu::PresentMode = wgpu::PresentMode::AutoVsync; // TODO?
+
 	fn new(window: &'static Window) -> Self {
 		let instance = wgpu::Instance::default();
 		let surface = instance.create_surface(window).unwrap();
@@ -1054,6 +1058,7 @@ impl Renderer {
 		let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).unwrap();
 
 		let caps = surface.get_capabilities(&adapter);
+		// dbg!(&caps);
 		let format = caps.formats[0];
 
 		let size = window.inner_size();
@@ -1063,7 +1068,7 @@ impl Renderer {
 			format,
 			width: size.width,
 			height: size.height,
-			present_mode: wgpu::PresentMode::AutoVsync,
+			present_mode: Self::VSYNC_ON,
 			alpha_mode: caps.alpha_modes[0],
 			view_formats: vec![],
 			desired_maximum_frame_latency: 2,
