@@ -6,8 +6,8 @@
 - "lsd" render setting - black -> rgb color, white -> 1 - rgb color
 - hyperbolic space?
 - "plane with a function" world
-- missing texture
-- console where interesting stuff is hidden behind hashes
+- "missing texture" texture
+- console where interesting stuff is hidden behind hashes (if hash(input) in hashes => execute something interesting)
 - library of babel
 - pixelated versions of images/paintings (of Francisco Goya - black paintings) from numbers
 - radio/electricity towers?
@@ -16,7 +16,7 @@
 - poker with N decks? (youtu.be/QAuyryV1fJI), diy bltr
 - random youtube video (11 symbols)
 - quarks
-- rng formulas
+- random formulas
 - tarot cards
 - random shaders?
 - random differential equations simulator/"solver"

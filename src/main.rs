@@ -28,7 +28,7 @@ use rand::{RngExt, rng, rngs::ThreadRng};
 use pollster::block_on;
 use wgpu::util::DeviceExt;
 use winit::{event::{DeviceEvent, ElementState, KeyEvent, WindowEvent}, event_loop::ActiveEventLoop, window::Window};
-use glam::{Mat4, Vec3, Quat};
+use glam::{Mat4, Quat, Vec2, Vec3};
 
 mod color_u8;
 mod consts;
@@ -37,6 +37,9 @@ mod font_rendering;
 mod lorenz_attractor;
 mod math;
 mod math_aliases;
+mod renderable_shapes;
+mod renderable_shapes_2d;
+mod renderable_shapes_3d;
 mod typesafe_rng;
 mod utils_io;
 mod vec2D;
@@ -51,6 +54,9 @@ use font_rendering::*;
 use lorenz_attractor::*;
 use math::*;
 use math_aliases::*;
+use renderable_shapes::*;
+use renderable_shapes_2d::*;
+use renderable_shapes_3d::*;
 use typesafe_rng::*;
 // use utils_io::*;
 use vec2D::*;
@@ -451,6 +457,8 @@ impl App {
 		let mut all_3d_lines: Vec<Line3d> = vec![];
 		let mut all_3d_lines_oc: Vec<Line3dOC> = vec![];
 		let mut all_3d_triangles: Vec<Triangle3d> = vec![];
+		let mut all_3d_quads: Vec<Quad3d> = vec![];
+		let mut all_3d_quads_oc: Vec<Quad3dOC> = vec![];
 
 		let mut all_2d_points: Vec<Point2d> = vec![];
 		let mut all_2d_lines: Vec<Line2d> = vec![];
@@ -605,23 +613,13 @@ impl App {
 									);
 								}
 								Quads3d_(quads) => {
-									all_3d_triangles.extend(
-										quads.iter().flat_map(|Quad3d { a, b, c, d }| [
-											Triangle3d::new(
+									all_3d_quads.extend(
+										quads.iter().map(|Quad3d { a, b, c, d }|
+											Quad3d::new(
 												Point3d::new(
 													a.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
 													a.color
 												),
-												Point3d::new(
-													b.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
-													b.color
-												),
-												Point3d::new(
-													c.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
-													c.color
-												)
-											),
-											Triangle3d::new(
 												Point3d::new(
 													b.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
 													b.color
@@ -634,8 +632,8 @@ impl App {
 													d.v.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) + shift,
 													d.color
 												)
-											),
-										])
+											)
+										)
 									);
 								}
 								_ => unimplemented!("{renderable_shape:?}")
@@ -885,6 +883,8 @@ impl App {
 			self.renderer.queue.write_buffer(&self.renderer.uniform_buffer_3d, 0, bytemuck::bytes_of(&uniforms_3d));
 
 			let triangles_3d: Vec<Vertex> = all_3d_triangles.into_iter().flat_map(|t| t.to_vertices())
+				.chain(all_3d_quads.into_iter().flat_map(|q| q.to_vertices()))
+				.chain(all_3d_quads_oc.into_iter().flat_map(|q| q.to_vertices()))
 				.collect();
 			let lines_3d: Vec<Vertex> = all_3d_lines.into_iter().flat_map(|l| l.to_vertices())
 				.chain(all_3d_lines_oc.into_iter().flat_map(|l| l.to_vertices()))
@@ -998,6 +998,7 @@ impl App {
 
 
 
+// TODO(refactor): rename to GpuVertex
 // TODO(optim): separate into Vertex3d and Vertex2d (remove one f32 lol)
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -1006,6 +1007,12 @@ struct Vertex {
 	color: [f32; 3],
 }
 impl Vertex {
+	fn new(position: [f32; 3], color: [f32; 3]) -> Self {
+		Self { position, color }
+	}
+	fn from(position: Vec3, color: ColorU8) -> Self {
+		Self::new(position.to_array(), color.to_array())
+	}
 	fn layout() -> wgpu::VertexBufferLayout<'static> {
 		wgpu::VertexBufferLayout {
 			array_stride: std::mem::size_of::<Vertex>() as _,
@@ -1190,12 +1197,12 @@ struct GameState {
 	last_update_inst: Instant,
 	is_redraw_needed: bool = true,
 
-	// TODO(refactor): extract
+	// TODO(refactor)?: extract
 	help_lines: Vec<String>,
 	is_help_opened: bool = false,
 	help_line_index: u32 = 0,
 
-	// TODO(refactor): extract
+	// TODO(refactor)?: extract
 	pause_menu_items: Vec<PauseMenuItem>, // TODO: static array?
 	is_paused: bool = false,
 	pause_menu_item_index: u32 = 0,
@@ -1205,18 +1212,19 @@ struct GameState {
 	dimension: Dimension = Dimension::Base,
 	dim_base_la_for_floor_color: LorenzAttractor,
 
-	// TODO(refactor): extract
+	// TODO(refactor)?: extract
 	inventory_items: Vec<InventoryItem>,
 	is_inventory_opened: bool = false,
 	inventory_item_index: u32 = 0,
 
+	// TODO(refactor)?: move into Dimension::SurfaceWorld
 	surface_world_params: Vec<(f32, f32, f32, f32)>,
 
 	chunks: Vec2D<Chunk>,
 	render_distance: u32 = 2,
 	current_chunk_x: u32 = 0,
 	current_chunk_z: u32 = 0,
-	is_alt_topology: bool = true, // FIXME: must be false
+	is_alt_topology: bool = true, // FIXME: must be false by default
 	is_x_flipped_global: bool = false, // for alt topology
 	is_z_flipped_global: bool = false, // for alt topology
 
@@ -1229,15 +1237,35 @@ struct GameState {
 
 impl GameState {
 	fn new(w: f32, h: f32, rng: &mut ThreadRng) -> Self {
-		let last_update_inst = Instant::now();
+		let help_lines = [
+			"controls:",
+			"f1 - show help screen",
+			"escape - pause",
+			"wasd/arrows/pl;' - move",
+			"shift - move fast",
+			"space/ctrl/alt - fly up/down",
+			"e/q - roll (only in fpv mode)",
+			"tab/i - open inventory",
+			"+- - change fov",
+			"f3 - toggle info overlay",
+			"f5 - change movement mode",
+			// "f8 - stock market",
+		].map(|s| s.to_uppercase()).to_vec();
+
+		let pause_menu_items = { use PauseMenuItem::*; vec![
+			Quit,
+			Back,
+			GetRandomItems,
+			ToggleTopology,
+			ToggleDarkness,
+			ToggleUnlimitedFov,
+			ToggleShakyFov,
+			ToggleVsync,
+		]};
 
 		let dim_base_la_for_floor_color = LorenzAttractor::new()
 			.offset_params_(Vec3::random_unit_cube(rng) * 0.1)
 			.offset_xyz(30., 0., 0.);
-
-		let inventory_items = Vec::with_capacity(100);
-
-		let surface_world_params = gen_surface_world_params(rng);
 
 		let chunks = Vec2D::<Chunk>::from_fn(CHUNKS_N, CHUNKS_N, |_x, _z| {
 			Chunk::new_random(rng)
@@ -1245,36 +1273,14 @@ impl GameState {
 		// println!("chunks.len = {}", chunks.iter().count());
 
 		Self {
-			last_update_inst,
 			camera: Camera::new(w / h),
 			input: InputState::new(),
-			help_lines: [
-				"controls:",
-				"f1 - show help screen",
-				"escape - pause",
-				"wasd/arrows/pl;' - move",
-				"shift - move fast",
-				"space/ctrl/alt - fly up/down",
-				"e/q - roll (only in fpv mode)",
-				"tab/i - open inventory",
-				"+- - change fov",
-				"f3 - toggle info overlay",
-				"f5 - change movement mode",
-				// "f8 - stock market",
-			].map(|s| s.to_uppercase()).to_vec(),
-			pause_menu_items: { use PauseMenuItem::*; vec![
-				Quit,
-				Back,
-				GetRandomItems,
-				ToggleTopology,
-				ToggleDarkness,
-				ToggleUnlimitedFov,
-				ToggleShakyFov,
-				ToggleVsync,
-			]},
+			last_update_inst: Instant::now(),
+			inventory_items: Vec::with_capacity(100),
+			surface_world_params: gen_surface_world_params(rng),
+			help_lines,
+			pause_menu_items,
 			dim_base_la_for_floor_color,
-			inventory_items,
-			surface_world_params,
 			chunks,
 			..
 		}
@@ -2226,496 +2232,6 @@ impl Chunk {
 				}
 			}
 		}
-	}
-}
-
-
-
-
-
-#[derive(Debug)]
-enum RenderableShape {
-	Points3d_(Vec<Point3d>),
-	Points3dOC_(Vec<Vec3>, ColorU8),
-	Points3dNC_(Vec<Vec3>),
-	Lines3d_(Vec<Line3d>),
-	Lines3dOC_(Vec<Line3dNC>, ColorU8),
-	Lines3dNC_(Vec<Line3dNC>),
-	LineStrip3d_(Vec<Point3d>),
-	LineStrip3dOC_(Vec<Vec3>, ColorU8),
-	LineStrip3dNC_(Vec<Vec3>),
-	Triangles3d_(Vec<Triangle3d>),
-	Triangles3dOC_(Vec<Triangle3dNC>, ColorU8),
-	Triangles3dNC_(Vec<Triangle3dNC>),
-	// TriangleStrip3d_(Points?),
-	// TriangleStrip3dOC_(Points?, ColorU8),
-	// TriangleStrip3dNC_(Points?),
-	Quads3d_(Vec<Quad3d>),
-	Quads3dOC_(Vec<Quad3dOC>, ColorU8),
-	Quads3dNC_(Vec<Quad3dNC>),
-
-	Points2d_(Vec<Point2d>),
-	Points2dOC_(Vec<Point2dNC>, ColorU8),
-	Points2dNC_(Vec<Point2dNC>),
-	Lines2d_(Vec<Line2d>),
-	Lines2dOC_(Vec<Line2dNC>, ColorU8),
-	Lines2dNC_(Vec<Line2dNC>),
-	LineStrip2d_(Vec<Point2d>),
-	LineStrip2dOC_(Vec<Point2dNC>, ColorU8),
-	LineStrip2dNC_(Vec<Point2dNC>),
-	Triangles2d_(Vec<Triangle2d>),
-	Triangles2dOC_(Vec<Triangle2dNC>, ColorU8),
-	Triangles2dNC_(Vec<Triangle2dNC>),
-	// TriangleStrip2d_(Points?),
-	// TriangleStrip2dOC_(Points?, ColorU8),
-	// TriangleStrip2dNC_(Points?),
-}
-
-
-
-
-
-trait ToVertex { fn to_vertex(self) -> Vertex; }
-trait ToVertexNC { fn to_vertex(self, color: ColorU8) -> Vertex; }
-trait ToVertices<const N: usize> { fn to_vertices(self) -> [Vertex; N]; }
-trait ToVerticesNC<const N: usize> { fn to_vertices(self, color: ColorU8) -> [Vertex; N]; }
-// trait ToVerticesVec { fn to_vertices(self) -> Vec<Vertex>; }
-// trait ToVerticesVecNC { fn to_vertices(self, color: ColorU8) -> Vec<Vertex>; }
-
-
-
-impl ToVertexNC for Vec3 {
-	fn to_vertex(self, color: ColorU8) -> Vertex {
-		let Self { x, y, z } = self;
-		Vertex { position: [x, y, z], color: color.to_array() }
-	}
-}
-// impl ToVertexNC for Vec3 {
-// 	fn to_vertex(self, color: ColorU8) -> Vertex {
-// 		let Self { x, y, z } = self;
-// 		Vertex { position: [x, y, z], color: color.to_array() }
-// 	}
-// }
-
-/// point 3d, with color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Point3d {
-	v: Vec3,
-	color: ColorU8,
-}
-impl Point3d {
-	fn new(v: Vec3, color: ColorU8) -> Self {
-		Self { v, color }
-	}
-}
-impl From<(Vec3, ColorU8)> for Point3d {
-	fn from((v, color): (Vec3, ColorU8)) -> Self {
-		Self { v, color }
-	}
-}
-impl ToVertex for Point3d {
-	fn to_vertex(self) -> Vertex {
-		let Self { v, color } = self;
-		Vertex { position: v.to_array(), color: color.to_array() }
-	}
-}
-
-/// line 3d, two colors
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Line3d {
-	a: Point3d,
-	b: Point3d,
-}
-impl Line3d {
-	fn new(a: Point3d, b: Point3d) -> Self {
-		Self { a, b }
-	}
-}
-impl ToVertices<2> for Line3d {
-	fn to_vertices(self) -> [Vertex; 2] {
-		let Self { a, b } = self;
-		[
-			Vertex { position: [a.v.x, a.v.y, a.v.z], color: a.color.to_array() },
-			Vertex { position: [b.v.x, b.v.y, b.v.z], color: b.color.to_array() },
-		]
-	}
-}
-
-/// line 3d, one color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Line3dOC {
-	a: Vec3,
-	b: Vec3,
-	color: ColorU8,
-}
-impl Line3dOC {
-	fn from(a: impl Into<Vec3>, b: impl Into<Vec3>, color: ColorU8) -> Self {
-		Self { a: a.into(), b: b.into(), color }
-	}
-}
-impl ToVertices<2> for Line3dOC {
-	fn to_vertices(self) -> [Vertex; 2] {
-		let Self { a, b, color } = self;
-		let color = color.to_array();
-		[
-			Vertex { position: [a.x, a.y, a.z], color },
-			Vertex { position: [b.x, b.y, b.z], color },
-		]
-	}
-}
-
-/// line 3d, no color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Line3dNC {
-	a: Vec3,
-	b: Vec3,
-}
-impl Line3dNC {
-	fn new(a: Vec3, b: Vec3) -> Self {
-		Self { a, b }
-	}
-}
-impl From<(Vec3, Vec3)> for Line3dNC {
-	fn from((a, b): (Vec3, Vec3)) -> Self {
-		Self { a, b }
-	}
-}
-impl ToVerticesNC<2> for Line3dNC {
-	fn to_vertices(self, color: ColorU8) -> [Vertex; 2] {
-		let Self { a, b } = self;
-		let color = color.to_array();
-		[
-			Vertex { position: [a.x, a.y, a.z], color },
-			Vertex { position: [b.x, b.y, b.z], color },
-		]
-	}
-}
-
-/// triangle 3d, three colors
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Triangle3d {
-	a: Point3d,
-	b: Point3d,
-	c: Point3d,
-}
-impl Triangle3d {
-	fn new(a: Point3d, b: Point3d, c: Point3d) -> Self {
-		Self { a, b, c }
-	}
-}
-impl ToVertices<3> for Triangle3d {
-	fn to_vertices(self) -> [Vertex; 3] {
-		let Self { a, b, c } = self;
-		[
-			Vertex { position: [a.v.x, a.v.y, a.v.z], color: a.color.to_array() },
-			Vertex { position: [b.v.x, b.v.y, b.v.z], color: b.color.to_array() },
-			Vertex { position: [c.v.x, c.v.y, c.v.z], color: c.color.to_array() },
-		]
-	}
-}
-
-/// triangle 3d, one color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Triangle3dOC {
-	a: Vec3,
-	b: Vec3,
-	c: Vec3,
-	color: ColorU8,
-}
-impl ToVertices<3> for Triangle3dOC {
-	fn to_vertices(self) -> [Vertex; 3] {
-		let Self { a, b, c, color } = self;
-		let color = color.to_array();
-		[
-			Vertex { position: [a.x, a.y, a.z], color },
-			Vertex { position: [b.x, b.y, b.z], color },
-			Vertex { position: [c.x, c.y, c.z], color },
-		]
-	}
-}
-
-/// triangle 3d, no color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Triangle3dNC {
-	a: Vec3,
-	b: Vec3,
-	c: Vec3,
-}
-impl ToVerticesNC<3> for Triangle3dNC {
-	fn to_vertices(self, color: ColorU8) -> [Vertex; 3] {
-		let Self { a, b, c } = self;
-		let color = color.to_array();
-		[
-			Vertex { position: [a.x, a.y, a.z], color },
-			Vertex { position: [b.x, b.y, b.z], color },
-			Vertex { position: [c.x, c.y, c.z], color },
-		]
-	}
-}
-
-/// quad 3d, three colors
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Quad3d {
-	a: Point3d,
-	b: Point3d,
-	c: Point3d,
-	d: Point3d,
-}
-impl Quad3d {
-	fn new(a: Point3d, b: Point3d, c: Point3d, d: Point3d) -> Self {
-		Self { a, b, c, d }
-	}
-}
-impl ToVertices<4> for Quad3d {
-	fn to_vertices(self) -> [Vertex; 4] {
-		let Self { a, b, c, d } = self;
-		[
-			Vertex { position: [a.v.x, a.v.y, a.v.z], color: a.color.to_array() },
-			Vertex { position: [b.v.x, b.v.y, b.v.z], color: b.color.to_array() },
-			Vertex { position: [c.v.x, c.v.y, c.v.z], color: c.color.to_array() },
-			Vertex { position: [d.v.x, d.v.y, d.v.z], color: d.color.to_array() },
-		]
-	}
-}
-
-/// quad 3d, one color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Quad3dOC {
-	a: Vec3,
-	b: Vec3,
-	c: Vec3,
-	d: Vec3,
-	color: ColorU8,
-}
-impl ToVertices<4> for Quad3dOC {
-	fn to_vertices(self) -> [Vertex; 4] {
-		let Self { a, b, c, d, color } = self;
-		let color = color.to_array();
-		[
-			Vertex { position: [a.x, a.y, a.z], color },
-			Vertex { position: [b.x, b.y, b.z], color },
-			Vertex { position: [c.x, c.y, c.z], color },
-			Vertex { position: [d.x, d.y, d.z], color },
-		]
-	}
-}
-
-/// quad 3d, no color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Quad3dNC {
-	a: Vec3,
-	b: Vec3,
-	c: Vec3,
-	d: Vec3,
-}
-impl ToVerticesNC<4> for Quad3dNC {
-	fn to_vertices(self, color: ColorU8) -> [Vertex; 4] {
-		let Self { a, b, c, d } = self;
-		let color = color.to_array();
-		[
-			Vertex { position: [a.x, a.y, a.z], color },
-			Vertex { position: [b.x, b.y, b.z], color },
-			Vertex { position: [c.x, c.y, c.z], color },
-			Vertex { position: [d.x, d.y, d.z], color },
-		]
-	}
-}
-
-
-
-
-
-/// point 2d, no color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Point2dNC {
-	x: f32,
-	y: f32,
-}
-impl ToVertexNC for Point2dNC {
-	fn to_vertex(self, color: ColorU8) -> Vertex {
-		let Self { x, y } = self;
-		Vertex { position: [x, y, 0.], color: color.to_array() }
-	}
-}
-
-/// point 2d, with color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Point2d {
-	x: f32,
-	y: f32,
-	color: ColorU8,
-}
-impl Point2d {
-	fn from(x: impl Into_<f32>, y: impl Into_<f32>, color: ColorU8) -> Self {
-		Self { x: x.into_(), y: y.into_(), color }
-	}
-}
-impl ToVertex for Point2d {
-	fn to_vertex(self) -> Vertex {
-		let Self { x, y, color } = self;
-		Vertex { position: [x, y, 0.], color: color.to_array() }
-	}
-}
-
-/// line 2d, two colors
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Line2d {
-	a: Point2d,
-	b: Point2d,
-}
-impl ToVertices<2> for Line2d {
-	fn to_vertices(self) -> [Vertex; 2] {
-		let Self { a, b } = self;
-		[
-			Vertex { position: [a.x, a.y, 0.], color: a.color.to_array() },
-			Vertex { position: [b.x, b.y, 0.], color: b.color.to_array() },
-		]
-	}
-}
-
-/// line 2d, one color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Line2dOC {
-	a: Point2dNC,
-	b: Point2dNC,
-	color: ColorU8,
-}
-impl ToVertices<2> for Line2dOC {
-	fn to_vertices(self) -> [Vertex; 2] {
-		let Self { a, b, color } = self;
-		let color = color.to_array();
-		[
-			Vertex { position: [a.x, a.y, 0.], color },
-			Vertex { position: [b.x, b.y, 0.], color },
-		]
-	}
-}
-
-/// line 2d, no color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Line2dNC {
-	a: Point2dNC,
-	b: Point2dNC,
-}
-impl ToVerticesNC<2> for Line2dNC {
-	fn to_vertices(self, color: ColorU8) -> [Vertex; 2] {
-		let Self { a, b } = self;
-		let color = color.to_array();
-		[
-			Vertex { position: [a.x, a.y, 0.], color },
-			Vertex { position: [b.x, b.y, 0.], color },
-		]
-	}
-}
-
-/// triangle 2d, three colors
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Triangle2d {
-	a: Point2d,
-	b: Point2d,
-	c: Point2d,
-}
-impl ToVertices<3> for Triangle2d {
-	fn to_vertices(self) -> [Vertex; 3] {
-		let Self { a, b, c } = self;
-		[
-			Vertex { position: [a.x, a.y, 0.], color: a.color.to_array() },
-			Vertex { position: [b.x, b.y, 0.], color: b.color.to_array() },
-			Vertex { position: [c.x, c.y, 0.], color: c.color.to_array() },
-		]
-	}
-}
-
-/// triangle 2d, one color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Triangle2dOC {
-	a: Point2dNC,
-	b: Point2dNC,
-	c: Point2dNC,
-	color: ColorU8,
-}
-impl ToVertices<3> for Triangle2dOC {
-	fn to_vertices(self) -> [Vertex; 3] {
-		let Self { a, b, c, color } = self;
-		let color = color.to_array();
-		[
-			Vertex { position: [a.x, a.y, 0.], color },
-			Vertex { position: [b.x, b.y, 0.], color },
-			Vertex { position: [c.x, c.y, 0.], color },
-		]
-	}
-}
-
-/// triangle 2d, no color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Triangle2dNC {
-	a: Point2dNC,
-	b: Point2dNC,
-	c: Point2dNC,
-}
-impl ToVerticesNC<3> for Triangle2dNC {
-	fn to_vertices(self, color: ColorU8) -> [Vertex; 3] {
-		let Self { a, b, c } = self;
-		let color = color.to_array();
-		[
-			Vertex { position: [a.x, a.y, 0.], color },
-			Vertex { position: [b.x, b.y, 0.], color },
-			Vertex { position: [c.x, c.y, 0.], color },
-		]
-	}
-}
-
-/// rectangle 2d, filled, one color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Rectangle2dFilledOC {
-	x: f32, // center
-	y: f32, // center
-	w: f32,
-	h: f32,
-	color: ColorU8,
-}
-impl Rectangle2dFilledOC {
-	fn to_triangles(self) -> [Triangle2dOC; 2] {
-		let Self { x, y, w, h, color } = self;
-		let w = w / 2.;
-		let h = h / 2.;
-		[
-			Triangle2dOC { a: Point2dNC { x: x-w, y: y-h }, b: Point2dNC { x: x+w, y: y-h }, c: Point2dNC { x: x-w, y: y+h }, color },
-			Triangle2dOC { a: Point2dNC { x: x+w, y: y+h }, b: Point2dNC { x: x+w, y: y-h }, c: Point2dNC { x: x-w, y: y+h }, color },
-		]
-	}
-}
-impl ToVertices<6> for Rectangle2dFilledOC {
-	fn to_vertices(self) -> [Vertex; 6] {
-		self.to_triangles().map(|t| t.to_vertices()).flatten()
-	}
-}
-
-/// rectangle 2d, filled, one color
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Rectangle2dHollowOC {
-	x: f32, // center
-	y: f32, // center
-	w: f32,
-	h: f32,
-	color: ColorU8,
-}
-impl Rectangle2dHollowOC {
-	fn to_lines(self) -> [Line2dOC; 4] {
-		let Self { x, y, w, h, color } = self;
-		let w = w / 2.;
-		let h = h / 2.;
-		[
-			Line2dOC { a: Point2dNC { x: x-w, y: y-h }, b: Point2dNC { x: x-w, y: y+h }, color },
-			Line2dOC { a: Point2dNC { x: x-w, y: y+h }, b: Point2dNC { x: x+w, y: y+h }, color },
-			Line2dOC { a: Point2dNC { x: x+w, y: y+h }, b: Point2dNC { x: x+w, y: y-h }, color },
-			Line2dOC { a: Point2dNC { x: x+w, y: y-h }, b: Point2dNC { x: x-w, y: y-h }, color },
-		]
-	}
-}
-impl ToVertices<8> for Rectangle2dHollowOC {
-	fn to_vertices(self) -> [Vertex; 8] {
-		self.to_lines().map(|l| l.to_vertices()).flatten()
 	}
 }
 

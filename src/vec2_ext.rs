@@ -1,4 +1,40 @@
 //! Vec2 extensions
 
-use glam::Vec2;
+use glam::{Vec2, Vec3};
+use rand::{RngExt, rngs::ThreadRng};
+
+use crate::extensions::{BoolSelect, Into_};
+
+
+pub trait ExtVec2 {
+	fn from_x(x: impl Into_<f32>) -> Self;
+	fn from_y(y: impl Into_<f32>) -> Self;
+	fn from_xy(x: impl Into_<f32>, y: impl Into_<f32>) -> Self;
+	fn xy0(self) -> Vec3;
+	fn x0y(self) -> Vec3;
+	fn _0xy(self) -> Vec3;
+	fn random_unit_square(rng: &mut ThreadRng) -> Self;
+	fn random_unit(rng: &mut ThreadRng) -> Self;
+	fn flip_x_if(self, flip: bool) -> Self;
+	fn flip_y_if(self, flip: bool) -> Self;
+}
+impl ExtVec2 for Vec2 {
+	fn from_x(x: impl Into_<f32>) -> Self { Self::ZERO.with_x(x.into_()) }
+	fn from_y(y: impl Into_<f32>) -> Self { Self::ZERO.with_y(y.into_()) }
+	fn from_xy(x: impl Into_<f32>, y: impl Into_<f32>) -> Self { Self::new(x.into_(), y.into_()) }
+	fn xy0(self)  -> Vec3 { Vec3::new(self.x, self.y, 0.) }
+	fn x0y(self)  -> Vec3 { Vec3::new(self.x, 0., self.y) }
+	fn _0xy(self) -> Vec3 { Vec3::new(0., self.x, self.y) }
+	fn random_unit_square(rng: &mut ThreadRng) -> Self {
+		Self {
+			x: rng.random_range(-1. ..= 1.),
+			y: rng.random_range(-1. ..= 1.),
+		}
+	}
+	fn random_unit(rng: &mut ThreadRng) -> Self {
+		Self::random_unit_square(rng).normalize()
+	}
+	fn flip_x_if(self, flip: bool) -> Self { self.with_x(flip.select(-self.x, self.x)) }
+	fn flip_y_if(self, flip: bool) -> Self { self.with_y(flip.select(-self.y, self.y)) }
+}
 
