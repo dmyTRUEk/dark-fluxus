@@ -2,7 +2,7 @@
 
 use glam::Vec3;
 
-use crate::{Vertex, color_u8::ColorU8, renderable_shapes::*};
+use crate::{Vertex, color_u8::ColorU8, extensions::Flatten, renderable_shapes::*};
 
 
 
@@ -211,14 +211,9 @@ impl Quad3d {
 		]
 	}
 }
-impl ToVertices<4> for Quad3d {
-	fn to_vertices(self) -> [Vertex; 4] {
-		[
-			Vertex::from(self.a.v, self.a.color),
-			Vertex::from(self.b.v, self.b.color),
-			Vertex::from(self.c.v, self.c.color),
-			Vertex::from(self.d.v, self.d.color),
-		]
+impl ToVertices<6> for Quad3d {
+	fn to_vertices(self) -> [Vertex; 6] {
+		self.to_triangles().map(|t| t.to_vertices()).flatten_()
 	}
 }
 
@@ -237,15 +232,16 @@ impl Quad3dOC {
 	pub fn new(a: Vec3, b: Vec3, c: Vec3, d: Vec3, color: ColorU8) -> Self {
 		Self { a, b, c, d, color }
 	}
-}
-impl ToVertices<4> for Quad3dOC {
-	fn to_vertices(self) -> [Vertex; 4] {
+	fn to_triangles(self) -> [Triangle3dOC; 2] {
 		[
-			Vertex::from(self.a, self.color),
-			Vertex::from(self.b, self.color),
-			Vertex::from(self.c, self.color),
-			Vertex::from(self.d, self.color),
+			Triangle3dOC::new(self.a, self.b, self.c, self.color),
+			Triangle3dOC::new(self.b, self.c, self.d, self.color)
 		]
+	}
+}
+impl ToVertices<6> for Quad3dOC {
+	fn to_vertices(self) -> [Vertex; 6] {
+		self.to_triangles().map(|t| t.to_vertices()).flatten_()
 	}
 }
 
@@ -263,15 +259,16 @@ impl Quad3dNC {
 	fn new(a: Vec3, b: Vec3, c: Vec3, d: Vec3) -> Self {
 		Self { a, b, c, d }
 	}
-}
-impl ToVerticesNC<4> for Quad3dNC {
-	fn to_vertices(self, color: ColorU8) -> [Vertex; 4] {
+	fn to_triangles(self, color: ColorU8) -> [Triangle3dOC; 2] {
 		[
-			Vertex::from(self.a, color),
-			Vertex::from(self.b, color),
-			Vertex::from(self.c, color),
-			Vertex::from(self.d, color),
+			Triangle3dOC::new(self.a, self.b, self.c, color),
+			Triangle3dOC::new(self.b, self.c, self.d, color)
 		]
+	}
+}
+impl ToVerticesNC<6> for Quad3dNC {
+	fn to_vertices(self, color: ColorU8) -> [Vertex; 6] {
+		self.to_triangles(color).map(|t| t.to_vertices()).flatten_()
 	}
 }
 
