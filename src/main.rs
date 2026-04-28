@@ -35,13 +35,16 @@ mod color_u8;
 mod consts;
 mod extensions;
 mod font_rendering;
+mod game_of_life;
 mod lorenz_attractor;
 mod math;
 mod math_aliases;
+mod misc;
 mod renderable_shapes;
 mod renderable_shapes_2d;
 mod renderable_shapes_3d;
 mod typesafe_rng;
+mod utils;
 mod utils_io;
 mod vec2D;
 mod vec2_ext;
@@ -52,13 +55,16 @@ use color_u8::*;
 use consts::*;
 use extensions::*;
 use font_rendering::*;
+use game_of_life::*;
 use lorenz_attractor::*;
 use math::*;
 use math_aliases::*;
+use misc::*;
 use renderable_shapes::*;
 use renderable_shapes_2d::*;
 use renderable_shapes_3d::*;
 use typesafe_rng::*;
+use utils::*;
 use utils_io::*;
 use vec2D::*;
 use vec2_ext::*;
@@ -264,6 +270,10 @@ impl App {
 								ro.clone()
 							));
 						}
+						GameOfLife { seed } => {
+							self.state.dimension = Dimension::GameOfLife { seed: seed.clone() };
+							self.state.game_of_life_state = GameOfLifeState::from_seed(seed);
+						}
 						Text(_) => {}
 					}
 					if remove_self {
@@ -418,6 +428,12 @@ impl App {
 					self.state.is_redraw_needed = true;
 				}
 				Dimension::SurfaceWorld => {}
+				Dimension::GameOfLife { .. } => {
+					if self.state.tick_n > 200 && (self.state.tick_n.is_multiple_of(10) || self.state.input.is_fast_move) {
+						self.state.game_of_life_state.update();
+					}
+					self.state.is_redraw_needed = true;
+				}
 			}
 		}
 
@@ -699,6 +715,42 @@ impl App {
 					}
 				}
 			}
+			Dimension::GameOfLife { .. } => {
+				all_3d_quads_oc.extend(
+					self.state.game_of_life_state.alive_cells.iter().map(|p| {
+						Quad3dOC::new(
+							Vec3::from_xz((p.x as f32) - 0.5, (p.y as f32) - 0.5),
+							Vec3::from_xz((p.x as f32) - 0.5, (p.y as f32) + 0.5),
+							Vec3::from_xz((p.x as f32) + 0.5, (p.y as f32) - 0.5),
+							Vec3::from_xz((p.x as f32) + 0.5, (p.y as f32) + 0.5),
+							ColorU8::WHITE
+						)
+					})
+				);
+				const N: i32 = 100;
+				// const Y: f32 = -0.01; // TODO(feat): dots below quads
+				all_3d_points.extend(
+					(-N ..= N).flat_map(|i|
+						(-N ..= N).map(move |j|
+							Point3d::new(Vec3::from_xz(i, j), ColorU8::GRAY_8)
+						)
+					)
+				);
+				all_3d_points.extend(
+					(-N ..= N).flat_map(|i|
+						(-N ..= N).map(move |j|
+							Point3d::new(2. * Vec3::from_xz(i, j), ColorU8::GRAY_4)
+						)
+					)
+				);
+				all_3d_points.extend(
+					(-N ..= N).flat_map(|i|
+						(-N ..= N).map(move |j|
+							Point3d::new(4. * Vec3::from_xz(i, j), ColorU8::GRAY_2)
+						)
+					)
+				);
+			}
 		}
 
 		// -------------------- UI --------------------
@@ -813,6 +865,14 @@ impl App {
 			];
 			if self.state.is_alt_topology {
 				left_lines.push(format!("is xz flipped global: {}, {}", self.state.is_x_flipped_global, self.state.is_z_flipped_global).to_uppercase());
+			}
+			match &self.state.dimension {
+				Dimension::Base => {}
+				Dimension::SurfaceWorld => {}
+				Dimension::GameOfLife { seed } => {
+					left_lines.push(format!("GAME OF LIFE SEED UC:{seed}").to_uppercase());
+					left_lines.push(format!("GAME OF LIFE SEED:{seed}"));
+				}
 			}
 			for (i, line) in left_lines.into_iter().enumerate() {
 				all_2d_points.extend(
@@ -1254,6 +1314,9 @@ struct GameState {
 	is_extra_info_shown: bool = true,
 
 	// zqqx_lang: ZqqxLang,
+
+	// TODO(refactor)?: move into Dimension::GameOfLife
+	game_of_life_state: GameOfLifeState,
 }
 
 impl GameState {
@@ -1297,8 +1360,14 @@ impl GameState {
 			camera: Camera::new(w / h),
 			input: InputState::new(),
 			last_update_inst: Instant::now(),
-			inventory_items: Vec::with_capacity(100),
+			// inventory_items: Vec::with_capacity(100),
+			inventory_items: Vec::from_fn(100,
+				|i| InventoryItem::GameOfLife{ seed: string_from_number_u64(i as u64, &ALPHABET_LOWERCASE) }
+			).extended((0..100).map(
+				|_i| InventoryItem::GameOfLife{ seed: string_from_number_u64(rng.random(), &ALPHABET_LOWERCASE) }
+			)),
 			surface_world_params: gen_surface_world_params(rng),
+			game_of_life_state: GameOfLifeState::from_seed("j"),
 			help_lines,
 			pause_menu_items,
 			dim_base_la_for_floor_color,
@@ -1648,15 +1717,7 @@ enum Dimension {
 	Base, // TODO: rename? Home, RotatingBH
 	// BaseAlt, // TODO: rename? HomeAlt, StaticBH
 	SurfaceWorld, // TODO(feat): function
-}
-impl Dimension {
-	fn to_str(&self) -> &str {
-		use Dimension::*;
-		match self {
-			Base => "BASE",
-			SurfaceWorld => "SURFACE WORLD",
-		}
-	}
+	GameOfLife { seed: String },
 }
 
 
@@ -1666,6 +1727,7 @@ impl Dimension {
 enum InventoryItem {
 	SurfaceWorld, // TODO(feat): function
 	RenderableObject_(RenderableObject),
+	GameOfLife { seed: String },
 	Text(String), // just for test
 }
 impl InventoryItem {
@@ -1683,6 +1745,7 @@ impl ToString for InventoryItem {
 		match self {
 			SurfaceWorld => "SURFACE WORLD".to_string(),
 			RenderableObject_(ro) => ro.to_string(),
+			GameOfLife { seed } => format!("GAME OF LIFE (SEED UC:{seed_uc}) (SEED:{seed})", seed_uc=seed.to_uppercase()),
 			Text(text) => text.clone(),
 		}
 	}

@@ -99,3 +99,37 @@ impl<T, const N: usize, const M: usize> Flatten<T, {N*M}> for [[T; N]; M] where 
 	}
 }
 
+
+
+// pub trait ArrayPushExtend<T, const N: usize, const M: usize> {
+// 	fn pushed(self, el: T) -> [T; N+1];
+// 	fn extend(self, other: [T; M]) -> [T; N+M];
+// }
+// impl<T, const N: usize, const M: usize> ArrayPushExtend<T, N, M> for [T; N] where T: Copy {
+// 	fn pushed(self, el: T) -> [T; N+1] {
+// 		let mut out = [el; N + 1]; // temporary init
+// 		let mut i = 0;
+// 		while i < N {
+// 			out[i] = self[i];
+// 			i += 1;
+// 		}
+// 		out[N] = el;
+// 		out
+// 	}
+// 	fn extend(self, _other: [T; M]) -> [T; N+M] {
+// 		todo!()
+// 	}
+// }
+
+
+
+pub trait Extended<T> {
+	fn extended(self, other: impl IntoIterator<Item=T>) -> Self;
+}
+impl<T> Extended<T> for Vec<T> {
+	fn extended(mut self, other: impl IntoIterator<Item=T>) -> Self {
+		self.extend(other);
+		self
+	}
+}
+
