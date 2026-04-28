@@ -241,12 +241,7 @@ impl App {
 							self.state.camera.toggle_shaky_fov();
 						}
 						ToggleVsync => {
-							use wgpu::PresentMode::*;
-							let present_mode = &mut self.renderer.config.present_mode;
-							*present_mode = match present_mode {
-								AutoVsync | Fifo | FifoRelaxed => { Renderer::VSYNC_OFF }
-								AutoNoVsync | Immediate | Mailbox => { Renderer::VSYNC_ON }
-							};
+							self.renderer.config.present_mode = if self.renderer.is_vsync_on() { Renderer::VSYNC_OFF } else { Renderer::VSYNC_ON };
 							self.reconfigure_surface();
 						}
 						Text(_) => {}
@@ -726,6 +721,15 @@ impl App {
 				all_2d_points.extend(pixels);
 			}
 
+			let right_lines = vec![
+				format!("VSYNC: {}", self.renderer.is_vsync_on().select("ON", "OFF")),
+			];
+			for (i, line) in right_lines.iter().enumerate() {
+				let pixels: Vec<_> = get_text_pixels(line, (wi - 5 - (line.len() as i32) * (text_size as i32) * 6, 5 + 35*(i as i32 + 1)), text_size, wh)
+					.iter().map(|(x,y)| Point2d::from(*x, *y, color)).collect();
+				all_2d_points.extend(pixels);
+			}
+
 			// // zqqx lang
 			// for char_n in 0..5 {
 			// 	let scale: u8 = 5;
@@ -1192,6 +1196,14 @@ impl Renderer {
 			uniform_buffer_2d,
 			bind_group_3d,
 			bind_group_2d,
+		}
+	}
+
+	fn is_vsync_on(&self) -> bool {
+		use wgpu::PresentMode::*;
+		match self.config.present_mode {
+			AutoVsync | Fifo | FifoRelaxed => true,
+			AutoNoVsync | Immediate | Mailbox => false,
 		}
 	}
 }
