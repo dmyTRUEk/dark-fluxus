@@ -339,8 +339,8 @@ impl App {
 	fn update(&mut self) {
 		let now = Instant::now();
 		let dt = now.duration_since(self.state.last_update_inst).as_secs_f32();
-		// TODO!(fix): prevent huge dt (after pause)
 		self.state.last_update_inst = now;
+		let dt = dt.min(0.1); // prevent huge dt (ie after pause) // TODO: fix better?
 
 		let is_overlay = self.state.is_overlay();
 
