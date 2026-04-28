@@ -877,7 +877,6 @@ impl App {
 				Dimension::Base => {}
 				Dimension::SurfaceWorld => {}
 				Dimension::GameOfLife { seed } => {
-					left_lines.push(format!("GAME OF LIFE SEED UC:{seed}").to_uppercase());
 					left_lines.push(format!("GAME OF LIFE SEED:{seed}"));
 				}
 			}
@@ -1370,9 +1369,9 @@ impl GameState {
 			last_update_inst: Instant::now(),
 			// inventory_items: Vec::with_capacity(100),
 			inventory_items: Vec::from_fn(100,
-				|i| InventoryItem::GameOfLife{ seed: string_from_number_u64(i as u64, &ALPHABET_LOWERCASE) }
+				|i| InventoryItem::GameOfLife{ seed: string_from_number_u64(i as u64, &ALPHABET_UPPERCASE) }
 			).extended((0..100).map(
-				|_i| InventoryItem::GameOfLife{ seed: string_from_number_u64(rng.random(), &ALPHABET_LOWERCASE) }
+				|_i| InventoryItem::GameOfLife{ seed: string_from_number_u64(rng.random(), &ALPHABET_UPPERCASE) }
 			)),
 			surface_world_params: gen_surface_world_params(rng),
 			game_of_life_state: GameOfLifeState::from_seed("j"),
@@ -1754,7 +1753,7 @@ impl ToString for InventoryItem {
 		match self {
 			SurfaceWorld => "SURFACE WORLD".to_string(),
 			RenderableObject_(ro) => ro.to_string(),
-			GameOfLife { seed } => format!("GAME OF LIFE (SEED UC:{seed_uc}) (SEED:{seed})", seed_uc=seed.to_uppercase()),
+			GameOfLife { seed } => format!("GAME OF LIFE (SEED:{seed})"),
 			Text(text) => text.clone(),
 		}
 	}
