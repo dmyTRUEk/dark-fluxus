@@ -181,7 +181,7 @@ impl Rectangle2dFilledOC {
 }
 impl ToVertices<6> for Rectangle2dFilledOC {
 	fn to_vertices(self) -> [Vertex; 6] {
-		self.to_triangles().map(|t| t.to_vertices()).flatten()
+		self.to_triangles().map(|t| t.to_vertices()).flatten_()
 	}
 }
 
@@ -211,7 +211,7 @@ impl Rectangle2dHollowOC {
 }
 impl ToVertices<8> for Rectangle2dHollowOC {
 	fn to_vertices(self) -> [Vertex; 8] {
-		self.to_lines().map(|l| l.to_vertices()).flatten()
+		self.to_lines().map(|l| l.to_vertices()).flatten_()
 	}
 }
 

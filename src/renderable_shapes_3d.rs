@@ -205,10 +205,9 @@ impl Quad3d {
 		Self { a, b, c, d }
 	}
 	fn to_triangles(self) -> [Triangle3d; 2] {
-		let Self { a, b, c, d } = self;
 		[
-			Triangle3d::new(a, b, c),
-			Triangle3d::new(b, c, d)
+			Triangle3d::new(self.a, self.b, self.c),
+			Triangle3d::new(self.b, self.c, self.d)
 		]
 	}
 }

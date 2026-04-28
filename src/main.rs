@@ -10,6 +10,7 @@
 #![deny(
 	irrefutable_let_patterns,
 	unreachable_patterns,
+	unused_assignments,
 	unused_must_use,
 	unused_results,
 	unused_variables, // FIXME: ENABLE ME
@@ -58,7 +59,7 @@ use renderable_shapes::*;
 use renderable_shapes_2d::*;
 use renderable_shapes_3d::*;
 use typesafe_rng::*;
-// use utils_io::*;
+use utils_io::*;
 use vec2D::*;
 use vec2_ext::*;
 use vec3_ext::*;
@@ -705,7 +706,7 @@ impl App {
 		if self.state.is_extra_info_shown {
 			let text_size = 3;
 			let color = ColorU8::GRAY_32;
-			let mut lines = vec![
+			let mut left_lines = vec![
 				format!("XYZ: {:.3}, {:.3}, {:.3}", self.state.camera.position.x, self.state.camera.position.y, self.state.camera.position.z),
 				format!("CHUNK XZ: {}, {}", self.state.current_chunk_x, self.state.current_chunk_z),
 				format!("MOVE TYPE: {}", self.state.camera.movement_type.to_str_uppercase()),
@@ -713,21 +714,23 @@ impl App {
 				format!("TOPOLOGY IS ALT: {}", self.state.is_alt_topology.to_string().to_uppercase()),
 			];
 			if self.state.is_alt_topology {
-				lines.push(format!("is xz flipped global: {}, {}", self.state.is_x_flipped_global, self.state.is_z_flipped_global).to_uppercase());
+				left_lines.push(format!("is xz flipped global: {}, {}", self.state.is_x_flipped_global, self.state.is_z_flipped_global).to_uppercase());
 			}
-			for (i, line) in lines.iter().enumerate() {
-				let pixels: Vec<_> = get_text_pixels(line, (5, 5 + 35*(i as i32)), text_size, wh)
-					.iter().map(|(x,y)| Point2d::from(*x, *y, color)).collect();
-				all_2d_points.extend(pixels);
+			for (i, line) in left_lines.into_iter().enumerate() {
+				all_2d_points.extend(
+					get_text_pixels(&line, (5, 5 + 35*(i as i32)), text_size, wh)
+						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
+				);
 			}
 
 			let right_lines = vec![
 				format!("VSYNC: {}", self.renderer.is_vsync_on().select("ON", "OFF")),
 			];
-			for (i, line) in right_lines.iter().enumerate() {
-				let pixels: Vec<_> = get_text_pixels(line, (wi - 5 - (line.len() as i32) * (text_size as i32) * 6, 5 + 35*(i as i32 + 1)), text_size, wh)
-					.iter().map(|(x,y)| Point2d::from(*x, *y, color)).collect();
-				all_2d_points.extend(pixels);
+			for (i, line) in right_lines.into_iter().enumerate() {
+				all_2d_points.extend(
+					get_text_pixels(&line, (wi - 5 - (line.len() as i32) * (text_size as i32) * 6, 5 + 35*(i as i32 + 1)), text_size, wh)
+						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
+				);
 			}
 
 			// // zqqx lang
@@ -753,15 +756,16 @@ impl App {
 			// 	);
 			// }
 
-			// TODO
+			// TODO: better fps measurement/handling?
 			let frame_end_timestamp = Instant::now();
 			let frametime = frame_end_timestamp.duration_since(self.state.last_update_inst);
-			let fps = 1. / frametime.as_secs_f64();
+			let fps = 1. / frametime.as_secs_f32();
 			// if fps < 60. { panic!() }
 			let fps_text = format!("FPS?: {fps:.1}");
-			let pixels: Vec<_> = get_text_pixels(&fps_text, (wi - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), text_size, wh)
-				.iter().map(|(x,y)| Point2d::from(*x, *y, color)).collect();
-			all_2d_points.extend(pixels);
+			all_2d_points.extend(
+				get_text_pixels(&fps_text, (wi - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), text_size, wh)
+					.into_iter().map(|(x,y)| Point2d::from(x, y, color))
+			);
 		}
 
 		if self.state.is_help_opened {
@@ -790,7 +794,7 @@ impl App {
 				let text_y = (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32;
 				all_2d_points.extend(
 					get_text_pixels(help_line, (text_x, text_y), ITEM_TEXT_SIZE, wh)
-						.iter().map(|(x,y)| Point2d::from(*x, *y, color))
+						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 				);
 				i += 1;
 			}
@@ -823,7 +827,7 @@ impl App {
 				let text_y = (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32;
 				all_2d_points.extend(
 					get_text_pixels(&inventory_item.to_string(), (text_x, text_y), ITEM_TEXT_SIZE, wh)
-						.iter().map(|(x,y)| Point2d::from(*x, *y, color))
+						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 				);
 				i += 1;
 			}
@@ -856,7 +860,7 @@ impl App {
 				let text_y = (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32;
 				all_2d_points.extend(
 					get_text_pixels(menu_item.to_str(), (text_x, text_y), ITEM_TEXT_SIZE, wh)
-						.iter().map(|(x,y)| Point2d::from(*x, *y, color))
+						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 				);
 				i += 1;
 			}
@@ -1946,7 +1950,7 @@ impl RenderableObject {
 				vec![LineStrip3dNC_(last_points.iter().map(|&p| p * *size).collect())]
 			}
 			Monolith { sizes } => {
-				vec![Lines3dNC_(sizes.iter().map(|size| {
+				vec![Lines3dNC_(sizes.iter().flat_map(|size| {
 					let s = size / 2.;
 					vec![
 						(Vec3::new(-s,-s,-s), Vec3::new(-s,-s, s)).into(),
@@ -1959,7 +1963,7 @@ impl RenderableObject {
 						(Vec3::new( s, s, s), Vec3::new( s,-s, s)).into(),
 						(Vec3::new( s, s, s), Vec3::new( s, s,-s)).into(),
 					]
-				}).flatten().collect())]
+				}).collect())]
 			}
 			Simplex { initpoints_rotplanes_rotvels_phases } => {
 				let points: Vec<Vec3> = initpoints_rotplanes_rotvels_phases.iter()

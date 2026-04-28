@@ -85,10 +85,10 @@ impl<T> BoolSelect<T> for bool {
 
 
 pub trait Flatten<T, const L: usize> {
-	fn flatten(self) -> [T; L];
+	fn flatten_(self) -> [T; L];
 }
 impl<T, const N: usize, const M: usize> Flatten<T, {N*M}> for [[T; N]; M] where T: Sized {
-	fn flatten(self) -> [T; N * M] {
+	fn flatten_(self) -> [T; N * M] {
 		// src: https://stackoverflow.com/questions/76573089/is-flattening-arrays-by-memtransmute-safe
 		unsafe {
 			// std::mem::transmute::<[[T; N]; M], [T; N*M]>(self)
