@@ -703,71 +703,6 @@ impl App {
 
 		// -------------------- UI --------------------
 
-		if self.state.is_extra_info_shown {
-			let text_size = 3;
-			let color = ColorU8::GRAY_32;
-			let mut left_lines = vec![
-				format!("XYZ: {:.3}, {:.3}, {:.3}", self.state.camera.position.x, self.state.camera.position.y, self.state.camera.position.z),
-				format!("CHUNK XZ: {}, {}", self.state.current_chunk_x, self.state.current_chunk_z),
-				format!("MOVE TYPE: {}", self.state.camera.movement_type.to_str_uppercase()),
-				format!("FOV: {:.3}", self.state.camera.fov_x.to_degrees()),
-				format!("TOPOLOGY IS ALT: {}", self.state.is_alt_topology.to_string().to_uppercase()),
-			];
-			if self.state.is_alt_topology {
-				left_lines.push(format!("is xz flipped global: {}, {}", self.state.is_x_flipped_global, self.state.is_z_flipped_global).to_uppercase());
-			}
-			for (i, line) in left_lines.into_iter().enumerate() {
-				all_2d_points.extend(
-					get_text_pixels(&line, (5, 5 + 35*(i as i32)), text_size, wh)
-						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
-				);
-			}
-
-			let right_lines = vec![
-				format!("VSYNC: {}", self.renderer.is_vsync_on().select("ON", "OFF")),
-			];
-			for (i, line) in right_lines.into_iter().enumerate() {
-				all_2d_points.extend(
-					get_text_pixels(&line, (wi - 5 - (line.len() as i32) * (text_size as i32) * 6, 5 + 35*(i as i32 + 1)), text_size, wh)
-						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
-				);
-			}
-
-			// // zqqx lang
-			// for char_n in 0..5 {
-			// 	let scale: u8 = 5;
-			// 	let zqqx_char: [i8; 25] = array::from_fn(|i| {
-			// 		let (i, j) = (i % 5, i / 5);
-			// 		let cx = char_n as f32;
-			// 		let cy = ((i+j*5) as f32).sqrt();
-			// 		// let cz = ((j+i*5) as f32).ln_1p();
-			// 		let cz = (frame_n as f32).ln_1p().ln_1p().ln_1p();
-			// 		let coefs = vec3![cx, cy, cz].normed();
-			// 		let t = lorenz_attractor.get_linear_combination(coefs.x, coefs.y, coefs.z);
-			// 		let t = t.rem_euclid(1.);
-			// 		(t * 255. - 128.) as i8
-			// 	});
-			// 	let bitmap = zqqx_lang.add_or_quantize(ZqqxChar::new(zqqx_char));
-			// 	buffer.render_custom_char(
-			// 		bitmap.quantize(),
-			// 		((buffer.w as i32) - 200 + (((char_n*7)*scale) as i32), 10),
-			// 		WHITE,
-			// 		scale,
-			// 	);
-			// }
-
-			// TODO: better fps measurement/handling?
-			let frame_end_timestamp = Instant::now();
-			let frametime = frame_end_timestamp.duration_since(self.state.last_update_inst);
-			let fps = 1. / frametime.as_secs_f32();
-			// if fps < 60. { panic!() }
-			let fps_text = format!("FPS?: {fps:.1}");
-			all_2d_points.extend(
-				get_text_pixels(&fps_text, (wi - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), text_size, wh)
-					.into_iter().map(|(x,y)| Point2d::from(x, y, color))
-			);
-		}
-
 		if self.state.is_help_opened {
 			const PADDING: f32 = 30.;
 			const ITEM_Y: f32 = 30.;
@@ -864,6 +799,71 @@ impl App {
 				);
 				i += 1;
 			}
+		}
+
+		if self.state.is_extra_info_shown { // must be at the end bc it "measures" fps
+			let text_size = 3;
+			let color = ColorU8::GRAY_32;
+			let mut left_lines = vec![
+				format!("XYZ: {:.3}, {:.3}, {:.3}", self.state.camera.position.x, self.state.camera.position.y, self.state.camera.position.z),
+				format!("CHUNK XZ: {}, {}", self.state.current_chunk_x, self.state.current_chunk_z),
+				format!("MOVE TYPE: {}", self.state.camera.movement_type.to_str_uppercase()),
+				format!("FOV: {:.3}", self.state.camera.fov_x.to_degrees()),
+				format!("TOPOLOGY IS ALT: {}", self.state.is_alt_topology.to_string().to_uppercase()),
+			];
+			if self.state.is_alt_topology {
+				left_lines.push(format!("is xz flipped global: {}, {}", self.state.is_x_flipped_global, self.state.is_z_flipped_global).to_uppercase());
+			}
+			for (i, line) in left_lines.into_iter().enumerate() {
+				all_2d_points.extend(
+					get_text_pixels(&line, (5, 5 + 35*(i as i32)), text_size, wh)
+						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
+				);
+			}
+
+			let right_lines = vec![
+				format!("VSYNC: {}", self.renderer.is_vsync_on().select("ON", "OFF")),
+			];
+			for (i, line) in right_lines.into_iter().enumerate() {
+				all_2d_points.extend(
+					get_text_pixels(&line, (wi - 5 - (line.len() as i32) * (text_size as i32) * 6, 5 + 35*(i as i32 + 1)), text_size, wh)
+						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
+				);
+			}
+
+			// // zqqx lang
+			// for char_n in 0..5 {
+			// 	let scale: u8 = 5;
+			// 	let zqqx_char: [i8; 25] = array::from_fn(|i| {
+			// 		let (i, j) = (i % 5, i / 5);
+			// 		let cx = char_n as f32;
+			// 		let cy = ((i+j*5) as f32).sqrt();
+			// 		// let cz = ((j+i*5) as f32).ln_1p();
+			// 		let cz = (frame_n as f32).ln_1p().ln_1p().ln_1p();
+			// 		let coefs = vec3![cx, cy, cz].normed();
+			// 		let t = lorenz_attractor.get_linear_combination(coefs.x, coefs.y, coefs.z);
+			// 		let t = t.rem_euclid(1.);
+			// 		(t * 255. - 128.) as i8
+			// 	});
+			// 	let bitmap = zqqx_lang.add_or_quantize(ZqqxChar::new(zqqx_char));
+			// 	buffer.render_custom_char(
+			// 		bitmap.quantize(),
+			// 		((buffer.w as i32) - 200 + (((char_n*7)*scale) as i32), 10),
+			// 		WHITE,
+			// 		scale,
+			// 	);
+			// }
+
+			// TODO: better fps measurement/handling?
+			let frame_end_timestamp = Instant::now();
+			let frametime = frame_end_timestamp.duration_since(self.state.last_update_inst);
+			let fps = 1. / frametime.as_secs_f32();
+			// if fps < 60. { panic!() }
+			let fps_text = format!("FPS?: {fps:.1}");
+			all_2d_points.extend(
+				get_text_pixels(&fps_text, (wi - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), text_size, wh)
+					.into_iter().map(|(x,y)| Point2d::from(x, y, color))
+			);
 		}
 
 		let mut encoder = self.renderer.device.create_command_encoder(&Default::default());
