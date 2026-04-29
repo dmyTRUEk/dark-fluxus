@@ -1,5 +1,11 @@
 //! dark fluxus
 
+#![feature(
+	default_field_values,
+	generic_const_exprs,
+	vec_from_fn,
+)]
+
 #![allow(
 	clippy::collapsible_if,
 	clippy::just_underscores_and_digits,
@@ -16,19 +22,13 @@
 	unused_variables, // FIXME: ENABLE ME
 )]
 
-#![feature(
-	default_field_values,
-	generic_const_exprs,
-	vec_from_fn,
-)]
-
 use std::{f32::consts::{FRAC_PI_2, GOLDEN_RATIO, PI, TAU}, time::Instant};
 
-use rand::{RngExt, rng, rngs::ThreadRng};
+use glam::{Mat4, Quat, Vec2, Vec3};
 use pollster::block_on;
+use rand::{RngExt, rng, rngs::ThreadRng};
 use wgpu::util::DeviceExt;
 use winit::{event::{DeviceEvent, ElementState, KeyEvent, WindowEvent}, event_loop::ActiveEventLoop, window::Window};
-use glam::{Mat4, Quat, Vec2, Vec3};
 
 mod color_u8;
 mod consts;
@@ -176,11 +176,11 @@ impl App {
 				}
 				self.state.is_redraw_needed = true;
 			}
-			KeyboardInput { event: KeyEvent { logical_key: Named(F1), state: ElementState::Pressed, repeat: false, .. }, .. } if !self.state.is_paused && !self.state.is_inventory_opened => {
+			KeyboardInput { event: KeyEvent { logical_key: Named(F1), state: ElementState::Pressed, repeat: false, .. }, .. } if !is_overlay || self.state.is_help_opened => {
 				self.state.is_help_opened = !self.state.is_help_opened;
 				self.state.is_redraw_needed = true;
 			}
-			KeyboardInput { event: KeyEvent { logical_key: Named(F3), state: ElementState::Pressed, repeat: false, .. }, .. } if !is_overlay => {
+			KeyboardInput { event: KeyEvent { logical_key: Named(F3), state: ElementState::Pressed, repeat: false, .. }, .. } => {
 				self.state.is_extra_info_shown = !self.state.is_extra_info_shown;
 				self.state.is_redraw_needed = true;
 			}
@@ -188,7 +188,7 @@ impl App {
 				self.state.camera.next_movement_type();
 				self.state.is_redraw_needed = true;
 			}
-			KeyboardInput { event: KeyEvent { logical_key, state: ElementState::Pressed, repeat: false, .. }, .. } if (logical_key == Character(ss("i")) || logical_key == Named(Tab)) && !self.state.is_paused && !self.state.is_help_opened => {
+			KeyboardInput { event: KeyEvent { logical_key, state: ElementState::Pressed, repeat: false, .. }, .. } if (logical_key == Character(ss("i")) || logical_key == Named(Tab)) && (!is_overlay || self.state.is_inventory_opened) => {
 				self.state.is_inventory_opened = !self.state.is_inventory_opened;
 				self.state.is_redraw_needed = true;
 			}
@@ -352,7 +352,7 @@ impl App {
 	}
 
 	fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-		self.update();
+		self.update(); // TODO?
 		if self.state.is_redraw_needed {
 			self.window.request_redraw();
 			self.state.is_redraw_needed = self.state.input.is_redraw_needed(); // "hack" for "smooth" keyboard input (not as "text")
@@ -776,24 +776,25 @@ impl App {
 			const ITEMS_N: u32 = 15;
 			debug_assert_eq!(1, ITEMS_N % 2);
 			const SIZE_X: f32 = 1000.;
-			const SIZE_Y: f32 = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as f32);
-			const ITEM_X: f32 = SIZE_X - 2.*PADDING;
+			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32);
+			const ITEM_X: f32 = SIZE_X - 2. * PADDING;
 			all_2d_rect_filled.push(Rectangle2dFilledOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
 			all_2d_rect_hollow.push(Rectangle2dHollowOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
 			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
 			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
 			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
 			const ITEM_TEXT_SIZE: u8 = 5;
-			const ITEM_INNER_PADDING: f32 = (ITEM_Y - (ITEM_TEXT_SIZE as f32)*(FONT_H as f32)) / 2.;
-			let i_init: u32 = self.state.help_line_index.saturating_sub((ITEMS_N-1)/2);
+			const ITEM_INNER_PADDING: f32 = (ITEM_Y - (ITEM_TEXT_SIZE as f32) * (FONT_H as f32)) / 2.;
+			let i_init: u32 = self.state.help_line_index.saturating_sub((ITEMS_N - 1) / 2)
+				.min((self.state.help_lines.len() as u32).saturating_sub(ITEMS_N));
 			let mut i: u32 = i_init;
 			while i - i_init < ITEMS_N && i < self.state.help_lines.len() as u32 {
 				let help_line = &self.state.help_lines[i as usize];
 				let color = if i == self.state.help_line_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
 				let item_cx = wfh;
 				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
-				let text_x = (item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32;
-				let text_y = (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32;
+				let text_x = (item_cx - ITEM_X/2. + ITEM_INNER_PADDING) as i32;
+				let text_y = (item_cy - ITEM_Y/2. + ITEM_INNER_PADDING) as i32;
 				all_2d_points.extend(
 					get_text_pixels(help_line, (text_x, text_y), ITEM_TEXT_SIZE, wh)
 						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
@@ -808,16 +809,17 @@ impl App {
 			const ITEMS_N: u32 = 11;
 			debug_assert_eq!(1, ITEMS_N % 2);
 			const SIZE_X: f32 = 900.;
-			const SIZE_Y: f32 = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as f32);
-			const ITEM_X: f32 = SIZE_X - 2.*PADDING;
+			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32);
+			const ITEM_X: f32 = SIZE_X - 2. * PADDING;
 			all_2d_rect_filled.push(Rectangle2dFilledOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
 			all_2d_rect_hollow.push(Rectangle2dHollowOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
 			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
 			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
 			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
 			const ITEM_TEXT_SIZE: u8 = 5;
-			const ITEM_INNER_PADDING: f32 = (ITEM_Y - (ITEM_TEXT_SIZE as f32)*(FONT_H as f32)) / 2.;
-			let i_init: u32 = self.state.inventory_item_index.saturating_sub((ITEMS_N-1)/2);
+			const ITEM_INNER_PADDING: f32 = (ITEM_Y - (ITEM_TEXT_SIZE as f32) * (FONT_H as f32)) / 2.;
+			let i_init: u32 = self.state.inventory_item_index.saturating_sub((ITEMS_N - 1) / 2)
+				.min((self.state.inventory_items.len() as u32).saturating_sub(ITEMS_N));
 			let mut i: u32 = i_init;
 			while i - i_init < ITEMS_N && i < self.state.inventory_items.len() as u32 {
 				let inventory_item = &self.state.inventory_items[i as usize];
@@ -825,8 +827,8 @@ impl App {
 				let item_cx = wfh;
 				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
 				all_2d_rect_hollow.push(Rectangle2dHollowOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
-				let text_x = (item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32;
-				let text_y = (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32;
+				let text_x = (item_cx - ITEM_X/2. + ITEM_INNER_PADDING) as i32;
+				let text_y = (item_cy - ITEM_Y/2. + ITEM_INNER_PADDING) as i32;
 				all_2d_points.extend(
 					get_text_pixels(&inventory_item.to_string(), (text_x, text_y), ITEM_TEXT_SIZE, wh)
 						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
@@ -835,14 +837,15 @@ impl App {
 			}
 		}
 
+		// TODO(refactor): reorder
 		if self.state.is_paused {
 			const PADDING: f32 = 50.;
 			const ITEM_Y: f32 = 80.;
 			const ITEMS_N: u32 = 7;
 			debug_assert_eq!(1, ITEMS_N % 2);
 			const SIZE_X: f32 = 800.;
-			const SIZE_Y: f32 = PADDING + (ITEM_Y+PADDING)*(ITEMS_N as f32);
-			const ITEM_X: f32 = SIZE_X - 2.*PADDING;
+			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32);
+			const ITEM_X: f32 = SIZE_X - 2. * PADDING;
 			all_2d_rect_filled.push(Rectangle2dFilledOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
 			all_2d_rect_hollow.push(Rectangle2dHollowOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
 			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
@@ -850,7 +853,8 @@ impl App {
 			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
 			const ITEM_TEXT_SIZE: u8 = 5;
 			const ITEM_INNER_PADDING: f32 = (ITEM_Y - (ITEM_TEXT_SIZE as f32)*(FONT_H as f32)) / 2.;
-			let i_init: u32 = self.state.pause_menu_item_index.saturating_sub((ITEMS_N-1)/2);
+			let i_init: u32 = self.state.pause_menu_item_index.saturating_sub((ITEMS_N - 1) / 2)
+				.min((self.state.pause_menu_items.len() as u32).saturating_sub(ITEMS_N));
 			let mut i: u32 = i_init;
 			while i - i_init < ITEMS_N && i < self.state.pause_menu_items.len() as u32 {
 				let menu_item = &self.state.pause_menu_items[i as usize];
@@ -858,8 +862,8 @@ impl App {
 				let item_cx = wfh;
 				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
 				all_2d_rect_hollow.push(Rectangle2dHollowOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
-				let text_x = (item_cx-ITEM_X/2.+ITEM_INNER_PADDING) as i32;
-				let text_y = (item_cy-ITEM_Y/2.+ITEM_INNER_PADDING) as i32;
+				let text_x = (item_cx - ITEM_X/2. + ITEM_INNER_PADDING) as i32;
+				let text_y = (item_cy - ITEM_Y/2. + ITEM_INNER_PADDING) as i32;
 				all_2d_points.extend(
 					get_text_pixels(menu_item.to_str(), (text_x, text_y), ITEM_TEXT_SIZE, wh)
 						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
@@ -1394,7 +1398,9 @@ impl GameState {
 	}
 
 	fn is_overlay(&self) -> bool {
-		self.is_paused || self.is_inventory_opened || self.is_help_opened
+		self.is_paused
+		|| self.is_inventory_opened
+		|| self.is_help_opened
 	}
 }
 
@@ -1714,16 +1720,6 @@ fn gen_surface_world_params(rng: &mut ThreadRng) -> Vec<(f32, f32, f32, f32)> {
 		rng.random_range(2. ..= 7_f32).powi(2).round() as usize,
 		|_i| gen_surface_world_param(rng)
 	)
-}
-
-fn main_loop_old() {
-	// TODO: FPS
-	// let tick_end_timestamp = SystemTime::now();
-	// let ticktime = tick_end_timestamp.duration_since(tick_frame_begin_timestamp).unwrap();
-	// let target_fps = 60;
-	// if ticktime < Duration::new(0, 1_000_000_000u32 / target_fps) {
-	// 	sleep(Duration::new(0, 1_000_000_000u32 / target_fps) - ticktime);
-	// }
 }
 
 

@@ -19,12 +19,6 @@ num_enum = "0.7.6"
 #encoding_rs = "0.8.35"
 #llama-cpp-2 = "0.1.139"
 rand = "0.10.0"
-# sdl3 = { version = "0.17.3", features = [
-# 	# src: https://docs.rs/sdl3/latest/sdl3/
-# 	"use-pkg-config"
-# 	# "static-link"
-# 	# "build-from-source-static"
-# ] }
 bytemuck = "1.25.0"
 glam = "0.32.1"
 pollster = "0.4.0"

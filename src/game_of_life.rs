@@ -2,7 +2,6 @@
 
 use std::collections::HashSet;
 
-use either::{Either, IntoEither};
 use glam::IVec2;
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 
@@ -31,18 +30,18 @@ impl GameOfLifeState {
 		fn norm((x, y): (i32, i32)) -> u32 { x.unsigned_abs() + y.unsigned_abs() }
 
 		let mut alive_cells = HashSet::new();
-		let iter = (rng.random_range(0. ..= 1.) < 0.5).select_either(
+		let iter = rng.random_bool(0.5).select_either(
 			int_square_spiral(),
 			int_circle_spiral()
 		);
 		for p in iter {
-			if rng.random_range(0. ..= 1.) < density {
+			if rng.random_bool(density as f64) {
 				let _inserted = alive_cells.insert(p.into());
 				// debug_assert!(inserted); // works only for square spiral
 			}
 			let is_out_of_radius = norm(p) > radius;
 			if is_out_of_radius {
-				let is_rng = rng.random_range(0. ..= 1.) < ratio / (density * (radius.pow(3) as f32));
+				let is_rng = rng.random_bool((ratio / (density * (radius.pow(3) as f32))) as f64);
 				if is_rng {
 					break
 				} else {
