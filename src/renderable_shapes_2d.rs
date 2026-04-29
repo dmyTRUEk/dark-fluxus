@@ -161,14 +161,14 @@ impl ToVerticesNC<3> for Triangle2dNC {
 
 /// rectangle 2d, filled, one color
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Rectangle2dFilledOC {
+pub struct Rectangle2dOC {
 	pub x: f32, // center
 	pub y: f32, // center
 	pub w: f32,
 	pub h: f32,
 	pub color: ColorU8,
 }
-impl Rectangle2dFilledOC {
+impl Rectangle2dOC {
 	fn to_triangles(self) -> [Triangle2dOC; 2] {
 		let Self { x, y, w, h, color } = self;
 		let w = w / 2.;
@@ -178,25 +178,6 @@ impl Rectangle2dFilledOC {
 			Triangle2dOC::new(Vec2::new(x+w, y+h), Vec2::new(x+w, y-h), Vec2::new(x-w, y+h), color),
 		]
 	}
-}
-impl ToVertices<6> for Rectangle2dFilledOC {
-	fn to_vertices(self) -> [Vertex; 6] {
-		self.to_triangles().map(|t| t.to_vertices()).flatten_()
-	}
-}
-
-
-
-/// rectangle 2d, filled, one color
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Rectangle2dHollowOC {
-	pub x: f32, // center
-	pub y: f32, // center
-	pub w: f32,
-	pub h: f32,
-	pub color: ColorU8,
-}
-impl Rectangle2dHollowOC {
 	fn to_lines(self) -> [Line2dOC; 4] {
 		let Self { x, y, w, h, color } = self;
 		let w = w / 2.;
@@ -208,9 +189,10 @@ impl Rectangle2dHollowOC {
 			Line2dOC::new(Vec2::new(x+w, y-h), Vec2::new(x-w, y-h), color),
 		]
 	}
-}
-impl ToVertices<8> for Rectangle2dHollowOC {
-	fn to_vertices(self) -> [Vertex; 8] {
+	pub fn to_triangles_vertices(self) -> [Vertex; 6] {
+		self.to_triangles().map(|t| t.to_vertices()).flatten_()
+	}
+	pub fn to_lines_vertices(self) -> [Vertex; 8] {
 		self.to_lines().map(|l| l.to_vertices()).flatten_()
 	}
 }

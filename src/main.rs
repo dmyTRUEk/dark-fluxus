@@ -512,8 +512,8 @@ impl App {
 		let mut all_2d_lines: Vec<Line2d> = vec![];
 		let mut all_2d_lines_oc: Vec<Line2dOC> = vec![];
 		let mut all_2d_triangles: Vec<Triangle2d> = vec![];
-		let mut all_2d_rect_filled: Vec<Rectangle2dFilledOC> = vec![];
-		let mut all_2d_rect_hollow: Vec<Rectangle2dHollowOC> = vec![];
+		let mut all_2d_rect_filled: Vec<Rectangle2dOC> = vec![];
+		let mut all_2d_rect_hollow: Vec<Rectangle2dOC> = vec![];
 
 		let (w, h) = (self.renderer.config.width, self.renderer.config.height);
 		let wh = (w, h);
@@ -797,9 +797,9 @@ impl App {
 			debug_assert_eq!(1, ITEMS_N % 2);
 			const SIZE_X: f32 = 1000.;
 			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32);
+			all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
+			all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
 			const ITEM_X: f32 = SIZE_X - 2. * PADDING;
-			all_2d_rect_filled.push(Rectangle2dFilledOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
-			all_2d_rect_hollow.push(Rectangle2dHollowOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
 			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
 			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
 			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
@@ -830,9 +830,9 @@ impl App {
 			debug_assert_eq!(1, ITEMS_N % 2);
 			const SIZE_X: f32 = 900.;
 			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32);
+			all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
+			all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
 			const ITEM_X: f32 = SIZE_X - 2. * PADDING;
-			all_2d_rect_filled.push(Rectangle2dFilledOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
-			all_2d_rect_hollow.push(Rectangle2dHollowOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
 			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
 			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
 			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
@@ -846,7 +846,7 @@ impl App {
 				let color = if i == self.state.inventory_item_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
 				let item_cx = wfh;
 				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
-				all_2d_rect_hollow.push(Rectangle2dHollowOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
+				all_2d_rect_hollow.push(Rectangle2dOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
 				let text_x = (item_cx - ITEM_X/2. + ITEM_INNER_PADDING) as i32;
 				let text_y = (item_cy - ITEM_Y/2. + ITEM_INNER_PADDING) as i32;
 				all_2d_points.extend(
@@ -865,8 +865,8 @@ impl App {
 			const SIZE_X: f32 = 1400.; // TODO: relative size (90%)
 			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32); // TODO: relative size (90%)
 			const ITEM_X: f32 = SIZE_X - 2. * PADDING;
-			all_2d_rect_filled.push(Rectangle2dFilledOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
-			all_2d_rect_hollow.push(Rectangle2dHollowOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
+			all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
+			all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
 			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
 			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
 			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
@@ -884,7 +884,7 @@ impl App {
 				{ // render text
 					let text = stock.to_string();
 					let color = if i == self.state.stock_market_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
-					all_2d_rect_hollow.push(Rectangle2dHollowOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
+					all_2d_rect_hollow.push(Rectangle2dOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
 					all_2d_points.extend(
 						get_text_pixels(&text, (text_x.round() as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
 							.into_iter().map(|(x,y)| Point2d::from(x, y, color))
@@ -933,9 +933,9 @@ impl App {
 			debug_assert_eq!(1, ITEMS_N % 2);
 			const SIZE_X: f32 = 800.;
 			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32);
+			all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
+			all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
 			const ITEM_X: f32 = SIZE_X - 2. * PADDING;
-			all_2d_rect_filled.push(Rectangle2dFilledOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
-			all_2d_rect_hollow.push(Rectangle2dHollowOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
 			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
 			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
 			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
@@ -949,7 +949,7 @@ impl App {
 				let color = if i == self.state.pause_menu_item_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
 				let item_cx = wfh;
 				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
-				all_2d_rect_hollow.push(Rectangle2dHollowOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
+				all_2d_rect_hollow.push(Rectangle2dOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
 				let text_x = (item_cx - ITEM_X/2. + ITEM_INNER_PADDING) as i32;
 				let text_y = (item_cy - ITEM_Y/2. + ITEM_INNER_PADDING) as i32;
 				all_2d_points.extend(
@@ -1129,11 +1129,11 @@ impl App {
 			self.renderer.queue.write_buffer(&self.renderer.uniform_buffer_2d, 0, bytemuck::bytes_of(&uniforms_2d));
 
 			let triangles_2d: Vec<Vertex> = all_2d_triangles.into_iter().flat_map(|t| t.to_vertices())
-				.chain(all_2d_rect_filled.into_iter().flat_map(|r| r.to_vertices()))
+				.chain(all_2d_rect_filled.into_iter().flat_map(|r| r.to_triangles_vertices()))
 				.collect();
 			let lines_2d: Vec<Vertex> = all_2d_lines.into_iter().flat_map(|l| l.to_vertices())
 				.chain(all_2d_lines_oc.into_iter().flat_map(|r| r.to_vertices()))
-				.chain(all_2d_rect_hollow.into_iter().flat_map(|r| r.to_vertices()))
+				.chain(all_2d_rect_hollow.into_iter().flat_map(|r| r.to_lines_vertices()))
 				.collect();
 			let points_2d: Vec<Vertex> = all_2d_points.into_iter().map(|p| p.to_vertex())
 				.collect();
