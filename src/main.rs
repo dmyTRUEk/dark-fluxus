@@ -176,6 +176,9 @@ impl App {
 				else if self.state.is_help_opened {
 					self.state.is_help_opened = false;
 				}
+				else if self.state.is_specific_stock_open {
+					self.state.is_specific_stock_open = false;
+				}
 				else if self.state.is_stock_market_open {
 					self.state.is_stock_market_open = false;
 				}
@@ -214,6 +217,9 @@ impl App {
 				else if self.state.is_inventory_opened {
 					self.state.inventory_item_index = self.state.inventory_item_index.dec_mod(self.state.inventory_items.len() as u32);
 				}
+				else if self.state.is_specific_stock_open {
+					// TODO?
+				}
 				else if self.state.is_stock_market_open {
 					self.state.stock_market_index = self.state.stock_market_index.dec_mod(self.state.stock_market.stocks.len() as u32);
 				}
@@ -228,6 +234,9 @@ impl App {
 				}
 				else if self.state.is_inventory_opened {
 					self.state.inventory_item_index = self.state.inventory_item_index.inc_mod(self.state.inventory_items.len() as u32);
+				}
+				else if self.state.is_specific_stock_open {
+					// TODO?
 				}
 				else if self.state.is_stock_market_open {
 					self.state.stock_market_index = self.state.stock_market_index.inc_mod(self.state.stock_market.stocks.len() as u32);
@@ -308,6 +317,14 @@ impl App {
 						}
 					}
 					self.state.is_inventory_opened = false;
+					self.state.is_redraw_needed = true;
+				}
+				else if self.state.is_specific_stock_open {
+					self.state.is_specific_stock_open = false;
+					self.state.is_redraw_needed = true;
+				}
+				else if self.state.is_stock_market_open {
+					self.state.is_specific_stock_open = true;
 					self.state.is_redraw_needed = true;
 				}
 				else {
@@ -857,55 +874,60 @@ impl App {
 			}
 		}
 
-		if self.state.is_stock_market_open {
+		{ // stock_market rendering
 			const PADDING: f32 = 20.;
 			const ITEM_Y: f32 = 150.;
 			const ITEMS_N: u32 = 5;
 			// debug_assert_eq!(1, ITEMS_N % 2);
 			const SIZE_X: f32 = 1400.; // TODO: relative size (90%)
 			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32); // TODO: relative size (90%)
-			const ITEM_X: f32 = SIZE_X - 2. * PADDING;
-			all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
-			all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
-			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
-			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
-			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
-			const ITEM_TEXT_SIZE: u8 = 5;
-			const ITEM_INNER_PADDING: f32 = 10.;
-			let i_init: u32 = self.state.stock_market_index.saturating_sub((ITEMS_N - 1) / 2)
-				.min((self.state.stock_market.stocks.len() as u32).saturating_sub(ITEMS_N));
-			let mut i: u32 = i_init;
-			while i - i_init < ITEMS_N && i < self.state.stock_market.stocks.len() as u32 {
-				let stock = &self.state.stock_market.stocks[i as usize];
-				let item_cx = wfh;
-				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
-				let text_x = item_cx - ITEM_X/2. + ITEM_INNER_PADDING;
-				let text_y = item_cy - ITEM_Y/2. + ITEM_INNER_PADDING;
-				{ // render text
+			if self.state.is_specific_stock_open {
+				const TEXT_SIZE: u8 = 5;
+				all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
+				all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
+				let stock = &self.state.stock_market.stocks[self.state.stock_market_index as usize];
+				let text_x = wfh - SIZE_X/2. + PADDING;
+				let text_y = hfh - SIZE_Y/2. + PADDING;
+				{ // render top text
 					let text = stock.to_string();
-					let color = if i == self.state.stock_market_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
-					all_2d_rect_hollow.push(Rectangle2dOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
+					let color = ColorU8::WHITE;
 					all_2d_points.extend(
-						get_text_pixels(&text, (text_x.round() as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
+						get_text_pixels(&text, (text_x.round() as i32, text_y.round() as i32), TEXT_SIZE, wh)
 							.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 					);
 				}
 				{ // plot prices over time
+					const RT_TEXT_SIZE: u8 = 3;
+					const PLOT_RT_TEXT_PADDING: f32 = 5.;
+					let price_current = stock.get_current_price();
+					let price_current_str = format!("{price_current:.2}");
+					let (price_gmin, price_gmax) = stock.calc_min_max_global();
+					let (price_gmin_str, price_gmax_str) = (format!("{price_gmin:.2}"), format!("{price_gmax:.2}"));
+					// let rt_text_max_len = [price_min_str, price_max_str, price_gmin_str, price_gmax_str]
+					// 	.map(|s| s.len()).into_iter().max().unwrap();
+					let rt_text_max_len = [&price_gmin_str, &price_gmax_str, &price_current_str]
+						.map(|s| s.len()).into_iter().max().unwrap();
+					// let rt_text_max_len = 10; // -1.32e+308
 					let pixels_x_left = text_x;
-					let pixels_y_top = text_y + (ITEM_TEXT_SIZE as f32) * 5. + ITEM_INNER_PADDING;
-					let pixels_x_right = item_cx + ITEM_X/2. - ITEM_INNER_PADDING;
-					let pixels_y_bottom = item_cy + ITEM_Y/2. - ITEM_INNER_PADDING;
+					let pixels_y_top = text_y + (TEXT_SIZE as f32) * 5. + PADDING;
+					// let text_width = (RT_TEXT_SIZE as f32) * 6. * (rt_text_max_len as f32) - (RT_TEXT_SIZE as f32) * 5.;
+					let text_width = (RT_TEXT_SIZE as f32) * 5. * (rt_text_max_len as f32) + (RT_TEXT_SIZE as f32) * (rt_text_max_len as f32 - 1.);
+					dbg!(text_width);
+					let pixels_x_right = wfh + SIZE_X/2. - PADDING - text_width - PLOT_RT_TEXT_PADDING;
+					let pixels_y_bottom = hfh + SIZE_Y/2. - PADDING;
 					let pixels_x_range = pixels_x_right - pixels_x_left;
 					let pixels_y_range = pixels_y_bottom - pixels_y_top;
 					let stock_history_len = pixels_x_range.round() as u32;
-					let (price_min, price_max) = stock.get_min_max_latest(stock_history_len);
+					let (price_min, price_max) = stock.calc_min_max_latest(stock_history_len);
+					let (price_min_str, price_max_str) = (format!("{price_min:.2}"), format!("{price_max:.2}"));
 					let price_range = price_max - price_min;
+					// let price_grange = price_gmax - price_gmin;
 					all_2d_lines_oc.extend(
 						stock.get_latest_price_history(stock_history_len).iter().enumerate().map_windows(|[(i_prev, price_prev), (i, price)]| {
-							let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32;
+							let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
 							let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
 							let pixels_x_prev = pixels_x_left + (*i_prev as f32);
-							let y = 1. - ((*price - price_min) / price_range) as f32;
+							let y = 1. - ((*price - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
 							let pixels_y = y * pixels_y_range + pixels_y_top;
 							let pixels_x = pixels_x_left + (*i as f32);
 							let color = match price.partial_cmp(price_prev).unwrap() {
@@ -920,8 +942,100 @@ impl App {
 							)
 						})
 					);
+					let rt_text_x = (pixels_x_right + PLOT_RT_TEXT_PADDING).round() as i32;
+					let price_gmax_y = pixels_y_top;
+					all_2d_points.extend(
+						get_text_pixels(&price_gmax_str, (rt_text_x, price_gmax_y.round() as i32), RT_TEXT_SIZE, wh)
+							.into_iter().map(|(x,y)| Point2d::from(x, y, ColorU8::GREEN))
+					);
+					let price_gmin_y = pixels_y_bottom - (RT_TEXT_SIZE as f32) * 5.;
+					all_2d_points.extend(
+						get_text_pixels(&price_gmin_str, (rt_text_x, price_gmin_y.round() as i32), RT_TEXT_SIZE, wh)
+							.into_iter().map(|(x,y)| Point2d::from(x, y, ColorU8::RED))
+					);
+					let price_max_y = 1. - ((price_max - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+					let price_max_y = price_max_y * pixels_y_range + pixels_y_top;
+					let price_max_y = max(price_max_y, price_gmax_y + (RT_TEXT_SIZE as f32) * 6.);
+					all_2d_points.extend(
+						get_text_pixels(&price_max_str, (rt_text_x, price_max_y.round() as i32), RT_TEXT_SIZE, wh)
+							.into_iter().map(|(x,y)| Point2d::from(x, y, ColorU8::CYAN))
+					);
+					let price_min_y = 1. - ((price_min - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+					let price_min_y = price_min_y * pixels_y_range + pixels_y_top;
+					let price_min_y = min(price_min_y, price_gmin_y - (RT_TEXT_SIZE as f32) * 6.);
+					all_2d_points.extend(
+						get_text_pixels(&price_min_str, (rt_text_x, price_min_y.round() as i32), RT_TEXT_SIZE, wh)
+							.into_iter().map(|(x,y)| Point2d::from(x, y, ColorU8::MAGENTA))
+					);
+					let price_y = 1. - ((stock.get_current_price() - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+					let price_y = price_y * pixels_y_range + pixels_y_top;
+					let price_y = price_y.clamp(price_max_y + (RT_TEXT_SIZE as f32) * 6., price_min_y - (RT_TEXT_SIZE as f32) * 6.);
+					all_2d_points.extend(
+						get_text_pixels(&price_current_str, (rt_text_x, price_y.round() as i32), RT_TEXT_SIZE, wh)
+							.into_iter().map(|(x,y)| Point2d::from(x, y, ColorU8::WHITE))
+					);
 				}
-				i += 1;
+			}
+			else if self.state.is_stock_market_open {
+				all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
+				all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
+				const ITEM_X: f32 = SIZE_X - 2. * PADDING;
+				const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
+				const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
+				// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
+				const ITEM_TEXT_SIZE: u8 = 5;
+				const ITEM_INNER_PADDING: f32 = 10.;
+				let i_init: u32 = self.state.stock_market_index.saturating_sub((ITEMS_N - 1) / 2)
+					.min((self.state.stock_market.stocks.len() as u32).saturating_sub(ITEMS_N));
+				let mut i: u32 = i_init;
+				while i - i_init < ITEMS_N && i < self.state.stock_market.stocks.len() as u32 {
+					let stock = &self.state.stock_market.stocks[i as usize];
+					let item_cx = wfh;
+					let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
+					let color = if i == self.state.stock_market_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
+					all_2d_rect_hollow.push(Rectangle2dOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
+					let text_x = item_cx - ITEM_X/2. + ITEM_INNER_PADDING;
+					let text_y = item_cy - ITEM_Y/2. + ITEM_INNER_PADDING;
+					{ // render text
+						let text = stock.to_string();
+						all_2d_points.extend(
+							get_text_pixels(&text, (text_x.round() as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
+								.into_iter().map(|(x,y)| Point2d::from(x, y, color))
+						);
+					}
+					{ // plot prices over time
+						let pixels_x_left = text_x;
+						let pixels_y_top = text_y + (ITEM_TEXT_SIZE as f32) * 5. + ITEM_INNER_PADDING;
+						let pixels_x_right = item_cx + ITEM_X/2. - ITEM_INNER_PADDING;
+						let pixels_y_bottom = item_cy + ITEM_Y/2. - ITEM_INNER_PADDING;
+						let pixels_x_range = pixels_x_right - pixels_x_left;
+						let pixels_y_range = pixels_y_bottom - pixels_y_top;
+						let stock_history_len = pixels_x_range.round() as u32;
+						let (price_min, price_max) = stock.calc_min_max_latest(stock_history_len);
+						let price_range = price_max - price_min;
+						all_2d_lines_oc.extend(
+							stock.get_latest_price_history(stock_history_len).iter().enumerate().map_windows(|[(i_prev, price_prev), (i, price)]| {
+								let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32;
+								let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
+								let pixels_x_prev = pixels_x_left + (*i_prev as f32);
+								let y = 1. - ((*price - price_min) / price_range) as f32;
+								let pixels_y = y * pixels_y_range + pixels_y_top;
+								let pixels_x = pixels_x_left + (*i as f32);
+								let color = match price.partial_cmp(price_prev).unwrap() {
+									Ordering::Less => ColorU8::RED,
+									Ordering::Greater => ColorU8::GREEN,
+									Ordering::Equal => ColorU8::WHITE,
+								};
+								Line2dOC::new(
+									Vec2::new(pixels_x_prev, pixels_y_prev),
+									Vec2::new(pixels_x, pixels_y),
+									color
+								)
+							})
+						);
+					}
+					i += 1;
+				}
 			}
 		}
 
@@ -1435,7 +1549,7 @@ struct GameState {
 	render_distance: u32 = 5,
 	current_chunk_x: u32 = 0,
 	current_chunk_z: u32 = 0,
-	is_alt_topology: bool = true, // FIXME: must be false by default
+	is_alt_topology: bool = false,
 	is_x_flipped_global: bool = false, // for alt topology
 	is_z_flipped_global: bool = false, // for alt topology
 
@@ -1453,6 +1567,7 @@ struct GameState {
 	stock_market: StockMarket,
 	is_stock_market_open: bool = false,
 	stock_market_index: u32 = 0,
+	is_specific_stock_open: bool = false,
 }
 
 impl GameState {

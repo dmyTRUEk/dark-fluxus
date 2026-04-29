@@ -63,24 +63,8 @@ impl Stock {
 		format!("{a}{b}{c}{d}")
 	}
 
-	pub fn get_min_max(&self) -> (f64, f64) {
-		let mut min = f64::MAX;
-		let mut max = f64::MIN;
-		for price in self.get_full_price_history() {
-			if *price < min { min = *price }
-			if *price > max { max = *price }
-		}
-		(min, max)
-	}
-
-	pub fn get_min_max_latest(&self, n: u32) -> (f64, f64) {
-		let mut min = f64::MAX;
-		let mut max = f64::MIN;
-		for price in self.get_latest_price_history(n) {
-			if *price < min { min = *price }
-			if *price > max { max = *price }
-		}
-		(min, max)
+	pub fn get_current_price(&self) -> f64 {
+		self.current_price
 	}
 
 	pub fn get_full_price_history(&self) -> &[f64] {
@@ -92,6 +76,26 @@ impl Stock {
 		let i_begin = self.price_history.len().saturating_sub(n);
 		let i_end = self.price_history.len();
 		&self.price_history[i_begin .. i_end]
+	}
+
+	pub fn calc_min_max_global(&self) -> (f64, f64) {
+		let mut min = f64::MAX;
+		let mut max = f64::MIN;
+		for price in self.get_full_price_history() {
+			if *price < min { min = *price }
+			if *price > max { max = *price }
+		}
+		(min, max)
+	}
+
+	pub fn calc_min_max_latest(&self, n: u32) -> (f64, f64) {
+		let mut min = f64::MAX;
+		let mut max = f64::MIN;
+		for price in self.get_latest_price_history(n) {
+			if *price < min { min = *price }
+			if *price > max { max = *price }
+		}
+		(min, max)
 	}
 
 	fn update(&mut self, rng: &mut ThreadRng) {
@@ -111,6 +115,14 @@ impl Stock {
 			MulDiv(coef) => self.current_price * if rng.random_bool(0.5) { coef } else { coef.recip() },
 		};
 		self.price_history.push(self.current_price);
+	}
+
+	pub fn to_string_with_minmax(&self, n: u32) -> String {
+		let name = self.get_name();
+		let price = self.current_price;
+		let (min, max) = self.calc_min_max_latest(n);
+		let (gmin, gmax) = self.calc_min_max_global();
+		format!("{name}: {price:.2}, MIN: {min:.2}, MAX: {max:.2}, GMIN: {gmin:.2}, GMAX: {gmax:.2}")
 	}
 }
 impl ToString for Stock {
