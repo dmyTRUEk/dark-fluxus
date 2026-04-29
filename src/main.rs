@@ -246,6 +246,14 @@ impl App {
 						ToggleShakyFov => {
 							self.state.camera.toggle_shaky_fov();
 						}
+						IncRenderDistance => {
+							self.state.render_distance += 1;
+						}
+						DecRenderDistance => {
+							if self.state.render_distance >= 2 {
+								self.state.render_distance -= 1;
+							}
+						}
 						ToggleVsync => {
 							self.renderer.config.present_mode = if self.renderer.is_vsync_on() { Renderer::VSYNC_OFF } else { Renderer::VSYNC_ON };
 							self.reconfigure_surface();
@@ -503,7 +511,7 @@ impl App {
 				);
 				for (dx, dz, _x, _z, _is_x_flipped_local, _is_z_flipped_local, _chunk) in iter {
 					// let step = 2_f32.powi(max(dx.abs(), dz.abs()) - 1); // TODO: use if render_distance > something?
-					let step = 1.;
+					let step = max(1, (dx.abs() + dz.abs())/2) as f32;
 					let mut x = -CHUNK_SIZE_HALF;
 					while x < CHUNK_SIZE_HALF {
 						let mut z = -CHUNK_SIZE_HALF;
@@ -1308,7 +1316,7 @@ struct GameState {
 	surface_world_params: Vec<(f32, f32, f32, f32)>,
 
 	chunks: Vec2D<Chunk>,
-	render_distance: u32 = 2,
+	render_distance: u32 = 5,
 	current_chunk_x: u32 = 0,
 	current_chunk_z: u32 = 0,
 	is_alt_topology: bool = true, // FIXME: must be false by default
@@ -1351,6 +1359,8 @@ impl GameState {
 			ToggleDarkness,
 			ToggleUnlimitedFov,
 			ToggleShakyFov,
+			IncRenderDistance,
+			DecRenderDistance,
 			ToggleVsync,
 		]};
 
@@ -1771,6 +1781,8 @@ enum PauseMenuItem {
 	ToggleDarkness,
 	ToggleUnlimitedFov,
 	ToggleShakyFov,
+	IncRenderDistance,
+	DecRenderDistance,
 	ToggleVsync,
 	// TODO: inc/dec render_distance
 	Text(String), // just for test
@@ -1786,6 +1798,8 @@ impl PauseMenuItem {
 			ToggleDarkness => "TOGGLE DARKNESS",
 			ToggleUnlimitedFov => "TOGGLE UNLIMITED FOV",
 			ToggleShakyFov => "TOGGLE SHAKY FOV",
+			IncRenderDistance => "INCREASE RENDER DISTANCE",
+			DecRenderDistance => "DECREASE RENDER DISTANCE",
 			ToggleVsync => "TOGGLE VSYNC",
 			Text(text) => text,
 		}
