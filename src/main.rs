@@ -3,6 +3,7 @@
 #![feature(
 	default_field_values,
 	generic_const_exprs,
+	iter_map_windows,
 	vec_from_fn,
 )]
 
@@ -22,9 +23,11 @@
 	unused_variables, // FIXME: ENABLE ME
 )]
 
-use std::{f32::consts::{FRAC_PI_2, GOLDEN_RATIO, PI, TAU}, time::Instant};
+use std::{cmp::Ordering, f32::consts::{FRAC_PI_2, GOLDEN_RATIO, PI, TAU}, time::Instant};
 
+use f128::f128;
 use glam::{Mat4, Quat, Vec2, Vec3};
+use num_traits::float::Float; // for f128 methods
 use pollster::block_on;
 use rand::{RngExt, rng, rngs::ThreadRng};
 use wgpu::util::DeviceExt;
@@ -42,6 +45,7 @@ mod misc;
 mod renderable_shapes;
 mod renderable_shapes_2d;
 mod renderable_shapes_3d;
+mod stock_market;
 mod typesafe_rng;
 mod utils;
 mod utils_io;
@@ -62,6 +66,7 @@ use misc::*;
 use renderable_shapes::*;
 use renderable_shapes_2d::*;
 use renderable_shapes_3d::*;
+use stock_market::*;
 use typesafe_rng::*;
 use utils::*;
 use utils_io::*;
@@ -171,6 +176,9 @@ impl App {
 				else if self.state.is_help_opened {
 					self.state.is_help_opened = false;
 				}
+				else if self.state.is_stock_market_open {
+					self.state.is_stock_market_open = false;
+				}
 				else {
 					self.state.is_paused = !self.state.is_paused;
 				}
@@ -188,6 +196,10 @@ impl App {
 				self.state.camera.next_movement_type();
 				self.state.is_redraw_needed = true;
 			}
+			KeyboardInput { event: KeyEvent { logical_key: Named(F8), state: ElementState::Pressed, repeat: false, .. }, .. } if !is_overlay || self.state.is_stock_market_open => {
+				self.state.is_stock_market_open = !self.state.is_stock_market_open;
+				self.state.is_redraw_needed = true;
+			}
 			KeyboardInput { event: KeyEvent { logical_key, state: ElementState::Pressed, repeat: false, .. }, .. } if (logical_key == Character(ss("i")) || logical_key == Named(Tab)) && (!is_overlay || self.state.is_inventory_opened) => {
 				self.state.is_inventory_opened = !self.state.is_inventory_opened;
 				self.state.is_redraw_needed = true;
@@ -202,6 +214,9 @@ impl App {
 				else if self.state.is_inventory_opened {
 					self.state.inventory_item_index = self.state.inventory_item_index.dec_mod(self.state.inventory_items.len() as u32);
 				}
+				else if self.state.is_stock_market_open {
+					self.state.stock_market_index = self.state.stock_market_index.dec_mod(self.state.stock_market.stocks.len() as u32);
+				}
 				self.state.is_redraw_needed = true;
 			}
 			KeyboardInput { event: KeyEvent { logical_key: Named(ArrowDown), state: ElementState::Pressed, .. }, .. } if is_overlay => {
@@ -213,6 +228,9 @@ impl App {
 				}
 				else if self.state.is_inventory_opened {
 					self.state.inventory_item_index = self.state.inventory_item_index.inc_mod(self.state.inventory_items.len() as u32);
+				}
+				else if self.state.is_stock_market_open {
+					self.state.stock_market_index = self.state.stock_market_index.inc_mod(self.state.stock_market.stocks.len() as u32);
 				}
 				self.state.is_redraw_needed = true;
 			}
@@ -378,6 +396,7 @@ impl App {
 
 		// physics update:
 		if !self.state.is_paused /* TODO: && exist what needs to be updated */ {
+			self.state.stock_market.update(&mut self.rng);
 			match self.state.dimension {
 				Dimension::Base => {
 					self.state.dim_base_la_for_floor_color.step(DIM_BASE_LA_SPEED * dt);
@@ -491,6 +510,7 @@ impl App {
 
 		let mut all_2d_points: Vec<Point2d> = vec![];
 		let mut all_2d_lines: Vec<Line2d> = vec![];
+		let mut all_2d_lines_oc: Vec<Line2dOC> = vec![];
 		let mut all_2d_triangles: Vec<Triangle2d> = vec![];
 		let mut all_2d_rect_filled: Vec<Rectangle2dFilledOC> = vec![];
 		let mut all_2d_rect_hollow: Vec<Rectangle2dHollowOC> = vec![];
@@ -837,6 +857,74 @@ impl App {
 			}
 		}
 
+		if self.state.is_stock_market_open {
+			const PADDING: f32 = 20.;
+			const ITEM_Y: f32 = 150.;
+			const ITEMS_N: u32 = 5;
+			// debug_assert_eq!(1, ITEMS_N % 2);
+			const SIZE_X: f32 = 1400.; // TODO: relative size (90%)
+			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32); // TODO: relative size (90%)
+			const ITEM_X: f32 = SIZE_X - 2. * PADDING;
+			all_2d_rect_filled.push(Rectangle2dFilledOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
+			all_2d_rect_hollow.push(Rectangle2dHollowOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
+			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
+			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
+			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
+			const ITEM_TEXT_SIZE: u8 = 5;
+			const ITEM_INNER_PADDING: f32 = 10.;
+			let i_init: u32 = self.state.stock_market_index.saturating_sub((ITEMS_N - 1) / 2)
+				.min((self.state.stock_market.stocks.len() as u32).saturating_sub(ITEMS_N));
+			let mut i: u32 = i_init;
+			while i - i_init < ITEMS_N && i < self.state.stock_market.stocks.len() as u32 {
+				let stock = &self.state.stock_market.stocks[i as usize];
+				let item_cx = wfh;
+				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
+				let text_x = item_cx - ITEM_X/2. + ITEM_INNER_PADDING;
+				let text_y = item_cy - ITEM_Y/2. + ITEM_INNER_PADDING;
+				{ // render text
+					let text = stock.to_string();
+					let color = if i == self.state.stock_market_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
+					all_2d_rect_hollow.push(Rectangle2dHollowOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
+					all_2d_points.extend(
+						get_text_pixels(&text, (text_x.round() as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
+							.into_iter().map(|(x,y)| Point2d::from(x, y, color))
+					);
+				}
+				{ // plot prices over time
+					let pixels_x_left = text_x;
+					let pixels_y_top = text_y + (ITEM_TEXT_SIZE as f32) * 5. + ITEM_INNER_PADDING;
+					let pixels_x_right = item_cx + ITEM_X/2. - ITEM_INNER_PADDING;
+					let pixels_y_bottom = item_cy + ITEM_Y/2. - ITEM_INNER_PADDING;
+					let pixels_x_range = pixels_x_right - pixels_x_left;
+					let pixels_y_range = pixels_y_bottom - pixels_y_top;
+					let stock_history_len = pixels_x_range.round() as u32;
+					let (price_min, price_max) = stock.get_min_max_latest(stock_history_len);
+					let price_range = price_max - price_min;
+					all_2d_lines_oc.extend(
+						stock.get_latest_price_history(stock_history_len).iter().enumerate().map_windows(|[(i_prev, price_prev), (i, price)]| {
+							let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32;
+							let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
+							let pixels_x_prev = pixels_x_left + (*i_prev as f32);
+							let y = 1. - ((*price - price_min) / price_range) as f32;
+							let pixels_y = y * pixels_y_range + pixels_y_top;
+							let pixels_x = pixels_x_left + (*i as f32);
+							let color = match price.partial_cmp(price_prev).unwrap() {
+								Ordering::Less => ColorU8::RED,
+								Ordering::Greater => ColorU8::GREEN,
+								Ordering::Equal => ColorU8::WHITE,
+							};
+							Line2dOC::new(
+								Vec2::new(pixels_x_prev, pixels_y_prev),
+								Vec2::new(pixels_x, pixels_y),
+								color
+							)
+						})
+					);
+				}
+				i += 1;
+			}
+		}
+
 		// TODO(refactor): reorder
 		if self.state.is_paused {
 			const PADDING: f32 = 50.;
@@ -872,36 +960,80 @@ impl App {
 			}
 		}
 
-		if self.state.is_extra_info_shown { // must be at the end bc it "measures" fps
+		{
 			let text_size = 3;
 			let color = ColorU8::GRAY_32;
 			let mut left_lines = vec![
-				format!("XYZ: {:.3}, {:.3}, {:.3}", self.state.camera.position.x, self.state.camera.position.y, self.state.camera.position.z),
-				format!("CHUNK XZ: {}, {}", self.state.current_chunk_x, self.state.current_chunk_z),
-				format!("MOVE TYPE: {}", self.state.camera.movement_type.to_str_uppercase()),
-				format!("FOV: {:.3}", self.state.camera.fov_x.to_degrees()),
-				format!("TOPOLOGY IS ALT: {}", self.state.is_alt_topology.to_string().to_uppercase()),
+				format!("$: {}", {
+					let money = self.state.money;
+					if !money.is_finite() {
+						money.to_string().to_uppercase()
+					} else {
+						let money_str: String = money.to_string();
+						if let Some(index_of_period) = money_str.chars().position(|c| c == '.') {
+							let money_str = money_str + "00";
+							money_str[0..index_of_period+2].to_string()
+						} else {
+							money_str + ".00"
+						}
+					}
+				}),
 			];
-			if self.state.is_alt_topology {
-				left_lines.push(format!("is xz flipped global: {}, {}", self.state.is_x_flipped_global, self.state.is_z_flipped_global).to_uppercase());
-			}
-			match &self.state.dimension {
-				Dimension::Base => {}
-				Dimension::SurfaceWorld => {}
-				Dimension::GameOfLife { seed } => {
-					left_lines.push(format!("GAME OF LIFE SEED:{seed}"));
+			let mut right_lines = vec![];
+
+			if self.state.is_extra_info_shown { // must be at the end bc it "measures" fps
+				left_lines.extend([
+					format!("XYZ: {:.3}, {:.3}, {:.3}", self.state.camera.position.x, self.state.camera.position.y, self.state.camera.position.z),
+					format!("CHUNK XZ: {}, {}", self.state.current_chunk_x, self.state.current_chunk_z),
+					format!("MOVE TYPE: {}", self.state.camera.movement_type.to_str_uppercase()),
+					format!("FOV: {:.3}", self.state.camera.fov_x.to_degrees()),
+					format!("TOPOLOGY IS ALT: {}", self.state.is_alt_topology.to_string().to_uppercase()),
+				]);
+				if self.state.is_alt_topology {
+					left_lines.push(format!("is xz flipped global: {}, {}", self.state.is_x_flipped_global, self.state.is_z_flipped_global).to_uppercase());
 				}
+				match &self.state.dimension {
+					Dimension::Base => {}
+					Dimension::SurfaceWorld => {}
+					Dimension::GameOfLife { seed } => {
+						left_lines.push(format!("GAME OF LIFE SEED:{seed}"));
+					}
+				}
+
+				right_lines.push(
+					format!("VSYNC: {}", self.renderer.is_vsync_on().select("ON", "OFF")),
+				);
+
+				// // zqqx lang
+				// for char_n in 0..5 {
+				// 	let scale: u8 = 5;
+				// 	let zqqx_char: [i8; 25] = array::from_fn(|i| {
+				// 		let (i, j) = (i % 5, i / 5);
+				// 		let cx = char_n as f32;
+				// 		let cy = ((i+j*5) as f32).sqrt();
+				// 		// let cz = ((j+i*5) as f32).ln_1p();
+				// 		let cz = (frame_n as f32).ln_1p().ln_1p().ln_1p();
+				// 		let coefs = vec3![cx, cy, cz].normed();
+				// 		let t = lorenz_attractor.get_linear_combination(coefs.x, coefs.y, coefs.z);
+				// 		let t = t.rem_euclid(1.);
+				// 		(t * 255. - 128.) as i8
+				// 	});
+				// 	let bitmap = zqqx_lang.add_or_quantize(ZqqxChar::new(zqqx_char));
+				// 	buffer.render_custom_char(
+				// 		bitmap.quantize(),
+				// 		((buffer.w as i32) - 200 + (((char_n*7)*scale) as i32), 10),
+				// 		WHITE,
+				// 		scale,
+				// 	);
+				// }
 			}
+
 			for (i, line) in left_lines.into_iter().enumerate() {
 				all_2d_points.extend(
 					get_text_pixels(&line, (5, 5 + 35*(i as i32)), text_size, wh)
 						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 				);
 			}
-
-			let right_lines = vec![
-				format!("VSYNC: {}", self.renderer.is_vsync_on().select("ON", "OFF")),
-			];
 			for (i, line) in right_lines.into_iter().enumerate() {
 				all_2d_points.extend(
 					get_text_pixels(&line, (wi - 5 - (line.len() as i32) * (text_size as i32) * 6, 5 + 35*(i as i32 + 1)), text_size, wh)
@@ -909,39 +1041,18 @@ impl App {
 				);
 			}
 
-			// // zqqx lang
-			// for char_n in 0..5 {
-			// 	let scale: u8 = 5;
-			// 	let zqqx_char: [i8; 25] = array::from_fn(|i| {
-			// 		let (i, j) = (i % 5, i / 5);
-			// 		let cx = char_n as f32;
-			// 		let cy = ((i+j*5) as f32).sqrt();
-			// 		// let cz = ((j+i*5) as f32).ln_1p();
-			// 		let cz = (frame_n as f32).ln_1p().ln_1p().ln_1p();
-			// 		let coefs = vec3![cx, cy, cz].normed();
-			// 		let t = lorenz_attractor.get_linear_combination(coefs.x, coefs.y, coefs.z);
-			// 		let t = t.rem_euclid(1.);
-			// 		(t * 255. - 128.) as i8
-			// 	});
-			// 	let bitmap = zqqx_lang.add_or_quantize(ZqqxChar::new(zqqx_char));
-			// 	buffer.render_custom_char(
-			// 		bitmap.quantize(),
-			// 		((buffer.w as i32) - 200 + (((char_n*7)*scale) as i32), 10),
-			// 		WHITE,
-			// 		scale,
-			// 	);
-			// }
-
-			// TODO: better fps measurement/handling?
-			let frame_end_timestamp = Instant::now();
-			let frametime = frame_end_timestamp.duration_since(self.state.last_update_inst);
-			let fps = 1. / frametime.as_secs_f32();
-			// if fps < 60. { panic!() }
-			let fps_text = format!("FPS?: {fps:.1}");
-			all_2d_points.extend(
-				get_text_pixels(&fps_text, (wi - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), text_size, wh)
-					.into_iter().map(|(x,y)| Point2d::from(x, y, color))
-			);
+			if self.state.is_extra_info_shown {
+				// TODO: better fps measurement/handling?
+				let frame_end_timestamp = Instant::now();
+				let frametime = frame_end_timestamp.duration_since(self.state.last_update_inst);
+				let fps = 1. / frametime.as_secs_f32();
+				// if fps < 60. { panic!() }
+				let fps_text = format!("FPS?: {fps:.1}");
+				all_2d_points.extend(
+					get_text_pixels(&fps_text, (wi - 5 - (fps_text.len() as i32) * (text_size as i32) * 6, 5), text_size, wh)
+						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
+				);
+			}
 		}
 
 		let mut encoder = self.renderer.device.create_command_encoder(&Default::default());
@@ -1021,6 +1132,7 @@ impl App {
 				.chain(all_2d_rect_filled.into_iter().flat_map(|r| r.to_vertices()))
 				.collect();
 			let lines_2d: Vec<Vertex> = all_2d_lines.into_iter().flat_map(|l| l.to_vertices())
+				.chain(all_2d_lines_oc.into_iter().flat_map(|r| r.to_vertices()))
 				.chain(all_2d_rect_hollow.into_iter().flat_map(|r| r.to_vertices()))
 				.collect();
 			let points_2d: Vec<Vertex> = all_2d_points.into_iter().map(|p| p.to_vertex())
@@ -1336,6 +1448,11 @@ struct GameState {
 	// TODO(refactor)?: move into Dimension::GameOfLife
 	game_of_life_state: GameOfLifeState,
 	game_of_life_is_fast: bool = false,
+
+	money: f128,
+	stock_market: StockMarket,
+	is_stock_market_open: bool = false,
+	stock_market_index: u32 = 0,
 }
 
 impl GameState {
@@ -1352,7 +1469,7 @@ impl GameState {
 			"+- - change fov",
 			"f3 - toggle info overlay",
 			"f5 - change movement mode",
-			// "f8 - stock market",
+			"f8 - stock market", // TODO: change keybind?
 		].map(|s| s.to_uppercase()).to_vec();
 
 		let pause_menu_items = { use PauseMenuItem::*; vec![
@@ -1393,6 +1510,8 @@ impl GameState {
 			pause_menu_items,
 			dim_base_la_for_floor_color,
 			chunks,
+			money: f128::from(1000.),
+			stock_market: StockMarket::new(),
 			..
 		}
 	}
@@ -1401,6 +1520,7 @@ impl GameState {
 		self.is_paused
 		|| self.is_inventory_opened
 		|| self.is_help_opened
+		|| self.is_stock_market_open
 	}
 }
 
