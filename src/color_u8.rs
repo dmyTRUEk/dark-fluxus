@@ -27,6 +27,14 @@ impl ColorU8 {
 	pub const GRAY_4: Self = Self::new(4, 4, 4);
 	pub const GRAY_2: Self = Self::new(2, 2, 2);
 	pub const GRAY_1: Self = Self::new(1, 1, 1);
+	pub const TORTOISE    : Self = Self::new(128, 255, 255);
+	pub const PINK        : Self = Self::new(255, 128, 255);
+	pub const LIGHT_YELLOW: Self = Self::new(255, 255, 128);
+	pub const PINK_64     : Self = Self::new(255, 64, 255);
+	pub const PINK_32     : Self = Self::new(255, 32, 255);
+	pub const DARK_RED    : Self = Self::new(128, 0, 0);
+	pub const DARK_RED_64 : Self = Self::new(64, 0, 0);
+	pub const DARK_RED_32 : Self = Self::new(32, 0, 0);
 
 	pub const fn new(r: u8, g: u8, b: u8) -> Self {
 		Self { r, g, b }

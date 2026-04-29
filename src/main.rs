@@ -337,7 +337,19 @@ impl App {
 					}
 				}
 			}
-			KeyboardInput { event, .. } => { // handle "continuous" input
+			KeyboardInput { event: KeyEvent { logical_key: Character(c), state: ElementState::Pressed, .. }, .. } if c == "-" && is_overlay => {
+				if self.state.is_specific_stock_open {
+					self.state.stock_zoom -= 1;
+					self.state.is_redraw_needed = true;
+				}
+			}
+			KeyboardInput { event: KeyEvent { logical_key: Character(c), state: ElementState::Pressed, .. }, .. } if c == "=" && is_overlay => {
+				if self.state.is_specific_stock_open {
+					self.state.stock_zoom += 1;
+					self.state.is_redraw_needed = true;
+				}
+			}
+			KeyboardInput { event, .. } if !is_overlay => { // handle "continuous" input
 				// dbg!(&event);
 				let is_pressed = event.state == ElementState::Pressed;
 				// dbg!(is_pressed);
@@ -807,6 +819,8 @@ impl App {
 
 		// -------------------- UI --------------------
 
+		// TODO(refactor)?: rename TEXT_SIZE -> FONT_SIZE
+
 		if self.state.is_help_opened {
 			const PADDING: f32 = 30.;
 			const ITEM_Y: f32 = 30.;
@@ -827,7 +841,7 @@ impl App {
 			let mut i: u32 = i_init;
 			while i - i_init < ITEMS_N && i < self.state.help_lines.len() as u32 {
 				let help_line = &self.state.help_lines[i as usize];
-				let color = if i == self.state.help_line_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
+				let color = (i == self.state.help_line_index).select(ITEM_SELECTED_COLOR, ITEM_UNSELECTED_COLOR);
 				let item_cx = wfh;
 				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
 				let text_x = (item_cx - ITEM_X/2. + ITEM_INNER_PADDING) as i32;
@@ -860,7 +874,7 @@ impl App {
 			let mut i: u32 = i_init;
 			while i - i_init < ITEMS_N && i < self.state.inventory_items.len() as u32 {
 				let inventory_item = &self.state.inventory_items[i as usize];
-				let color = if i == self.state.inventory_item_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
+				let color = (i == self.state.inventory_item_index).select(ITEM_SELECTED_COLOR, ITEM_UNSELECTED_COLOR);
 				let item_cx = wfh;
 				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
 				all_2d_rect_hollow.push(Rectangle2dOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
@@ -881,6 +895,14 @@ impl App {
 			// debug_assert_eq!(1, ITEMS_N % 2);
 			const SIZE_X: f32 = 1400.; // TODO: relative size (90%)
 			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32); // TODO: relative size (90%)
+			fn calc_text_width_(text_len: u32, font_size: u8) -> u32 {
+				assert!(text_len > 0);
+				(font_size as u32) * 5 * text_len + (font_size as u32) * (text_len - 1)
+			}
+			fn calc_text_width(text: &str, font_size: u8) -> u32 {
+				assert!(text.len() > 0);
+				calc_text_width_(text.len() as u32, font_size)
+			}
 			if self.state.is_specific_stock_open {
 				const TEXT_SIZE: u8 = 5;
 				all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
@@ -888,60 +910,125 @@ impl App {
 				let stock = &self.state.stock_market.stocks[self.state.stock_market_index as usize];
 				let text_x = wfh - SIZE_X/2. + PADDING;
 				let text_y = hfh - SIZE_Y/2. + PADDING;
+				let price_current = stock.get_current_price();
+				let price_current_str = format!("{price_current:.2}");
 				{ // render top text
-					let text = stock.to_string();
-					let color = ColorU8::WHITE;
+					// let text = stock.to_string();
 					all_2d_points.extend(
-						get_text_pixels(&text, (text_x.round() as i32, text_y.round() as i32), TEXT_SIZE, wh)
+						get_text_pixels(&(stock.get_name() + ":"), (text_x.round() as i32, text_y.round() as i32), TEXT_SIZE, wh)
+							.into_iter().map(|(x,y)| Point2d::from(x, y, ColorU8::WHITE))
+					);
+					let color = (price_current > 0.).select(ColorU8::WHITE, ColorU8::RED); // TODO?: change color
+					all_2d_points.extend(
+						get_text_pixels(&price_current_str, (text_x.round() as i32 + calc_text_width_(6, TEXT_SIZE) as i32, text_y.round() as i32), TEXT_SIZE, wh)
 							.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 					);
 				}
 				{ // plot prices over time
 					const RT_TEXT_SIZE: u8 = 3;
 					const PLOT_RT_TEXT_PADDING: f32 = 5.;
-					let price_current = stock.get_current_price();
-					let price_current_str = format!("{price_current:.2}");
 					let (price_gmin, price_gmax) = stock.calc_min_max_global();
 					let (price_gmin_str, price_gmax_str) = (format!("{price_gmin:.2}"), format!("{price_gmax:.2}"));
 					// let rt_text_max_len = [price_min_str, price_max_str, price_gmin_str, price_gmax_str]
 					// 	.map(|s| s.len()).into_iter().max().unwrap();
 					let rt_text_max_len = [&price_gmin_str, &price_gmax_str, &price_current_str]
-						.map(|s| s.len()).into_iter().max().unwrap();
+						.map(|s| s.len() as u32).into_iter().max().unwrap();
 					// let rt_text_max_len = 10; // -1.32e+308
 					let pixels_x_left = text_x;
 					let pixels_y_top = text_y + (TEXT_SIZE as f32) * 5. + PADDING;
-					// let text_width = (RT_TEXT_SIZE as f32) * 6. * (rt_text_max_len as f32) - (RT_TEXT_SIZE as f32) * 5.;
-					let text_width = (RT_TEXT_SIZE as f32) * 5. * (rt_text_max_len as f32) + (RT_TEXT_SIZE as f32) * (rt_text_max_len as f32 - 1.);
-					dbg!(text_width);
+					let text_width = calc_text_width_(rt_text_max_len, RT_TEXT_SIZE) as f32;
 					let pixels_x_right = wfh + SIZE_X/2. - PADDING - text_width - PLOT_RT_TEXT_PADDING;
 					let pixels_y_bottom = hfh + SIZE_Y/2. - PADDING;
 					let pixels_x_range = pixels_x_right - pixels_x_left;
 					let pixels_y_range = pixels_y_bottom - pixels_y_top;
-					let stock_history_len = pixels_x_range.round() as u32;
+					let stock_history_len = pixels_x_range;
+					let stock_history_len = match self.state.stock_zoom {
+						0 => stock_history_len,
+						zoom if zoom < 0 => stock_history_len * (zoom.abs() as f32 + 1.),
+						zoom if zoom > 0 => stock_history_len / (zoom.abs() as f32 + 1.),
+						_ => unreachable!() // rust is dumb here lol
+					};
+					let stock_history_len = stock_history_len.round() as u32;
 					let (price_min, price_max) = stock.calc_min_max_latest(stock_history_len);
 					let (price_min_str, price_max_str) = (format!("{price_min:.2}"), format!("{price_max:.2}"));
 					let price_range = price_max - price_min;
 					// let price_grange = price_gmax - price_gmin;
-					all_2d_lines_oc.extend(
-						stock.get_latest_price_history(stock_history_len).iter().enumerate().map_windows(|[(i_prev, price_prev), (i, price)]| {
-							let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
-							let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
-							let pixels_x_prev = pixels_x_left + (*i_prev as f32);
-							let y = 1. - ((*price - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
-							let pixels_y = y * pixels_y_range + pixels_y_top;
-							let pixels_x = pixels_x_left + (*i as f32);
-							let color = match price.partial_cmp(price_prev).unwrap() {
-								Ordering::Less => ColorU8::RED,
-								Ordering::Greater => ColorU8::GREEN,
-								Ordering::Equal => ColorU8::WHITE,
-							};
-							Line2dOC::new(
-								Vec2::new(pixels_x_prev, pixels_y_prev),
-								Vec2::new(pixels_x, pixels_y),
-								color
-							)
-						})
-					);
+					match self.state.stock_zoom {
+						0 => {
+							all_2d_lines_oc.extend(
+								stock.get_latest_price_history(stock_history_len).iter().enumerate()
+										.map_windows(|[(i_prev, price_prev), (i, price)]| {
+									let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+									let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
+									let pixels_x_prev = pixels_x_left + (*i_prev as f32);
+									let y = 1. - ((*price - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+									let pixels_y = y * pixels_y_range + pixels_y_top;
+									let pixels_x = pixels_x_left + (*i as f32);
+									let color = match price.partial_cmp(price_prev).unwrap() {
+										Ordering::Less => ColorU8::RED,
+										Ordering::Greater => ColorU8::GREEN,
+										Ordering::Equal => ColorU8::WHITE,
+									};
+									Line2dOC::new(
+										Vec2::new(pixels_x_prev, pixels_y_prev),
+										Vec2::new(pixels_x, pixels_y),
+										color
+									)
+								})
+							);
+						}
+						zoom if zoom < 0 => {
+							let k = zoom.unsigned_abs() + 1;
+							all_2d_lines_oc.extend(
+								stock.get_latest_price_history(stock_history_len)
+										.chunks(k as usize).map(|chunk| chunk[chunk.len()-1])
+										.enumerate().map_windows(|[(i_prev, price_prev), (i, price)]| {
+									let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+									let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
+									let pixels_x_prev = pixels_x_left + (*i_prev as f32);
+									let y = 1. - ((*price - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+									let pixels_y = y * pixels_y_range + pixels_y_top;
+									let pixels_x = pixels_x_left + (*i as f32);
+									let color = match price.partial_cmp(price_prev).unwrap() {
+										Ordering::Less => ColorU8::RED,
+										Ordering::Greater => ColorU8::GREEN,
+										Ordering::Equal => ColorU8::WHITE,
+									};
+									Line2dOC::new(
+										Vec2::new(pixels_x_prev, pixels_y_prev),
+										Vec2::new(pixels_x, pixels_y),
+										color
+									)
+								})
+							);
+						}
+						zoom if zoom > 0 => {
+							let k = zoom + 1;
+							all_2d_lines_oc.extend(
+								stock.get_latest_price_history(stock_history_len).iter().enumerate()
+										.map_windows(|[(i_prev, price_prev), (i, price)]| {
+									let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+									let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
+									let pixels_x_prev = pixels_x_left + (*i_prev as f32) * (k as f32);
+									let y = 1. - ((*price - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+									let pixels_y = y * pixels_y_range + pixels_y_top;
+									let pixels_x = pixels_x_left + (*i as f32) * (k as f32);
+									let color = match price.partial_cmp(price_prev).unwrap() {
+										Ordering::Less => ColorU8::RED,
+										Ordering::Greater => ColorU8::GREEN,
+										Ordering::Equal => ColorU8::WHITE,
+									};
+									Line2dOC::new(
+										Vec2::new(pixels_x_prev, pixels_y_prev),
+										Vec2::new(pixels_x, pixels_y),
+										color
+									)
+								})
+							);
+						}
+						_ => unreachable!()
+					}
+					// TODO: visualize where buy/sell were made with vertical/horizontal lines
 					let rt_text_x = (pixels_x_right + PLOT_RT_TEXT_PADDING).round() as i32;
 					let price_gmax_y = pixels_y_top;
 					all_2d_points.extend(
@@ -953,6 +1040,8 @@ impl App {
 						get_text_pixels(&price_gmin_str, (rt_text_x, price_gmin_y.round() as i32), RT_TEXT_SIZE, wh)
 							.into_iter().map(|(x,y)| Point2d::from(x, y, ColorU8::RED))
 					);
+					// TODO: add sqrt(N) latest min/max price
+					// TODO: add log(N) latest min/max price
 					let price_max_y = 1. - ((price_max - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
 					let price_max_y = price_max_y * pixels_y_range + pixels_y_top;
 					let price_max_y = max(price_max_y, price_gmax_y + (RT_TEXT_SIZE as f32) * 6.);
@@ -992,18 +1081,26 @@ impl App {
 					let stock = &self.state.stock_market.stocks[i as usize];
 					let item_cx = wfh;
 					let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
-					let color = if i == self.state.stock_market_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
+					let is_selected = i == self.state.stock_market_index;
+					let color = is_selected.select(ITEM_SELECTED_COLOR, ITEM_UNSELECTED_COLOR);
 					all_2d_rect_hollow.push(Rectangle2dOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
 					let text_x = item_cx - ITEM_X/2. + ITEM_INNER_PADDING;
 					let text_y = item_cy - ITEM_Y/2. + ITEM_INNER_PADDING;
 					{ // render text
-						let text = stock.to_string();
 						all_2d_points.extend(
-							get_text_pixels(&text, (text_x.round() as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
+							get_text_pixels(&(stock.get_name() + ":"), (text_x.round() as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
+								.into_iter().map(|(x,y)| Point2d::from(x, y, color))
+						);
+						let price = stock.get_current_price();
+						let price_str = format!("{price:.2}");
+						let color = (price > 0.).select(color, is_selected.select(ColorU8::RED, ColorU8::DARK_RED_64)); // TODO?: change color
+						all_2d_points.extend(
+							get_text_pixels(&price_str, (text_x.round() as i32 + calc_text_width_(6, ITEM_TEXT_SIZE) as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
 								.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 						);
 					}
 					{ // plot prices over time
+						// TODO: render all time price history on the left and recent history on the right
 						let pixels_x_left = text_x;
 						let pixels_y_top = text_y + (ITEM_TEXT_SIZE as f32) * 5. + ITEM_INNER_PADDING;
 						let pixels_x_right = item_cx + ITEM_X/2. - ITEM_INNER_PADDING;
@@ -1060,7 +1157,7 @@ impl App {
 			let mut i: u32 = i_init;
 			while i - i_init < ITEMS_N && i < self.state.pause_menu_items.len() as u32 {
 				let menu_item = &self.state.pause_menu_items[i as usize];
-				let color = if i == self.state.pause_menu_item_index { ITEM_SELECTED_COLOR } else { ITEM_UNSELECTED_COLOR };
+				let color = (i == self.state.pause_menu_item_index).select(ITEM_SELECTED_COLOR, ITEM_UNSELECTED_COLOR);
 				let item_cx = wfh;
 				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
 				all_2d_rect_hollow.push(Rectangle2dOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
@@ -1568,6 +1665,7 @@ struct GameState {
 	is_stock_market_open: bool = false,
 	stock_market_index: u32 = 0,
 	is_specific_stock_open: bool = false,
+	stock_zoom: i32 = 0,
 }
 
 impl GameState {

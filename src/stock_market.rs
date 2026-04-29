@@ -58,7 +58,7 @@ impl Stock {
 		}
 	}
 
-	fn get_name(&self) -> String {
+	pub fn get_name(&self) -> String {
 		let [a, b, c, d] = self.name;
 		format!("{a}{b}{c}{d}")
 	}
