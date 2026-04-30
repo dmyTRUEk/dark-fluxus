@@ -444,6 +444,7 @@ impl App {
 					// TODO?
 				}
 				else if self.state.is_stock_market_open {
+					// TODO: same for shift+space => `.prev()`
 					self.state.left_stock_history_scale.next();
 					let left_stock_history_scale_str = format!("{:?}", self.state.left_stock_history_scale).to_uppercase();
 					self.state.messages.push(Message {
@@ -451,10 +452,46 @@ impl App {
 						expiration_time: 1.,
 						color: ColorU8::GRAY,
 					});
-					const MIN_WIDTH: u32 = 100;
+					const MIN_WIDTH: u32 = 200;
 					let stock = &self.state.stock_market.stocks[self.state.stock_market_index as usize];
 					match self.state.left_stock_history_scale {
 						StockHistoryScale::Full => {}
+						StockHistoryScale::Div3 => {
+							if (stock.get_price_history_div3().len() as u32) < MIN_WIDTH {
+								self.state.messages.push(Message {
+									text: format!("LEFT STOCK HISTORY SCALE `DIV3` IS SUBOPTIMAL"),
+									expiration_time: 1.,
+									color: ColorU8::DARK_RED_64,
+								});
+							}
+						}
+						StockHistoryScale::Div10 => {
+							if (stock.get_price_history_div10().len() as u32) < MIN_WIDTH {
+								self.state.messages.push(Message {
+									text: format!("LEFT STOCK HISTORY SCALE `DIV10` IS SUBOPTIMAL"),
+									expiration_time: 1.,
+									color: ColorU8::DARK_RED_64,
+								});
+							}
+						}
+						StockHistoryScale::Div30 => {
+							if (stock.get_price_history_div30().len() as u32) < MIN_WIDTH {
+								self.state.messages.push(Message {
+									text: format!("LEFT STOCK HISTORY SCALE `DIV30` IS SUBOPTIMAL"),
+									expiration_time: 1.,
+									color: ColorU8::DARK_RED_64,
+								});
+							}
+						}
+						StockHistoryScale::Div100 => {
+							if (stock.get_price_history_div100().len() as u32) < MIN_WIDTH {
+								self.state.messages.push(Message {
+									text: format!("LEFT STOCK HISTORY SCALE `DIV100` IS SUBOPTIMAL"),
+									expiration_time: 1.,
+									color: ColorU8::DARK_RED_64,
+								});
+							}
+						}
 						StockHistoryScale::Sqrt => {
 							if (stock.get_price_history_sqrt().len() as u32) < MIN_WIDTH {
 								self.state.messages.push(Message {
@@ -468,15 +505,6 @@ impl App {
 							if (stock.get_price_history_log2().len() as u32) < MIN_WIDTH {
 								self.state.messages.push(Message {
 									text: format!("LEFT STOCK HISTORY SCALE `LOG2` IS SUBOPTIMAL"),
-									expiration_time: 1.,
-									color: ColorU8::DARK_RED_64,
-								});
-							}
-						}
-						StockHistoryScale::Log10 => {
-							if (stock.get_price_history_log10().len() as u32) < MIN_WIDTH {
-								self.state.messages.push(Message {
-									text: format!("LEFT STOCK HISTORY SCALE `LOG10` IS SUBOPTIMAL"),
 									expiration_time: 1.,
 									color: ColorU8::DARK_RED_64,
 								});
@@ -1241,7 +1269,7 @@ impl App {
 							}
 							all_2d_lines_oc.extend(
 								stock.get_price_history_latest(stock_history_len)
-										.chunks(k as usize).map(|chunk| chunk[chunk.len()-1])
+										.chunks(k as usize).map(|chunk| chunk[chunk.len()-1]) // TODO: `.min`/`.max` to prevent flickering peaks
 										.enumerate().map_windows(|[(i_prev, price_prev), (i, price)]| {
 									let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
 									let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
@@ -1411,9 +1439,12 @@ impl App {
 						let pixels_x_range = pixels_x_range.round() as u32;
 						let stock_history = match self.state.left_stock_history_scale {
 							StockHistoryScale::Full => stock.get_price_history_full(),
+							StockHistoryScale::Div3 => stock.get_price_history_div3(),
+							StockHistoryScale::Div10 => stock.get_price_history_div10(),
+							StockHistoryScale::Div30 => stock.get_price_history_div30(),
+							StockHistoryScale::Div100 => stock.get_price_history_div100(),
 							StockHistoryScale::Sqrt => stock.get_price_history_sqrt(),
 							StockHistoryScale::Log2 => stock.get_price_history_log2(),
-							StockHistoryScale::Log10 => stock.get_price_history_log10(),
 						};
 						let stock_history_len = stock_history.len() as u32;
 						// let (price_gmin, price_gmax) = stock.calc_min_max_global();
@@ -1699,7 +1730,7 @@ impl App {
 								}
 								all_2d_lines_oc.extend(
 									stock.get_price_history_latest(stock_history_len)
-											.chunks(k as usize).map(|chunk| chunk[chunk.len()-1])
+											.chunks(k as usize).map(|chunk| chunk[chunk.len()-1]) // TODO: `.min`/`.max` to prevent flickering of peaks
 											.enumerate().map_windows(|[(i_prev, price_prev), (i, price)]| {
 										let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
 										let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
@@ -2236,15 +2267,15 @@ impl Renderer {
 struct Message { text: String, expiration_time: f32, color: ColorU8 }
 
 #[derive(Debug)]
-enum StockHistoryScale { Full, Sqrt, Log2, Log10 }
+enum StockHistoryScale { Full, Div3, Div10, Div30, Div100, Sqrt, Log2 }
 impl StockHistoryScale {
 	fn next(&mut self) {
 		use StockHistoryScale::*;
-		*self = match self { Full => Sqrt, Sqrt => Log2, Log2 => Log10, Log10 => Full }
+		*self = match self { Full => Div3, Div3 => Div10, Div10 => Div30, Div30 => Div100, Div100 => Sqrt, Sqrt => Log2, Log2 => Full }
 	}
 	fn prev(&mut self) {
 		use StockHistoryScale::*;
-		*self = match self { Full => Log10, Log10 => Log2, Log2 => Sqrt, Sqrt => Full }
+		*self = match self { Full => Log2, Log2 => Sqrt, Sqrt => Div100, Div100 => Div30, Div30 => Div10, Div10 => Div3, Div3 => Full }
 	}
 }
 
@@ -2332,6 +2363,7 @@ impl GameState {
 			"stock market:",
 			"e/q - buy/sell",
 			"shift+e/q - buy/sell 10x", // TODO: use uppercase/lowercase
+			// TODO!: buy/sell all
 			"left/right - inc/dec buy/sell number",
 			"+/- - zoom in/out",
 			"r - reset zoom",
@@ -2541,7 +2573,7 @@ impl Camera {
 	}
 
 	fn update_orientation(&mut self, input: &mut InputState, dt: f32) {
-		const SENSITIVITY: f32 = 0.007;
+		const SENSITIVITY: f32 = 0.007; // TODO!: adjust sensitivity
 		const ROLL_SPEED: f32 = 2.;
 		let sensitivity = SENSITIVITY * self.fov_x;
 
@@ -2718,6 +2750,7 @@ enum Dimension {
 	// BaseAlt, // TODO: rename? HomeAlt, StaticBH
 	SurfaceWorld, // TODO: function
 	GameOfLife { seed: String },
+	// LangtonsAnt, // TODO: rules // TODO
 }
 
 

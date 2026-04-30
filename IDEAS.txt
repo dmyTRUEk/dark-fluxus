@@ -3,6 +3,8 @@ v alt home repr world is a sphere? (square enclosed on itself across the center)
 - from "fishing" can obtain things that can be placed at home
 - fractals - rendered as formula
 ~ stock market (with rng 4 letter names and are based on la in the world)
+	- exchange (set to buy/sell when price </> some value)
+	- passive income from stocks
 - "lsd" render setting - black -> rgb color, white -> 1 - rgb color
 - hyperbolic space?
 ~ "plane with a function" world
@@ -24,3 +26,4 @@ v game of life
 - langtons ant
 - other cellural automatas
 - ui overlay like in cruelty squad
+- show cursor when in ui

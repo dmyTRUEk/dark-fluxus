@@ -87,6 +87,26 @@ impl Stock {
 	pub fn get_price_history_full(&self) -> &[f64] {
 		&self.price_history
 	}
+	pub fn get_price_history_div3(&self) -> &[f64] {
+		let len = self.get_price_history_len();
+		let n = len / 3;
+		&self.price_history[len.saturating_sub(n) as usize..]
+	}
+	pub fn get_price_history_div10(&self) -> &[f64] {
+		let len = self.get_price_history_len();
+		let n = len / 10;
+		&self.price_history[len.saturating_sub(n) as usize..]
+	}
+	pub fn get_price_history_div30(&self) -> &[f64] {
+		let len = self.get_price_history_len();
+		let n = len / 30;
+		&self.price_history[len.saturating_sub(n) as usize..]
+	}
+	pub fn get_price_history_div100(&self) -> &[f64] {
+		let len = self.get_price_history_len();
+		let n = len / 100;
+		&self.price_history[len.saturating_sub(n) as usize..]
+	}
 	pub fn get_price_history_sqrt(&self) -> &[f64] {
 		let len = self.get_price_history_len();
 		let n = len.isqrt();
@@ -95,11 +115,6 @@ impl Stock {
 	pub fn get_price_history_log2(&self) -> &[f64] {
 		let len = self.get_price_history_len();
 		let n = len.ilog2();
-		&self.price_history[len.saturating_sub(n) as usize..]
-	}
-	pub fn get_price_history_log10(&self) -> &[f64] {
-		let len = self.get_price_history_len();
-		let n = len.ilog10();
 		&self.price_history[len.saturating_sub(n) as usize..]
 	}
 	pub fn get_price_history_latest(&self, n: u32) -> &[f64] {
