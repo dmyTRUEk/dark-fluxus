@@ -131,6 +131,7 @@ impl Stock {
 	pub fn calc_min_max_global(&self) -> (f64, f64) {
 		let mut min = f64::MAX;
 		let mut max = f64::MIN;
+		// TODO(optim): benchmark this vs `.min` + `.max`
 		for price in self.get_price_history_full() {
 			if *price < min { min = *price }
 			if *price > max { max = *price }
@@ -140,6 +141,7 @@ impl Stock {
 	pub fn calc_min_max_latest(&self, n: u32) -> (f64, f64) {
 		let mut min = f64::MAX;
 		let mut max = f64::MIN;
+		// TODO(optim): benchmark this vs `.min` + `.max`
 		for price in self.get_price_history_latest(n) {
 			if *price < min { min = *price }
 			if *price > max { max = *price }

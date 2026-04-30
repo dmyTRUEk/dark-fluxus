@@ -945,7 +945,7 @@ impl App {
 					})
 				);
 				const N: i32 = 100;
-				// const Y: f32 = -0.01; // TODO(feat): dots below quads
+				// const Y: f32 = -0.01; // TODO: dots below quads
 				all_3d_points.extend(
 					(-N ..= N).flat_map(|i|
 						(-N ..= N).map(move |j|
@@ -973,6 +973,40 @@ impl App {
 		// -------------------- UI --------------------
 
 		// TODO(refactor)?: rename TEXT_SIZE -> FONT_SIZE
+
+		if self.state.is_paused {
+			const PADDING: f32 = 50.;
+			const ITEM_Y: f32 = 80.;
+			const ITEMS_N: u32 = 7;
+			debug_assert_eq!(1, ITEMS_N % 2);
+			const SIZE_X: f32 = 900.;
+			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32);
+			all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
+			all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
+			const ITEM_X: f32 = SIZE_X - 2. * PADDING;
+			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
+			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
+			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
+			const ITEM_TEXT_SIZE: u8 = 5;
+			const ITEM_INNER_PADDING: f32 = (ITEM_Y - (ITEM_TEXT_SIZE as f32)*(FONT_H as f32)) / 2.;
+			let i_init: u32 = self.state.pause_menu_item_index.saturating_sub((ITEMS_N - 1) / 2)
+				.min((self.state.pause_menu_items.len() as u32).saturating_sub(ITEMS_N));
+			let mut i: u32 = i_init;
+			while i - i_init < ITEMS_N && i < self.state.pause_menu_items.len() as u32 {
+				let menu_item = &self.state.pause_menu_items[i as usize];
+				let color = (i == self.state.pause_menu_item_index).select(ITEM_SELECTED_COLOR, ITEM_UNSELECTED_COLOR);
+				let item_cx = wfh;
+				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
+				all_2d_rect_hollow.push(Rectangle2dOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
+				let text_x = (item_cx - ITEM_X/2. + ITEM_INNER_PADDING) as i32;
+				let text_y = (item_cy - ITEM_Y/2. + ITEM_INNER_PADDING) as i32;
+				all_2d_points.extend(
+					get_text_pixels(menu_item.to_str(), (text_x, text_y), ITEM_TEXT_SIZE, wh)
+						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
+				);
+				i += 1;
+			}
+		}
 
 		if self.state.is_help_opened {
 			const PADDING: f32 = 30.;
@@ -1066,7 +1100,7 @@ impl App {
 				let text_x = wfh - SIZE_X/2. + PADDING;
 				let text_y = hfh - SIZE_Y/2. + PADDING;
 				let price_current = stock.get_current_price();
-				let price_current_str = format!("{price_current:.2}");
+				let price_current_str = format!("{price_current:.2}"); // TODO: better format big nums
 				{ // render top text
 					let left_text = format!("{name} ({owned_n}): ", name=stock.get_name(), owned_n=stock.get_n_owned_by_player());
 					all_2d_points.extend(
@@ -1091,7 +1125,7 @@ impl App {
 					const RT_TEXT_SIZE: u8 = 3;
 					const PLOT_RT_TEXT_PADDING: f32 = 5.;
 					let (price_gmin, price_gmax) = stock.calc_min_max_global();
-					let (price_gmin_str, price_gmax_str) = (format!("{price_gmin:.2}"), format!("{price_gmax:.2}"));
+					let (price_gmin_str, price_gmax_str) = (format!("{price_gmin:.2}"), format!("{price_gmax:.2}")); // TODO: better format big nums
 					// let rt_text_max_len = [price_min_str, price_max_str, price_gmin_str, price_gmax_str]
 					// 	.map(|s| s.len()).into_iter().max().unwrap();
 					let rt_text_max_len = [&price_gmin_str, &price_gmax_str, &price_current_str]
@@ -1113,7 +1147,7 @@ impl App {
 					};
 					let stock_history_len = stock_history_len.round() as u32;
 					let (price_min, price_max) = stock.calc_min_max_latest(stock_history_len);
-					let (price_min_str, price_max_str) = (format!("{price_min:.2}"), format!("{price_max:.2}"));
+					let (price_min_str, price_max_str) = (format!("{price_min:.2}"), format!("{price_max:.2}")); // TODO: better format big nums
 					let price_range = price_max - price_min;
 					// let price_grange = price_gmax - price_gmin;
 					let recent_bought_at = stock.get_bought_at_recent(stock_history_len);
@@ -1284,7 +1318,6 @@ impl App {
 						}
 						_ => unreachable!()
 					}
-					// TODO: visualize where buy/sell were made with vertical/horizontal lines
 					let rt_text_x = (pixels_x_right + PLOT_RT_TEXT_PADDING).round() as i32;
 					let price_gmax_y = pixels_y_top;
 					all_2d_points.extend(
@@ -1350,7 +1383,7 @@ impl App {
 								.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 						);
 						let price = stock.get_current_price();
-						let price_str = format!("{price:.2}");
+						let price_str = format!("{price:.2}"); // TODO: better format big nums
 						let color = (price > 0.).select(color, is_selected.select(ColorU8::RED, ColorU8::DARK_RED_64)); // TODO?: change color
 						all_2d_points.extend(
 							get_text_pixels(&price_str, (text_x.round() as i32 + calc_text_width(&left_text, ITEM_TEXT_SIZE) as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
@@ -1749,46 +1782,11 @@ impl App {
 			}
 		}
 
-		// TODO(refactor): reorder
-		if self.state.is_paused {
-			const PADDING: f32 = 50.;
-			const ITEM_Y: f32 = 80.;
-			const ITEMS_N: u32 = 7;
-			debug_assert_eq!(1, ITEMS_N % 2);
-			const SIZE_X: f32 = 900.;
-			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32);
-			all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
-			all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
-			const ITEM_X: f32 = SIZE_X - 2. * PADDING;
-			const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
-			const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
-			// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
-			const ITEM_TEXT_SIZE: u8 = 5;
-			const ITEM_INNER_PADDING: f32 = (ITEM_Y - (ITEM_TEXT_SIZE as f32)*(FONT_H as f32)) / 2.;
-			let i_init: u32 = self.state.pause_menu_item_index.saturating_sub((ITEMS_N - 1) / 2)
-				.min((self.state.pause_menu_items.len() as u32).saturating_sub(ITEMS_N));
-			let mut i: u32 = i_init;
-			while i - i_init < ITEMS_N && i < self.state.pause_menu_items.len() as u32 {
-				let menu_item = &self.state.pause_menu_items[i as usize];
-				let color = (i == self.state.pause_menu_item_index).select(ITEM_SELECTED_COLOR, ITEM_UNSELECTED_COLOR);
-				let item_cx = wfh;
-				let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
-				all_2d_rect_hollow.push(Rectangle2dOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
-				let text_x = (item_cx - ITEM_X/2. + ITEM_INNER_PADDING) as i32;
-				let text_y = (item_cy - ITEM_Y/2. + ITEM_INNER_PADDING) as i32;
-				all_2d_points.extend(
-					get_text_pixels(menu_item.to_str(), (text_x, text_y), ITEM_TEXT_SIZE, wh)
-						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
-				);
-				i += 1;
-			}
-		}
-
 		{
 			let text_size = 3;
 			let color = ColorU8::GRAY_32;
 			let mut top_left_lines = vec![
-				(format!("$: {:.2} + {:.2}", self.state.money, self.state.stock_market.calc_money_in_stocks()), self.state.is_stock_market_open.select(ColorU8::WHITE, color)),
+				(format!("$: {:.2} + {:.2}", self.state.money, self.state.stock_market.calc_money_in_stocks()), self.state.is_stock_market_open.select(ColorU8::WHITE, color)), // TODO: better format big nums
 				// format!("$: {}", { // if money is f128
 				// 	let money = self.state.money;
 				// 	if !money.is_finite() {
@@ -2206,7 +2204,7 @@ impl Renderer {
 			make_pipeline(wgpu::PrimitiveTopology::LineList, wgpu::BlendState::REPLACE),
 			make_pipeline(wgpu::PrimitiveTopology::PointList, wgpu::BlendState::REPLACE),
 		];
-		let pipelines_2d = [ // TODO?
+		let pipelines_2d = [
 			make_pipeline(wgpu::PrimitiveTopology::TriangleList, wgpu::BlendState::ALPHA_BLENDING),
 			make_pipeline(wgpu::PrimitiveTopology::LineList, wgpu::BlendState::ALPHA_BLENDING),
 			make_pipeline(wgpu::PrimitiveTopology::PointList, wgpu::BlendState::ALPHA_BLENDING),
@@ -2290,7 +2288,7 @@ struct GameState {
 
 	tick_n: u64 = 0,
 	frame_n: u64 = 0,
-	is_extra_info_shown: bool = true,
+	is_extra_info_shown: bool = false, // TODO: none, minimal, all
 
 	// zqqx_lang: ZqqxLang,
 
@@ -2333,7 +2331,7 @@ impl GameState {
 			".",
 			"stock market:",
 			"e/q - buy/sell",
-			"E/Q - buy/sell 10x",
+			"shift+e/q - buy/sell 10x", // TODO: use uppercase/lowercase
 			"left/right - inc/dec buy/sell number",
 			"+/- - zoom in/out",
 			"r - reset zoom",
@@ -2371,12 +2369,7 @@ impl GameState {
 			camera: Camera::new(w / h),
 			input: InputState::new(),
 			last_update_inst: Instant::now(),
-			// inventory_items: Vec::with_capacity(100),
-			inventory_items: Vec::from_fn(100,
-				|i| InventoryItem::GameOfLife{ seed: string_from_number_u64(i as u64, &ALPHABET_UPPERCASE) }
-			).extended((0..100).map(
-				|_i| InventoryItem::GameOfLife{ seed: string_from_number_u64(rng.random(), &ALPHABET_UPPERCASE) }
-			)),
+			inventory_items: Vec::with_capacity(100),
 			surface_world_params: gen_surface_world_params(rng),
 			game_of_life_state: GameOfLifeState::from_seed("j"),
 			help_lines,
@@ -2470,7 +2463,7 @@ impl Camera {
 
 	// TODO(optim): "cache" the value (store in self)
 	fn fov_y_from_x(&self) -> f32 {
-		2.0 * ((self.fov_x * 0.5).tan() / self.aspect_ratio).atan()
+		2.0 * atan(tan(self.fov_x * 0.5) / self.aspect_ratio)
 	}
 
 	fn update(&mut self, input: &mut InputState, dt: f32, rng: &mut ThreadRng) {
@@ -2723,7 +2716,7 @@ fn gen_surface_world_params(rng: &mut ThreadRng) -> Vec<(f32, f32, f32, f32)> {
 enum Dimension {
 	Base, // TODO: rename? Home, RotatingBH
 	// BaseAlt, // TODO: rename? HomeAlt, StaticBH
-	SurfaceWorld, // TODO(feat): function
+	SurfaceWorld, // TODO: function
 	GameOfLife { seed: String },
 }
 
@@ -2732,7 +2725,7 @@ enum Dimension {
 
 
 enum InventoryItem {
-	SurfaceWorld, // TODO(feat): function
+	SurfaceWorld, // TODO: function
 	RenderableObject_(RenderableObject),
 	GameOfLife { seed: String },
 	Text(String), // just for test
@@ -2774,7 +2767,6 @@ enum PauseMenuItem {
 	IncRenderDistance,
 	DecRenderDistance,
 	ToggleVsync,
-	// TODO: inc/dec render_distance
 	Text(String), // just for test
 }
 impl PauseMenuItem {
