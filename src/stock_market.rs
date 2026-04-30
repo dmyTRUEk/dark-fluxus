@@ -33,7 +33,9 @@ impl StockMarket {
 			],
 		}
 	}
-	// pub fn get(index: u32) -> &Stock { ... }
+	pub fn calc_money_in_stocks(&self) -> f64 {
+		self.stocks.iter().map(|s| s.calc_money_in_stock()).sum()
+	}
 	pub fn update(&mut self, rng: &mut ThreadRng) {
 		for stock in self.stocks.iter_mut() {
 			stock.update(rng);

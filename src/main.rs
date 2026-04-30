@@ -1468,7 +1468,7 @@ impl App {
 			let text_size = 3;
 			let color = ColorU8::GRAY_32;
 			let mut top_left_lines = vec![
-				(format!("$: {:.2}", self.state.money), self.state.is_stock_market_open.select(ColorU8::WHITE, color)),
+				(format!("$: {:.2} + {:.2}", self.state.money, self.state.stock_market.calc_money_in_stocks()), self.state.is_stock_market_open.select(ColorU8::WHITE, color)),
 				// format!("$: {}", { // if money is f128
 				// 	let money = self.state.money;
 				// 	if !money.is_finite() {
