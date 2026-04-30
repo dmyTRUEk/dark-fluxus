@@ -338,13 +338,13 @@ impl App {
 				}
 			}
 			KeyboardInput { event: KeyEvent { logical_key: Character(c), state: ElementState::Pressed, .. }, .. } if c == "-" && is_overlay => {
-				if self.state.is_specific_stock_open {
+				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
 					self.state.stock_zoom -= 1;
 					self.state.is_redraw_needed = true;
 				}
 			}
 			KeyboardInput { event: KeyEvent { logical_key: Character(c), state: ElementState::Pressed, .. }, .. } if c == "=" && is_overlay => {
-				if self.state.is_specific_stock_open {
+				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
 					self.state.stock_zoom += 1;
 					self.state.is_redraw_needed = true;
 				}
@@ -1195,31 +1195,92 @@ impl App {
 						let pixels_y_bottom = item_cy + ITEM_Y/2. - ITEM_INNER_PADDING;
 						let pixels_x_range = pixels_x_right - pixels_x_left;
 						let pixels_y_range = pixels_y_bottom - pixels_y_top;
-						let stock_history_len = pixels_x_range.round() as u32;
+						let stock_history_len = pixels_x_range;
+						let stock_history_len = match self.state.stock_zoom {
+							0 => stock_history_len,
+							zoom if zoom < 0 => stock_history_len * (zoom.abs() as f32 + 1.),
+							zoom if zoom > 0 => stock_history_len / (zoom.abs() as f32 + 1.),
+							_ => unreachable!()
+						};
+						let stock_history_len = stock_history_len.round() as u32;
 						let (price_min, price_max) = stock.calc_min_max_latest(stock_history_len);
 						let price_range = price_max - price_min;
-						// TODO: use stock_zoom
-						all_2d_lines_oc.extend(
-							stock.get_latest_price_history(stock_history_len).iter().enumerate()
-									.map_windows(|[(i_prev, price_prev), (i, price)]| {
-								let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32;
-								let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
-								let pixels_x_prev = pixels_x_left + (*i_prev as f32);
-								let y = 1. - ((*price - price_min) / price_range) as f32;
-								let pixels_y = y * pixels_y_range + pixels_y_top;
-								let pixels_x = pixels_x_left + (*i as f32);
-								let color = match price.partial_cmp(price_prev).unwrap() {
-									Ordering::Less => ColorU8::RED,
-									Ordering::Greater => ColorU8::GREEN,
-									Ordering::Equal => ColorU8::WHITE,
-								};
-								Line2dOC::new(
-									Vec2::new(pixels_x_prev, pixels_y_prev),
-									Vec2::new(pixels_x, pixels_y),
-									color
-								)
-							})
-						);
+						// let price_grange = price_gmax - price_gmin;
+						match self.state.stock_zoom {
+							0 => {
+								all_2d_lines_oc.extend(
+									stock.get_latest_price_history(stock_history_len).iter().enumerate()
+											.map_windows(|[(i_prev, price_prev), (i, price)]| {
+										let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+										let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
+										let pixels_x_prev = pixels_x_left + (*i_prev as f32);
+										let y = 1. - ((*price - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+										let pixels_y = y * pixels_y_range + pixels_y_top;
+										let pixels_x = pixels_x_left + (*i as f32);
+										let color = match price.partial_cmp(price_prev).unwrap() {
+											Ordering::Less => ColorU8::RED,
+											Ordering::Greater => ColorU8::GREEN,
+											Ordering::Equal => ColorU8::WHITE,
+										};
+										Line2dOC::new(
+											Vec2::new(pixels_x_prev, pixels_y_prev),
+											Vec2::new(pixels_x, pixels_y),
+											color
+										)
+									})
+								);
+							}
+							zoom if zoom < 0 => {
+								let k = zoom.unsigned_abs() + 1;
+								all_2d_lines_oc.extend(
+									stock.get_latest_price_history(stock_history_len)
+											.chunks(k as usize).map(|chunk| chunk[chunk.len()-1])
+											.enumerate().map_windows(|[(i_prev, price_prev), (i, price)]| {
+										let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+										let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
+										let pixels_x_prev = pixels_x_left + (*i_prev as f32);
+										let y = 1. - ((*price - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+										let pixels_y = y * pixels_y_range + pixels_y_top;
+										let pixels_x = pixels_x_left + (*i as f32);
+										let color = match price.partial_cmp(price_prev).unwrap() {
+											Ordering::Less => ColorU8::RED,
+											Ordering::Greater => ColorU8::GREEN,
+											Ordering::Equal => ColorU8::WHITE,
+										};
+										Line2dOC::new(
+											Vec2::new(pixels_x_prev, pixels_y_prev),
+											Vec2::new(pixels_x, pixels_y),
+											color
+										)
+									})
+								);
+							}
+							zoom if zoom > 0 => {
+								let k = zoom + 1;
+								all_2d_lines_oc.extend(
+									stock.get_latest_price_history(stock_history_len).iter().enumerate()
+											.map_windows(|[(i_prev, price_prev), (i, price)]| {
+										let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+										let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
+										let pixels_x_prev = pixels_x_left + (*i_prev as f32) * (k as f32);
+										let y = 1. - ((*price - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
+										let pixels_y = y * pixels_y_range + pixels_y_top;
+										let pixels_x = pixels_x_left + (*i as f32) * (k as f32);
+										let color = match price.partial_cmp(price_prev).unwrap() {
+											Ordering::Less => ColorU8::RED,
+											Ordering::Greater => ColorU8::GREEN,
+											Ordering::Equal => ColorU8::WHITE,
+										};
+										Line2dOC::new(
+											Vec2::new(pixels_x_prev, pixels_y_prev),
+											Vec2::new(pixels_x, pixels_y),
+											color
+										)
+									})
+								);
+							}
+							_ => unreachable!()
+						}
 					}
 					i += 1;
 				}
