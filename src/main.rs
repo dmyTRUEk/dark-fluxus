@@ -943,7 +943,7 @@ impl App {
 			const ITEM_Y: f32 = 30.;
 			const ITEMS_N: u32 = 15;
 			debug_assert_eq!(1, ITEMS_N % 2);
-			const SIZE_X: f32 = 1000.;
+			const SIZE_X: f32 = 1300.;
 			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32);
 			all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
 			all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
@@ -976,7 +976,7 @@ impl App {
 			const ITEM_Y: f32 = 50.;
 			const ITEMS_N: u32 = 11;
 			debug_assert_eq!(1, ITEMS_N % 2);
-			const SIZE_X: f32 = 900.;
+			const SIZE_X: f32 = 1200.;
 			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32);
 			all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
 			all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
@@ -1435,7 +1435,7 @@ impl App {
 			const ITEM_Y: f32 = 80.;
 			const ITEMS_N: u32 = 7;
 			debug_assert_eq!(1, ITEMS_N % 2);
-			const SIZE_X: f32 = 800.;
+			const SIZE_X: f32 = 900.;
 			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32);
 			all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
 			all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
