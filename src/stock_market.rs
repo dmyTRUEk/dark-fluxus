@@ -33,6 +33,7 @@ impl StockMarket {
 			],
 		}
 	}
+	// pub fn get(index: u32) -> &Stock { ... }
 	pub fn update(&mut self, rng: &mut ThreadRng) {
 		for stock in self.stocks.iter_mut() {
 			stock.update(rng);
@@ -48,6 +49,7 @@ pub struct Stock {
 	name: [char; 4],
 	current_price: f64,
 	price_history: Vec<f64>,
+	owned_by_player: f64,
 }
 impl Stock {
 	fn new(name: [char; 4], init_price: f64) -> Self {
@@ -55,6 +57,7 @@ impl Stock {
 			name,
 			current_price: init_price,
 			price_history: vec![init_price],
+			owned_by_player: 0.
 		}
 	}
 
@@ -67,21 +70,29 @@ impl Stock {
 		self.current_price
 	}
 
-	pub fn get_full_price_history(&self) -> &[f64] {
+	pub fn get_n_owned_by_player(&self) -> f64 {
+		self.owned_by_player
+	}
+
+	pub fn get_price_history_full(&self) -> &[f64] {
 		&self.price_history
 	}
 
-	pub fn get_latest_price_history(&self, n: u32) -> &[f64] {
+	pub fn get_price_history_latest(&self, n: u32) -> &[f64] {
 		let n = n as usize;
 		let i_begin = self.price_history.len().saturating_sub(n);
 		let i_end = self.price_history.len();
 		&self.price_history[i_begin .. i_end]
 	}
 
+	pub fn calc_money_in_stock(&self) -> f64 {
+		self.current_price * self.owned_by_player
+	}
+
 	pub fn calc_min_max_global(&self) -> (f64, f64) {
 		let mut min = f64::MAX;
 		let mut max = f64::MIN;
-		for price in self.get_full_price_history() {
+		for price in self.get_price_history_full() {
 			if *price < min { min = *price }
 			if *price > max { max = *price }
 		}
@@ -91,7 +102,7 @@ impl Stock {
 	pub fn calc_min_max_latest(&self, n: u32) -> (f64, f64) {
 		let mut min = f64::MAX;
 		let mut max = f64::MIN;
-		for price in self.get_latest_price_history(n) {
+		for price in self.get_price_history_latest(n) {
 			if *price < min { min = *price }
 			if *price > max { max = *price }
 		}
@@ -126,10 +137,63 @@ impl Stock {
 		let (gmin, gmax) = self.calc_min_max_global();
 		format!("{name}: {price:.2}, MIN: {min:.2}, MAX: {max:.2}, GMIN: {gmin:.2}, GMAX: {gmax:.2}")
 	}
+
+	pub fn try_buy_with_scale(&mut self, buy_scale: u32, money: &mut f64) -> Result<(), BuyError> {
+		self.try_buy(buy_sell_scale_to_n(buy_scale), money)
+	}
+
+	pub fn try_sell_with_scale(&mut self, sell_scale: u32, money: &mut f64) -> Result<(), SellError> {
+		self.try_sell(buy_sell_scale_to_n(sell_scale), money)
+	}
+
+	pub fn try_buy(&mut self, n: f64, money: &mut f64) -> Result<(), BuyError> {
+		let is_enough_money = *money >= n * self.current_price;
+		if !is_enough_money { return Err(BuyError::NotEnoughMoney) }
+		let is_positive_price = self.current_price > 0.;
+		if !is_positive_price { return Err(BuyError::CantBuyNegativeValueStock) }
+		*money -= n * self.current_price;
+		self.owned_by_player += n;
+		Ok(())
+	}
+
+	pub fn try_sell(&mut self, n: f64, money: &mut f64) -> Result<(), SellError> {
+		let is_enough_stocks_owned: bool = self.owned_by_player >= n;
+		if !is_enough_stocks_owned { return Err(SellError::NotEnoughStocksOwned) }
+		*money += n * self.current_price;
+		self.owned_by_player -= n;
+		Ok(())
+	}
 }
-impl ToString for Stock {
-	fn to_string(&self) -> String {
-		format!("{name}: {price:.2}", name=self.get_name(), price=self.current_price)
+// impl ToString for Stock {
+// 	fn to_string(&self) -> String {
+// 		format!("{name}: {price:.2}", name=self.get_name(), price=self.current_price)
+// 	}
+// }
+
+pub enum BuyError {
+	NotEnoughMoney,
+	CantBuyNegativeValueStock,
+}
+
+pub enum SellError {
+	NotEnoughStocksOwned,
+}
+
+
+
+
+
+pub fn buy_sell_scale_to_n(buy_sell_scale: u32) -> f64 {
+	10_f64.powi(buy_sell_scale as i32)
+}
+
+pub fn buy_sell_scale_to_n_str(buy_sell_scale: u32) -> String {
+	match buy_sell_scale {
+		0 => format!("1"),
+		1 => format!("10"),
+		2 => format!("100"),
+		3 => format!("1000"),
+		n => format!("10^{n}")
 	}
 }
 

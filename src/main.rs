@@ -9,6 +9,7 @@
 
 #![allow(
 	clippy::collapsible_if,
+	clippy::collapsible_match,
 	clippy::just_underscores_and_digits,
 	clippy::let_and_return,
 	clippy::useless_format,
@@ -25,9 +26,9 @@
 
 use std::{cmp::Ordering, f32::consts::{FRAC_PI_2, GOLDEN_RATIO, PI, TAU}, time::Instant};
 
-use f128::f128;
+//use f128::f128;
 use glam::{Mat4, Quat, Vec2, Vec3};
-use num_traits::float::Float; // for f128 methods
+//use num_traits::float::Float; // for f128 methods
 use pollster::block_on;
 use rand::{RngExt, rng, rngs::ThreadRng};
 use wgpu::util::DeviceExt;
@@ -201,6 +202,7 @@ impl App {
 			}
 			KeyboardInput { event: KeyEvent { logical_key: Named(F8), state: ElementState::Pressed, repeat: false, .. }, .. } if !is_overlay || self.state.is_stock_market_open => {
 				self.state.is_stock_market_open = !self.state.is_stock_market_open;
+				self.state.is_specific_stock_open = false; // TODO?: open/close specific stock
 				self.state.is_redraw_needed = true;
 			}
 			KeyboardInput { event: KeyEvent { logical_key, state: ElementState::Pressed, repeat: false, .. }, .. } if (logical_key == Character(ss("i")) || logical_key == Named(Tab)) && (!is_overlay || self.state.is_inventory_opened) => {
@@ -349,6 +351,63 @@ impl App {
 					self.state.is_redraw_needed = true;
 				}
 			}
+			KeyboardInput { event: KeyEvent { logical_key: Character(c), state: ElementState::Pressed, .. }, .. } if c == "e" && is_overlay => {
+				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
+					let is_success = self.state.stock_market.stocks[self.state.stock_market_index as usize].try_buy_with_scale(self.state.buy_sell_scale, &mut self.state.money);
+					match is_success {
+						Ok(()) => {}
+						Err(BuyError::NotEnoughMoney) => {
+							self.state.messages.push(Message {
+								text: format!("NOT ENOUGH MONEY TO BUY {} STOCKS", buy_sell_scale_to_n_str(self.state.buy_sell_scale)),
+								expiration_time: 1.,
+								color: ColorU8::RED,
+							});
+						}
+						Err(BuyError::CantBuyNegativeValueStock) => {
+							self.state.messages.push(Message {
+								text: format!("CANT BUY NEGATIVE VALUE STOCK"),
+								expiration_time: 1.,
+								color: ColorU8::RED,
+							});
+						}
+					}
+				}
+			}
+			KeyboardInput { event: KeyEvent { logical_key: Character(c), state: ElementState::Pressed, .. }, .. } if c == "q" && is_overlay => {
+				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
+					let is_success = self.state.stock_market.stocks[self.state.stock_market_index as usize].try_sell_with_scale(self.state.buy_sell_scale, &mut self.state.money);
+					match is_success {
+						Ok(()) => {}
+						Err(SellError::NotEnoughStocksOwned) => {
+							self.state.messages.push(Message {
+								text: format!("NOT ENOUGH STOCKS OWNED TO SELL {} STOCKS", buy_sell_scale_to_n_str(self.state.buy_sell_scale)),
+								expiration_time: 1.,
+								color: ColorU8::RED,
+							});
+						}
+					}
+				}
+			}
+			KeyboardInput { event: KeyEvent { logical_key: Character(c), state: ElementState::Pressed, .. }, .. } if c == "E" && is_overlay => {
+				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
+					todo!()
+				}
+			}
+			KeyboardInput { event: KeyEvent { logical_key: Character(c), state: ElementState::Pressed, .. }, .. } if c == "Q" && is_overlay => {
+				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
+					todo!()
+				}
+			}
+			KeyboardInput { event: KeyEvent { logical_key: Named(ArrowLeft), state: ElementState::Pressed, .. }, .. } if is_overlay => {
+				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
+					self.state.buy_sell_scale = self.state.buy_sell_scale.saturating_sub(1);
+				}
+			}
+			KeyboardInput { event: KeyEvent { logical_key: Named(ArrowRight), state: ElementState::Pressed, .. }, .. } if is_overlay => {
+				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
+					self.state.buy_sell_scale += 1;
+				}
+			}
 			KeyboardInput { event, .. } if !is_overlay => { // handle "continuous" input
 				// dbg!(&event);
 				let is_pressed = event.state == ElementState::Pressed;
@@ -422,6 +481,11 @@ impl App {
 		// let tick_frame_begin_timestamp = SystemTime::now(); // TODO?
 
 		self.state.tick_n += 1;
+
+		for msg in self.state.messages.iter_mut() {
+			msg.expiration_time -= dt;
+		}
+		self.state.messages.retain(|msg| msg.expiration_time > 0.);
 
 		// physics update:
 		if !self.state.is_paused /* TODO: && exist what needs to be updated */ {
@@ -530,6 +594,7 @@ impl App {
 
 		self.state.frame_n += 1;
 
+		// TODO(refactor): extract into struct and create polymoephic `.push(shape)` via `impl Push<Shape> for ...`
 		let mut all_3d_points: Vec<Point3d> = vec![];
 		let mut all_3d_lines: Vec<Line3d> = vec![];
 		let mut all_3d_lines_oc: Vec<Line3dOC> = vec![];
@@ -546,7 +611,7 @@ impl App {
 
 		let (w, h) = (self.renderer.config.width, self.renderer.config.height);
 		let wh = (w, h);
-		let (wi, _hi) = (w as i32, h as i32);
+		let (wi, hi) = (w as i32, h as i32);
 		let (wf, hf) = (w as f32, h as f32);
 		let (wfh, hfh) = (wf / 2., hf / 2.);
 		// let wh_ratio = wf / hf;
@@ -913,15 +978,23 @@ impl App {
 				let price_current = stock.get_current_price();
 				let price_current_str = format!("{price_current:.2}");
 				{ // render top text
-					// let text = stock.to_string();
+					let left_text = format!("{name} ({owned_n}): ", name=stock.get_name(), owned_n=stock.get_n_owned_by_player());
 					all_2d_points.extend(
-						get_text_pixels(&(stock.get_name() + ":"), (text_x.round() as i32, text_y.round() as i32), TEXT_SIZE, wh)
+						get_text_pixels(&left_text, (text_x.round() as i32, text_y.round() as i32), TEXT_SIZE, wh)
 							.into_iter().map(|(x,y)| Point2d::from(x, y, ColorU8::WHITE))
 					);
 					let color = (price_current > 0.).select(ColorU8::WHITE, ColorU8::RED); // TODO?: change color
 					all_2d_points.extend(
-						get_text_pixels(&price_current_str, (text_x.round() as i32 + calc_text_width_(6, TEXT_SIZE) as i32, text_y.round() as i32), TEXT_SIZE, wh)
+						get_text_pixels(&price_current_str, (text_x.round() as i32 + calc_text_width(&left_text, TEXT_SIZE) as i32, text_y.round() as i32), TEXT_SIZE, wh)
 							.into_iter().map(|(x,y)| Point2d::from(x, y, color))
+					);
+					let buy_sell_n_str = buy_sell_scale_to_n_str(self.state.buy_sell_scale);
+					let buy_sell_n_str = format!("BUY/SELL N: {buy_sell_n_str}");
+					let text_width = calc_text_width(&buy_sell_n_str, TEXT_SIZE);
+					let text_x = wfh + SIZE_X/2. - PADDING - (text_width as f32);
+					all_2d_points.extend(
+						get_text_pixels(&buy_sell_n_str, (text_x.round() as i32, text_y.round() as i32), TEXT_SIZE, wh)
+							.into_iter().map(|(x,y)| Point2d::from(x, y, ColorU8::WHITE))
 					);
 				}
 				{ // plot prices over time
@@ -956,7 +1029,7 @@ impl App {
 					match self.state.stock_zoom {
 						0 => {
 							all_2d_lines_oc.extend(
-								stock.get_latest_price_history(stock_history_len).iter().enumerate()
+								stock.get_price_history_latest(stock_history_len).iter().enumerate()
 										.map_windows(|[(i_prev, price_prev), (i, price)]| {
 									let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
 									let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
@@ -980,7 +1053,7 @@ impl App {
 						zoom if zoom < 0 => {
 							let k = zoom.unsigned_abs() + 1;
 							all_2d_lines_oc.extend(
-								stock.get_latest_price_history(stock_history_len)
+								stock.get_price_history_latest(stock_history_len)
 										.chunks(k as usize).map(|chunk| chunk[chunk.len()-1])
 										.enumerate().map_windows(|[(i_prev, price_prev), (i, price)]| {
 									let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
@@ -1005,7 +1078,7 @@ impl App {
 						zoom if zoom > 0 => {
 							let k = zoom + 1;
 							all_2d_lines_oc.extend(
-								stock.get_latest_price_history(stock_history_len).iter().enumerate()
+								stock.get_price_history_latest(stock_history_len).iter().enumerate()
 										.map_windows(|[(i_prev, price_prev), (i, price)]| {
 									let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
 									let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
@@ -1049,6 +1122,7 @@ impl App {
 						get_text_pixels(&price_max_str, (rt_text_x, price_max_y.round() as i32), RT_TEXT_SIZE, wh)
 							.into_iter().map(|(x,y)| Point2d::from(x, y, ColorU8::CYAN))
 					);
+					#[allow(clippy::eq_op)]
 					let price_min_y = 1. - ((price_min - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
 					let price_min_y = price_min_y * pixels_y_range + pixels_y_top;
 					let price_min_y = min(price_min_y, price_gmin_y - (RT_TEXT_SIZE as f32) * 6.);
@@ -1087,17 +1161,28 @@ impl App {
 					let text_x = item_cx - ITEM_X/2. + ITEM_INNER_PADDING;
 					let text_y = item_cy - ITEM_Y/2. + ITEM_INNER_PADDING;
 					{ // render text
+						let left_text = format!("{name} ({owned_n}): ", name=stock.get_name(), owned_n=stock.get_n_owned_by_player());
 						all_2d_points.extend(
-							get_text_pixels(&(stock.get_name() + ":"), (text_x.round() as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
+							get_text_pixels(&left_text, (text_x.round() as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
 								.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 						);
 						let price = stock.get_current_price();
 						let price_str = format!("{price:.2}");
 						let color = (price > 0.).select(color, is_selected.select(ColorU8::RED, ColorU8::DARK_RED_64)); // TODO?: change color
 						all_2d_points.extend(
-							get_text_pixels(&price_str, (text_x.round() as i32 + calc_text_width_(6, ITEM_TEXT_SIZE) as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
+							get_text_pixels(&price_str, (text_x.round() as i32 + calc_text_width(&left_text, ITEM_TEXT_SIZE) as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
 								.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 						);
+						if is_selected {
+							let buy_sell_n_str = buy_sell_scale_to_n_str(self.state.buy_sell_scale);
+							let buy_sell_n_str = format!("BUY/SELL N: {buy_sell_n_str}");
+							let text_width = calc_text_width(&buy_sell_n_str, ITEM_TEXT_SIZE);
+							let text_x = item_cx + ITEM_X/2. - ITEM_INNER_PADDING - (text_width as f32);
+							all_2d_points.extend(
+								get_text_pixels(&buy_sell_n_str, (text_x.round() as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
+									.into_iter().map(|(x,y)| Point2d::from(x, y, ColorU8::WHITE))
+							);
+						}
 					}
 					const GLOBAL_LOCAL_PRICES_PADDING: f32 = 10.;
 					{ // plot global prices over time
@@ -1110,7 +1195,7 @@ impl App {
 						let pixels_x_range = pixels_x_range.round() as u32;
 						let (price_gmin, price_gmax) = stock.calc_min_max_global();
 						let price_grange = price_gmax - price_gmin;
-						let full_history = stock.get_full_price_history();
+						let full_history = stock.get_price_history_full();
 						let full_history_len = full_history.len() as u32;
 						match full_history_len.cmp(&pixels_x_range) {
 							Ordering::Equal => {
@@ -1209,7 +1294,7 @@ impl App {
 						match self.state.stock_zoom {
 							0 => {
 								all_2d_lines_oc.extend(
-									stock.get_latest_price_history(stock_history_len).iter().enumerate()
+									stock.get_price_history_latest(stock_history_len).iter().enumerate()
 											.map_windows(|[(i_prev, price_prev), (i, price)]| {
 										let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
 										let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
@@ -1233,7 +1318,7 @@ impl App {
 							zoom if zoom < 0 => {
 								let k = zoom.unsigned_abs() + 1;
 								all_2d_lines_oc.extend(
-									stock.get_latest_price_history(stock_history_len)
+									stock.get_price_history_latest(stock_history_len)
 											.chunks(k as usize).map(|chunk| chunk[chunk.len()-1])
 											.enumerate().map_windows(|[(i_prev, price_prev), (i, price)]| {
 										let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
@@ -1258,7 +1343,7 @@ impl App {
 							zoom if zoom > 0 => {
 								let k = zoom + 1;
 								all_2d_lines_oc.extend(
-									stock.get_latest_price_history(stock_history_len).iter().enumerate()
+									stock.get_price_history_latest(stock_history_len).iter().enumerate()
 											.map_windows(|[(i_prev, price_prev), (i, price)]| {
 										let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
 										let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
@@ -1325,26 +1410,29 @@ impl App {
 		{
 			let text_size = 3;
 			let color = ColorU8::GRAY_32;
-			let mut left_lines = vec![
-				format!("$: {}", {
-					let money = self.state.money;
-					if !money.is_finite() {
-						money.to_string().to_uppercase()
-					} else {
-						let money_str: String = money.to_string();
-						if let Some(index_of_period) = money_str.chars().position(|c| c == '.') {
-							let money_str = money_str + "00";
-							money_str[0..index_of_period+2].to_string()
-						} else {
-							money_str + ".00"
-						}
-					}
-				}),
+			let mut top_left_lines = vec![
+				format!("$: {:.2}", self.state.money),
+				// format!("$: {}", { // if money is f128
+				// 	let money = self.state.money;
+				// 	if !money.is_finite() {
+				// 		money.to_string().to_uppercase()
+				// 	} else {
+				// 		let money_str: String = money.to_string();
+				// 		if let Some(index_of_period) = money_str.chars().position(|c| c == '.') {
+				// 			let money_str = money_str + "00";
+				// 			money_str[0..index_of_period+2].to_string()
+				// 		} else {
+				// 			money_str + ".00"
+				// 		}
+				// 	}
+				// }),
 			];
-			let mut right_lines = vec![];
+			let mut top_right_lines = vec![];
+			let bottom_left_lines = &self.state.messages;
+			// let mut bottom_right_lines = vec![];
 
 			if self.state.is_extra_info_shown { // must be at the end bc it "measures" fps
-				left_lines.extend([
+				top_left_lines.extend([
 					format!("XYZ: {:.3}, {:.3}, {:.3}", self.state.camera.position.x, self.state.camera.position.y, self.state.camera.position.z),
 					format!("CHUNK XZ: {}, {}", self.state.current_chunk_x, self.state.current_chunk_z),
 					format!("MOVE TYPE: {}", self.state.camera.movement_type.to_str_uppercase()),
@@ -1352,17 +1440,17 @@ impl App {
 					format!("TOPOLOGY IS ALT: {}", self.state.is_alt_topology.to_string().to_uppercase()),
 				]);
 				if self.state.is_alt_topology {
-					left_lines.push(format!("is xz flipped global: {}, {}", self.state.is_x_flipped_global, self.state.is_z_flipped_global).to_uppercase());
+					top_left_lines.push(format!("is xz flipped global: {}, {}", self.state.is_x_flipped_global, self.state.is_z_flipped_global).to_uppercase());
 				}
 				match &self.state.dimension {
 					Dimension::Base => {}
 					Dimension::SurfaceWorld => {}
 					Dimension::GameOfLife { seed } => {
-						left_lines.push(format!("GAME OF LIFE SEED:{seed}"));
+						top_left_lines.push(format!("GAME OF LIFE SEED:{seed}"));
 					}
 				}
 
-				right_lines.push(
+				top_right_lines.push(
 					format!("VSYNC: {}", self.renderer.is_vsync_on().select("ON", "OFF")),
 				);
 
@@ -1390,16 +1478,22 @@ impl App {
 				// }
 			}
 
-			for (i, line) in left_lines.into_iter().enumerate() {
+			for (i, line) in top_left_lines.into_iter().enumerate() {
 				all_2d_points.extend(
 					get_text_pixels(&line, (5, 5 + 35*(i as i32)), text_size, wh)
 						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 				);
 			}
-			for (i, line) in right_lines.into_iter().enumerate() {
+			for (i, line) in top_right_lines.into_iter().enumerate() {
 				all_2d_points.extend(
 					get_text_pixels(&line, (wi - 5 - (line.len() as i32) * (text_size as i32) * 6, 5 + 35*(i as i32 + 1)), text_size, wh)
 						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
+				);
+			}
+			for (i, msg) in bottom_left_lines.iter().enumerate() {
+				all_2d_points.extend(
+					get_text_pixels(&msg.text, (5, hi - 5 - 35*(bottom_left_lines.len() as i32) + 35*(i as i32)), text_size, wh)
+						.into_iter().map(|(x,y)| Point2d::from(x, y, msg.color))
 				);
 			}
 
@@ -1764,11 +1858,14 @@ impl Renderer {
 	}
 }
 
+struct Message { text: String, expiration_time: f32, color: ColorU8 }
+
 struct GameState {
 	camera: Camera,
 	input: InputState,
 	last_update_inst: Instant,
 	is_redraw_needed: bool = true,
+	messages: Vec<Message> = vec![],
 
 	// TODO(refactor)?: extract
 	help_lines: Vec<String>,
@@ -1811,12 +1908,14 @@ struct GameState {
 	game_of_life_state: GameOfLifeState,
 	game_of_life_is_fast: bool = false,
 
-	money: f128,
+	// money: f128,
+	money: f64,
 	stock_market: StockMarket,
 	is_stock_market_open: bool = false,
 	stock_market_index: u32 = 0,
 	is_specific_stock_open: bool = false,
 	stock_zoom: i32 = 0,
+	buy_sell_scale: u32 = 0,
 }
 
 impl GameState {
@@ -1874,7 +1973,8 @@ impl GameState {
 			pause_menu_items,
 			dim_base_la_for_floor_color,
 			chunks,
-			money: f128::from(1000.),
+			// money: f128::from(1000.),
+			money: 1000.,
 			stock_market: StockMarket::new(),
 			..
 		}
