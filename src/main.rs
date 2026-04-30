@@ -1099,9 +1099,97 @@ impl App {
 								.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 						);
 					}
-					{ // plot prices over time
-						// TODO: render all time price history on the left and recent history on the right
-						let pixels_x_left = text_x;
+					const GLOBAL_LOCAL_PRICES_PADDING: f32 = 10.;
+					{ // plot global prices over time
+						let pixels_x_left = item_cx - ITEM_X/2. + ITEM_INNER_PADDING;
+						let pixels_y_top = text_y + (ITEM_TEXT_SIZE as f32) * 5. + ITEM_INNER_PADDING;
+						let pixels_x_right = item_cx - GLOBAL_LOCAL_PRICES_PADDING/2.;
+						let pixels_y_bottom = item_cy + ITEM_Y/2. - ITEM_INNER_PADDING;
+						let pixels_x_range = pixels_x_right - pixels_x_left;
+						let pixels_y_range = pixels_y_bottom - pixels_y_top;
+						let pixels_x_range = pixels_x_range.round() as u32;
+						let (price_gmin, price_gmax) = stock.calc_min_max_global();
+						let price_grange = price_gmax - price_gmin;
+						let full_history = stock.get_full_price_history();
+						let full_history_len = full_history.len() as u32;
+						match full_history_len.cmp(&pixels_x_range) {
+							Ordering::Equal => {
+								all_2d_lines_oc.extend(
+									full_history.iter().enumerate()
+											.map_windows(|[(i_prev, price_prev), (i, price)]| {
+										let y_prev = 1. - ((*price_prev - price_gmin) / price_grange) as f32;
+										let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
+										let pixels_x_prev = pixels_x_left + (*i_prev as f32);
+										let y = 1. - ((*price - price_gmin) / price_grange) as f32;
+										let pixels_y = y * pixels_y_range + pixels_y_top;
+										let pixels_x = pixels_x_left + (*i as f32);
+										let color = match price.partial_cmp(price_prev).unwrap() {
+											Ordering::Less => ColorU8::RED,
+											Ordering::Greater => ColorU8::GREEN,
+											Ordering::Equal => ColorU8::WHITE,
+										};
+										Line2dOC::new(
+											Vec2::new(pixels_x_prev, pixels_y_prev),
+											Vec2::new(pixels_x, pixels_y),
+											color
+										)
+									})
+								);
+							}
+							Ordering::Less => {
+								let k = (pixels_x_range as f32) / (full_history_len as f32);
+								all_2d_lines_oc.extend(
+									full_history.iter().enumerate()
+											.map_windows(|[(i_prev, price_prev), (i, price)]| {
+										let y_prev = 1. - ((*price_prev - price_gmin) / price_grange) as f32;
+										let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
+										let pixels_x_prev = pixels_x_left + (*i_prev as f32) * k;
+										let y = 1. - ((*price - price_gmin) / price_grange) as f32;
+										let pixels_y = y * pixels_y_range + pixels_y_top;
+										let pixels_x = pixels_x_left + (*i as f32) * k;
+										let color = match price.partial_cmp(price_prev).unwrap() {
+											Ordering::Less => ColorU8::RED,
+											Ordering::Greater => ColorU8::GREEN,
+											Ordering::Equal => ColorU8::WHITE,
+										};
+										Line2dOC::new(
+											Vec2::new(pixels_x_prev, pixels_y_prev),
+											Vec2::new(pixels_x, pixels_y),
+											color
+										)
+									})
+								);
+							}
+							Ordering::Greater => {
+								let history = Vec::from_fn(pixels_x_range as usize, |i| {
+									full_history[((i as f32) / (pixels_x_range as f32) * (full_history_len as f32)).round() as usize]
+								});
+								all_2d_lines_oc.extend(
+									history.iter().enumerate()
+											.map_windows(|[(i_prev, price_prev), (i, price)]| {
+										let y_prev = 1. - ((*price_prev - price_gmin) / price_grange) as f32;
+										let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
+										let pixels_x_prev = pixels_x_left + (*i_prev as f32);
+										let y = 1. - ((*price - price_gmin) / price_grange) as f32;
+										let pixels_y = y * pixels_y_range + pixels_y_top;
+										let pixels_x = pixels_x_left + (*i as f32);
+										let color = match price.partial_cmp(price_prev).unwrap() {
+											Ordering::Less => ColorU8::RED,
+											Ordering::Greater => ColorU8::GREEN,
+											Ordering::Equal => ColorU8::WHITE,
+										};
+										Line2dOC::new(
+											Vec2::new(pixels_x_prev, pixels_y_prev),
+											Vec2::new(pixels_x, pixels_y),
+											color
+										)
+									})
+								);
+							}
+						}
+					}
+					{ // plot local prices over time
+						let pixels_x_left = item_cx + GLOBAL_LOCAL_PRICES_PADDING/2.;
 						let pixels_y_top = text_y + (ITEM_TEXT_SIZE as f32) * 5. + ITEM_INNER_PADDING;
 						let pixels_x_right = item_cx + ITEM_X/2. - ITEM_INNER_PADDING;
 						let pixels_y_bottom = item_cy + ITEM_Y/2. - ITEM_INNER_PADDING;
@@ -1110,8 +1198,10 @@ impl App {
 						let stock_history_len = pixels_x_range.round() as u32;
 						let (price_min, price_max) = stock.calc_min_max_latest(stock_history_len);
 						let price_range = price_max - price_min;
+						// TODO: use stock_zoom
 						all_2d_lines_oc.extend(
-							stock.get_latest_price_history(stock_history_len).iter().enumerate().map_windows(|[(i_prev, price_prev), (i, price)]| {
+							stock.get_latest_price_history(stock_history_len).iter().enumerate()
+									.map_windows(|[(i_prev, price_prev), (i, price)]| {
 								let y_prev = 1. - ((*price_prev - price_min) / price_range) as f32;
 								let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
 								let pixels_x_prev = pixels_x_left + (*i_prev as f32);
