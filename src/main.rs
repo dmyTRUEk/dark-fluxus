@@ -1468,7 +1468,7 @@ impl App {
 			let text_size = 3;
 			let color = ColorU8::GRAY_32;
 			let mut top_left_lines = vec![
-				format!("$: {:.2}", self.state.money),
+				(format!("$: {:.2}", self.state.money), self.state.is_stock_market_open.select(ColorU8::WHITE, color)),
 				// format!("$: {}", { // if money is f128
 				// 	let money = self.state.money;
 				// 	if !money.is_finite() {
@@ -1495,15 +1495,15 @@ impl App {
 					format!("MOVE TYPE: {}", self.state.camera.movement_type.to_str_uppercase()),
 					format!("FOV: {:.3}", self.state.camera.fov_x.to_degrees()),
 					format!("TOPOLOGY IS ALT: {}", self.state.is_alt_topology.to_string().to_uppercase()),
-				]);
+				].map(|s| (s, color)));
 				if self.state.is_alt_topology {
-					top_left_lines.push(format!("is xz flipped global: {}, {}", self.state.is_x_flipped_global, self.state.is_z_flipped_global).to_uppercase());
+					top_left_lines.push((format!("is xz flipped global: {}, {}", self.state.is_x_flipped_global, self.state.is_z_flipped_global).to_uppercase(), color));
 				}
 				match &self.state.dimension {
 					Dimension::Base => {}
 					Dimension::SurfaceWorld => {}
 					Dimension::GameOfLife { seed } => {
-						top_left_lines.push(format!("GAME OF LIFE SEED:{seed}"));
+						top_left_lines.push((format!("GAME OF LIFE SEED:{seed}"), color));
 					}
 				}
 
@@ -1535,15 +1535,15 @@ impl App {
 				// }
 			}
 
-			for (i, line) in top_left_lines.into_iter().enumerate() {
+			for (i, (text, color)) in top_left_lines.into_iter().enumerate() {
 				all_2d_points.extend(
-					get_text_pixels(&line, (5, 5 + 35*(i as i32)), text_size, wh)
+					get_text_pixels(&text, (5, 5 + 35*(i as i32)), text_size, wh)
 						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 				);
 			}
-			for (i, line) in top_right_lines.into_iter().enumerate() {
+			for (i, text) in top_right_lines.into_iter().enumerate() {
 				all_2d_points.extend(
-					get_text_pixels(&line, (wi - 5 - (line.len() as i32) * (text_size as i32) * 6, 5 + 35*(i as i32 + 1)), text_size, wh)
+					get_text_pixels(&text, (wi - 5 - (text.len() as i32) * (text_size as i32) * 6, 5 + 35*(i as i32 + 1)), text_size, wh)
 						.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 				);
 			}
