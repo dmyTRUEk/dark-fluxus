@@ -408,6 +408,57 @@ impl App {
 					self.state.buy_sell_scale += 1;
 				}
 			}
+			KeyboardInput { event: KeyEvent { logical_key: Named(Space), state: ElementState::Pressed, .. }, .. } if is_overlay => {
+				if self.state.is_specific_stock_open {
+					// TODO?
+				}
+				else if self.state.is_stock_market_open {
+					self.state.left_stock_history_scale.next();
+					let left_stock_history_scale_str = format!("{:?}", self.state.left_stock_history_scale).to_uppercase();
+					self.state.messages.push(Message {
+						text: format!("LEFT STOCK HISTORY SCALE: {}", left_stock_history_scale_str),
+						expiration_time: 1.,
+						color: ColorU8::GRAY,
+					});
+					const MIN_WIDTH: u32 = 100;
+					let stock = &self.state.stock_market.stocks[self.state.stock_market_index as usize];
+					match self.state.left_stock_history_scale {
+						StockHistoryScale::Full => {}
+						StockHistoryScale::Sqrt => {
+							if (stock.get_price_history_sqrt().len() as u32) < MIN_WIDTH {
+								self.state.messages.push(Message {
+									text: format!("LEFT STOCK HISTORY SCALE `SQRT` IS SUBOPTIMAL"),
+									expiration_time: 1.,
+									color: ColorU8::DARK_RED_64,
+								});
+							}
+						}
+						StockHistoryScale::Log2 => {
+							if (stock.get_price_history_log2().len() as u32) < MIN_WIDTH {
+								self.state.messages.push(Message {
+									text: format!("LEFT STOCK HISTORY SCALE `LOG2` IS SUBOPTIMAL"),
+									expiration_time: 1.,
+									color: ColorU8::DARK_RED_64,
+								});
+							}
+						}
+						StockHistoryScale::Log10 => {
+							if (stock.get_price_history_log10().len() as u32) < MIN_WIDTH {
+								self.state.messages.push(Message {
+									text: format!("LEFT STOCK HISTORY SCALE `LOG10` IS SUBOPTIMAL"),
+									expiration_time: 1.,
+									color: ColorU8::DARK_RED_64,
+								});
+							}
+						}
+					}
+				}
+			}
+			KeyboardInput { event: KeyEvent { logical_key: Character(c), state: ElementState::Pressed, .. }, .. } if c == "r" && is_overlay => {
+				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
+					self.state.stock_zoom = 0;
+				}
+			}
 			KeyboardInput { event, .. } if !is_overlay => { // handle "continuous" input
 				// dbg!(&event);
 				let is_pressed = event.state == ElementState::Pressed;
@@ -484,12 +535,13 @@ impl App {
 
 		for msg in self.state.messages.iter_mut() {
 			msg.expiration_time -= dt;
+			// TODO?: fade the color when time <0 and till -1, then remove
 		}
 		self.state.messages.retain(|msg| msg.expiration_time > 0.);
 
 		// physics update:
 		if !self.state.is_paused /* TODO: && exist what needs to be updated */ {
-			self.state.stock_market.update(&mut self.rng);
+			self.state.stock_market.update(&mut self.rng); // TODO!: update only sometimes
 			match self.state.dimension {
 				Dimension::Base => {
 					self.state.dim_base_la_for_floor_color.step(DIM_BASE_LA_SPEED * dt);
@@ -1113,8 +1165,8 @@ impl App {
 						get_text_pixels(&price_gmin_str, (rt_text_x, price_gmin_y.round() as i32), RT_TEXT_SIZE, wh)
 							.into_iter().map(|(x,y)| Point2d::from(x, y, ColorU8::RED))
 					);
-					// TODO: add sqrt(N) latest min/max price
-					// TODO: add log(N) latest min/max price
+					// TODO?: add sqrt(N) latest min/max price
+					// TODO?: add log(N) latest min/max price
 					let price_max_y = 1. - ((price_max - price_min) / price_range) as f32; // TODO: use gmin/gmax for normalization?
 					let price_max_y = price_max_y * pixels_y_range + pixels_y_top;
 					let price_max_y = max(price_max_y, price_gmax_y + (RT_TEXT_SIZE as f32) * 6.);
@@ -1195,12 +1247,17 @@ impl App {
 						let pixels_x_range = pixels_x_range.round() as u32;
 						let (price_gmin, price_gmax) = stock.calc_min_max_global();
 						let price_grange = price_gmax - price_gmin;
-						let full_history = stock.get_price_history_full();
-						let full_history_len = full_history.len() as u32;
-						match full_history_len.cmp(&pixels_x_range) {
+						let history = match self.state.left_stock_history_scale {
+							StockHistoryScale::Full => stock.get_price_history_full(),
+							StockHistoryScale::Sqrt => stock.get_price_history_sqrt(),
+							StockHistoryScale::Log2 => stock.get_price_history_log2(),
+							StockHistoryScale::Log10 => stock.get_price_history_log10(),
+						};
+						let history_len = history.len() as u32;
+						match history_len.cmp(&pixels_x_range) {
 							Ordering::Equal => {
 								all_2d_lines_oc.extend(
-									full_history.iter().enumerate()
+									history.iter().enumerate()
 											.map_windows(|[(i_prev, price_prev), (i, price)]| {
 										let y_prev = 1. - ((*price_prev - price_gmin) / price_grange) as f32;
 										let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
@@ -1222,9 +1279,9 @@ impl App {
 								);
 							}
 							Ordering::Less => {
-								let k = (pixels_x_range as f32) / (full_history_len as f32);
+								let k = (pixels_x_range as f32) / (history_len as f32 - 1.);
 								all_2d_lines_oc.extend(
-									full_history.iter().enumerate()
+									history.iter().enumerate()
 											.map_windows(|[(i_prev, price_prev), (i, price)]| {
 										let y_prev = 1. - ((*price_prev - price_gmin) / price_grange) as f32;
 										let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
@@ -1247,7 +1304,7 @@ impl App {
 							}
 							Ordering::Greater => {
 								let history = Vec::from_fn(pixels_x_range as usize, |i| {
-									full_history[((i as f32) / (pixels_x_range as f32) * (full_history_len as f32)).round() as usize]
+									history[((i as f32) / (pixels_x_range as f32) * (history_len as f32)).round() as usize]
 								});
 								all_2d_lines_oc.extend(
 									history.iter().enumerate()
@@ -1860,6 +1917,19 @@ impl Renderer {
 
 struct Message { text: String, expiration_time: f32, color: ColorU8 }
 
+#[derive(Debug)]
+enum StockHistoryScale { Full, Sqrt, Log2, Log10 }
+impl StockHistoryScale {
+	fn next(&mut self) {
+		use StockHistoryScale::*;
+		*self = match self { Full => Sqrt, Sqrt => Log2, Log2 => Log10, Log10 => Full }
+	}
+	fn prev(&mut self) {
+		use StockHistoryScale::*;
+		*self = match self { Full => Log10, Log10 => Log2, Log2 => Sqrt, Sqrt => Full }
+	}
+}
+
 struct GameState {
 	camera: Camera,
 	input: InputState,
@@ -1916,11 +1986,14 @@ struct GameState {
 	is_specific_stock_open: bool = false,
 	stock_zoom: i32 = 0,
 	buy_sell_scale: u32 = 0,
+	left_stock_history_scale: StockHistoryScale = StockHistoryScale::Full,
 }
 
 impl GameState {
 	fn new(w: f32, h: f32, rng: &mut ThreadRng) -> Self {
 		let help_lines = [
+			"hint: this menu is scrollable",
+			".",
 			"controls:",
 			"f1 - show help screen",
 			"escape - pause",
@@ -1933,6 +2006,17 @@ impl GameState {
 			"f3 - toggle info overlay",
 			"f5 - change movement mode",
 			"f8 - stock market", // TODO: change keybind?
+			".",
+			"stock market:",
+			"e/q - buy/sell",
+			"left/right - inc/dec buy/sell number",
+			"+/- - zoom in/out",
+			"r - reset zoom",
+			".",
+			"stocks list:",
+			"space - change stocks left history scale", // TODO: rewrite
+			// "",
+			// "specific stock:", // TODO: rewrite
 		].map(|s| s.to_uppercase()).to_vec();
 
 		let pause_menu_items = { use PauseMenuItem::*; vec![

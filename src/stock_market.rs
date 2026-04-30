@@ -78,6 +78,21 @@ impl Stock {
 		&self.price_history
 	}
 
+	pub fn get_price_history_sqrt(&self) -> &[f64] {
+		let n = (self.price_history.len()).isqrt();
+		&self.price_history[self.price_history.len().saturating_sub(n)..]
+	}
+
+	pub fn get_price_history_log2(&self) -> &[f64] {
+		let n = (self.price_history.len()).ilog2() as usize;
+		&self.price_history[self.price_history.len().saturating_sub(n)..]
+	}
+
+	pub fn get_price_history_log10(&self) -> &[f64] {
+		let n = (self.price_history.len()).ilog10() as usize;
+		&self.price_history[self.price_history.len().saturating_sub(n)..]
+	}
+
 	pub fn get_price_history_latest(&self, n: u32) -> &[f64] {
 		let n = n as usize;
 		let i_begin = self.price_history.len().saturating_sub(n);
