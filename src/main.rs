@@ -1992,7 +1992,7 @@ struct GameState {
 impl GameState {
 	fn new(w: f32, h: f32, rng: &mut ThreadRng) -> Self {
 		let help_lines = [
-			"hint: this menu is scrollable",
+			"hint: this menu is scrollable by arrows",
 			".",
 			"controls:",
 			"f1 - show help screen",
@@ -2006,6 +2006,9 @@ impl GameState {
 			"f3 - toggle info overlay",
 			"f5 - change movement mode",
 			"f8 - stock market", // TODO: change keybind?
+			".",
+			"game of life:",
+			"enter - toggle update frequency",
 			".",
 			"stock market:",
 			"e/q - buy/sell",
