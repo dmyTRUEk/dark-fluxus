@@ -50,8 +50,10 @@ impl StockMarket {
 pub struct Stock {
 	name: [char; 4],
 	current_price: f64,
-	price_history: Vec<f64>,
+	price_history: Vec<f64>, // TODO(optim): use VecDeque and pop if len > 10^6 or something
 	owned_by_player: f64,
+	bought_at: Vec<u32>,
+	sold_at: Vec<u32>,
 }
 impl Stock {
 	fn new(name: [char; 4], init_price: f64) -> Self {
@@ -59,7 +61,9 @@ impl Stock {
 			name,
 			current_price: init_price,
 			price_history: vec![init_price],
-			owned_by_player: 0.
+			owned_by_player: 0.,
+			bought_at: vec![],
+			sold_at: vec![],
 		}
 	}
 
@@ -67,39 +71,57 @@ impl Stock {
 		let [a, b, c, d] = self.name;
 		format!("{a}{b}{c}{d}")
 	}
-
 	pub fn get_current_price(&self) -> f64 {
 		self.current_price
 	}
-
 	pub fn get_n_owned_by_player(&self) -> f64 {
 		self.owned_by_player
 	}
+	pub fn get_price_at(&self, index: u32) -> f64 {
+		self.price_history[index as usize]
+	}
 
+	pub fn get_price_history_len(&self) -> u32 {
+		self.price_history.len() as u32
+	}
 	pub fn get_price_history_full(&self) -> &[f64] {
 		&self.price_history
 	}
-
 	pub fn get_price_history_sqrt(&self) -> &[f64] {
-		let n = (self.price_history.len()).isqrt();
-		&self.price_history[self.price_history.len().saturating_sub(n)..]
+		let len = self.get_price_history_len();
+		let n = len.isqrt();
+		&self.price_history[len.saturating_sub(n) as usize..]
 	}
-
 	pub fn get_price_history_log2(&self) -> &[f64] {
-		let n = (self.price_history.len()).ilog2() as usize;
-		&self.price_history[self.price_history.len().saturating_sub(n)..]
+		let len = self.get_price_history_len();
+		let n = len.ilog2();
+		&self.price_history[len.saturating_sub(n) as usize..]
 	}
-
 	pub fn get_price_history_log10(&self) -> &[f64] {
-		let n = (self.price_history.len()).ilog10() as usize;
-		&self.price_history[self.price_history.len().saturating_sub(n)..]
+		let len = self.get_price_history_len();
+		let n = len.ilog10();
+		&self.price_history[len.saturating_sub(n) as usize..]
+	}
+	pub fn get_price_history_latest(&self, n: u32) -> &[f64] {
+		let len = self.get_price_history_len();
+		&self.price_history[len.saturating_sub(n) as usize..]
 	}
 
-	pub fn get_price_history_latest(&self, n: u32) -> &[f64] {
-		let n = n as usize;
-		let i_begin = self.price_history.len().saturating_sub(n);
-		let i_end = self.price_history.len();
-		&self.price_history[i_begin .. i_end]
+	pub fn get_bought_at_full(&self) -> &[u32] {
+		&self.bought_at
+	}
+	pub fn get_sold_at_full(&self) -> &[u32] {
+		&self.sold_at
+	}
+	pub fn get_bought_at_recent(&self, n: u32) -> &[u32] {
+		let len = self.get_price_history_len();
+		let n = len.saturating_sub(n);
+		&self.bought_at[self.bought_at.partition_point(|&i| i < n)..]
+	}
+	pub fn get_sold_at_recent(&self, n: u32) -> &[u32] {
+		let len = self.get_price_history_len();
+		let n = len.saturating_sub(n);
+		&self.sold_at[self.sold_at.partition_point(|&i| i < n)..]
 	}
 
 	pub fn calc_money_in_stock(&self) -> f64 {
@@ -115,7 +137,6 @@ impl Stock {
 		}
 		(min, max)
 	}
-
 	pub fn calc_min_max_latest(&self, n: u32) -> (f64, f64) {
 		let mut min = f64::MAX;
 		let mut max = f64::MIN;
@@ -147,18 +168,9 @@ impl Stock {
 		self.price_history.push(self.current_price);
 	}
 
-	pub fn to_string_with_minmax(&self, n: u32) -> String {
-		let name = self.get_name();
-		let price = self.current_price;
-		let (min, max) = self.calc_min_max_latest(n);
-		let (gmin, gmax) = self.calc_min_max_global();
-		format!("{name}: {price:.2}, MIN: {min:.2}, MAX: {max:.2}, GMIN: {gmin:.2}, GMAX: {gmax:.2}")
-	}
-
 	pub fn try_buy_with_scale(&mut self, buy_scale: u32, money: &mut f64) -> Result<(), BuyError> {
 		self.try_buy(buy_sell_scale_to_n(buy_scale), money)
 	}
-
 	pub fn try_sell_with_scale(&mut self, sell_scale: u32, money: &mut f64) -> Result<(), SellError> {
 		self.try_sell(buy_sell_scale_to_n(sell_scale), money)
 	}
@@ -170,22 +182,23 @@ impl Stock {
 		if !is_positive_price { return Err(BuyError::CantBuyNegativeValueStock) }
 		*money -= n * self.current_price;
 		self.owned_by_player += n;
+		self.bought_at.push(self.price_history.len() as u32 - 1);
 		Ok(())
 	}
-
 	pub fn try_sell(&mut self, n: f64, money: &mut f64) -> Result<(), SellError> {
 		let is_enough_stocks_owned: bool = self.owned_by_player >= n;
 		if !is_enough_stocks_owned { return Err(SellError::NotEnoughStocksOwned) }
 		*money += n * self.current_price;
 		self.owned_by_player -= n;
+		self.sold_at.push(self.price_history.len() as u32 - 1);
+		// TODO: improve, to clear more often (when its logical)
+		if self.owned_by_player < 0.5 {
+			self.bought_at.clear();
+			self.sold_at.clear();
+		}
 		Ok(())
 	}
 }
-// impl ToString for Stock {
-// 	fn to_string(&self) -> String {
-// 		format!("{name}: {price:.2}", name=self.get_name(), price=self.current_price)
-// 	}
-// }
 
 pub enum BuyError {
 	NotEnoughMoney,

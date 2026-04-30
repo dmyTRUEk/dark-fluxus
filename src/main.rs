@@ -353,7 +353,8 @@ impl App {
 			}
 			KeyboardInput { event: KeyEvent { logical_key: Character(c), state: ElementState::Pressed, .. }, .. } if c == "e" && is_overlay => {
 				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
-					let is_success = self.state.stock_market.stocks[self.state.stock_market_index as usize].try_buy_with_scale(self.state.buy_sell_scale, &mut self.state.money);
+					let buy_sell_scale = self.state.buy_sell_scale;
+					let is_success = self.state.stock_market.stocks[self.state.stock_market_index as usize].try_buy_with_scale(buy_sell_scale, &mut self.state.money);
 					match is_success {
 						Ok(()) => {}
 						Err(BuyError::NotEnoughMoney) => {
@@ -375,7 +376,8 @@ impl App {
 			}
 			KeyboardInput { event: KeyEvent { logical_key: Character(c), state: ElementState::Pressed, .. }, .. } if c == "q" && is_overlay => {
 				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
-					let is_success = self.state.stock_market.stocks[self.state.stock_market_index as usize].try_sell_with_scale(self.state.buy_sell_scale, &mut self.state.money);
+					let buy_sell_scale = self.state.buy_sell_scale;
+					let is_success = self.state.stock_market.stocks[self.state.stock_market_index as usize].try_sell_with_scale(buy_sell_scale, &mut self.state.money);
 					match is_success {
 						Ok(()) => {}
 						Err(SellError::NotEnoughStocksOwned) => {
@@ -390,12 +392,41 @@ impl App {
 			}
 			KeyboardInput { event: KeyEvent { logical_key: Character(c), state: ElementState::Pressed, .. }, .. } if c == "E" && is_overlay => {
 				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
-					todo!()
+					let buy_sell_scale = 1 + self.state.buy_sell_scale;
+					let is_success = self.state.stock_market.stocks[self.state.stock_market_index as usize].try_buy_with_scale(buy_sell_scale, &mut self.state.money);
+					match is_success {
+						Ok(()) => {}
+						Err(BuyError::NotEnoughMoney) => {
+							self.state.messages.push(Message {
+								text: format!("NOT ENOUGH MONEY TO BUY {} STOCKS", buy_sell_scale_to_n_str(self.state.buy_sell_scale)),
+								expiration_time: 1.,
+								color: ColorU8::RED,
+							});
+						}
+						Err(BuyError::CantBuyNegativeValueStock) => {
+							self.state.messages.push(Message {
+								text: format!("CANT BUY NEGATIVE VALUE STOCK"),
+								expiration_time: 1.,
+								color: ColorU8::RED,
+							});
+						}
+					}
 				}
 			}
 			KeyboardInput { event: KeyEvent { logical_key: Character(c), state: ElementState::Pressed, .. }, .. } if c == "Q" && is_overlay => {
 				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
-					todo!()
+					let buy_sell_scale = 1 + self.state.buy_sell_scale;
+					let is_success = self.state.stock_market.stocks[self.state.stock_market_index as usize].try_sell_with_scale(buy_sell_scale, &mut self.state.money);
+					match is_success {
+						Ok(()) => {}
+						Err(SellError::NotEnoughStocksOwned) => {
+							self.state.messages.push(Message {
+								text: format!("NOT ENOUGH STOCKS OWNED TO SELL {} STOCKS", buy_sell_scale_to_n_str(self.state.buy_sell_scale)),
+								expiration_time: 1.,
+								color: ColorU8::RED,
+							});
+						}
+					}
 				}
 			}
 			KeyboardInput { event: KeyEvent { logical_key: Named(ArrowLeft), state: ElementState::Pressed, .. }, .. } if is_overlay => {
@@ -457,6 +488,11 @@ impl App {
 			KeyboardInput { event: KeyEvent { logical_key: Character(c), state: ElementState::Pressed, .. }, .. } if c == "r" && is_overlay => {
 				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
 					self.state.stock_zoom = 0;
+				}
+			}
+			KeyboardInput { event: KeyEvent { logical_key: Named(Tab), state: ElementState::Pressed, .. }, .. } if is_overlay => {
+				if self.state.is_specific_stock_open || self.state.is_stock_market_open {
+					self.state.is_shown_bought_sold_lines = !self.state.is_shown_bought_sold_lines;
 				}
 			}
 			KeyboardInput { event, .. } if !is_overlay => { // handle "continuous" input
@@ -1012,6 +1048,8 @@ impl App {
 			// debug_assert_eq!(1, ITEMS_N % 2);
 			const SIZE_X: f32 = 1400.; // TODO: relative size (90%)
 			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32); // TODO: relative size (90%)
+			const BOUGHT_COLOR: ColorU8 = ColorU8::DARK_GREEN_32;
+			const SOLD_COLOR: ColorU8 = ColorU8::DARK_ORANGE_32;
 			fn calc_text_width_(text_len: u32, font_size: u8) -> u32 {
 				assert!(text_len > 0);
 				(font_size as u32) * 5 * text_len + (font_size as u32) * (text_len - 1)
@@ -1078,8 +1116,41 @@ impl App {
 					let (price_min_str, price_max_str) = (format!("{price_min:.2}"), format!("{price_max:.2}"));
 					let price_range = price_max - price_min;
 					// let price_grange = price_gmax - price_gmin;
+					let recent_bought_at = stock.get_bought_at_recent(stock_history_len);
+					let recent_sold_at = stock.get_sold_at_recent(stock_history_len);
+					let invisible_history_len = stock.get_price_history_len().saturating_sub(stock_history_len);
 					match self.state.stock_zoom {
 						0 => {
+							if self.state.is_shown_bought_sold_lines { // render bought/sold lines under(before) green/red bars (#jqpdgf)
+								all_2d_lines_oc.extend(
+									recent_bought_at.iter().map(|bought_at| {
+										let x = *bought_at - invisible_history_len;
+										let x_left = pixels_x_left + (x as f32);
+										let x_right = pixels_x_right;
+										let y = 1. - ((stock.get_price_at(*bought_at) - price_min) / price_range) as f32;
+										let y = y * pixels_y_range + pixels_y_top;
+										Line2dOC::new(
+											Vec2::new(x_left, y),
+											Vec2::new(x_right, y),
+											BOUGHT_COLOR
+										)
+									})
+								);
+								all_2d_lines_oc.extend(
+									recent_sold_at.iter().map(|sold_at| {
+										let x = *sold_at - invisible_history_len;
+										let x_left = pixels_x_left + (x as f32);
+										let x_right = pixels_x_right;
+										let y = 1. - ((stock.get_price_at(*sold_at) - price_min) / price_range) as f32;
+										let y = y * pixels_y_range + pixels_y_top;
+										Line2dOC::new(
+											Vec2::new(x_left, y),
+											Vec2::new(x_right, y),
+											SOLD_COLOR
+										)
+									})
+								);
+							}
 							all_2d_lines_oc.extend(
 								stock.get_price_history_latest(stock_history_len).iter().enumerate()
 										.map_windows(|[(i_prev, price_prev), (i, price)]| {
@@ -1104,6 +1175,36 @@ impl App {
 						}
 						zoom if zoom < 0 => {
 							let k = zoom.unsigned_abs() + 1;
+							if self.state.is_shown_bought_sold_lines { // see #jqpdgf
+								all_2d_lines_oc.extend(
+									recent_bought_at.iter().map(|bought_at| {
+										let x = *bought_at - invisible_history_len;
+										let x_left = pixels_x_left + (x as f32) / (k as f32);
+										let x_right = pixels_x_right;
+										let y = 1. - ((stock.get_price_at(*bought_at) - price_min) / price_range) as f32;
+										let y = y * pixels_y_range + pixels_y_top;
+										Line2dOC::new(
+											Vec2::new(x_left, y),
+											Vec2::new(x_right, y),
+											BOUGHT_COLOR
+										)
+									})
+								);
+								all_2d_lines_oc.extend(
+									recent_sold_at.iter().map(|sold_at| {
+										let x = *sold_at - invisible_history_len;
+										let x_left = pixels_x_left + (x as f32) / (k as f32);
+										let x_right = pixels_x_right;
+										let y = 1. - ((stock.get_price_at(*sold_at) - price_min) / price_range) as f32;
+										let y = y * pixels_y_range + pixels_y_top;
+										Line2dOC::new(
+											Vec2::new(x_left, y),
+											Vec2::new(x_right, y),
+											SOLD_COLOR
+										)
+									})
+								);
+							}
 							all_2d_lines_oc.extend(
 								stock.get_price_history_latest(stock_history_len)
 										.chunks(k as usize).map(|chunk| chunk[chunk.len()-1])
@@ -1129,6 +1230,36 @@ impl App {
 						}
 						zoom if zoom > 0 => {
 							let k = zoom + 1;
+							if self.state.is_shown_bought_sold_lines { // see #jqpdgf
+								all_2d_lines_oc.extend(
+									recent_bought_at.iter().map(|bought_at| {
+										let x = *bought_at - invisible_history_len;
+										let x_left = pixels_x_left + (x as f32) * (k as f32);
+										let x_right = pixels_x_right;
+										let y = 1. - ((stock.get_price_at(*bought_at) - price_min) / price_range) as f32;
+										let y = y * pixels_y_range + pixels_y_top;
+										Line2dOC::new(
+											Vec2::new(x_left, y),
+											Vec2::new(x_right, y),
+											BOUGHT_COLOR
+										)
+									})
+								);
+								all_2d_lines_oc.extend(
+									recent_sold_at.iter().map(|sold_at| {
+										let x = *sold_at - invisible_history_len;
+										let x_left = pixels_x_left + (x as f32) * (k as f32);
+										let x_right = pixels_x_right;
+										let y = 1. - ((stock.get_price_at(*sold_at) - price_min) / price_range) as f32;
+										let y = y * pixels_y_range + pixels_y_top;
+										Line2dOC::new(
+											Vec2::new(x_left, y),
+											Vec2::new(x_right, y),
+											SOLD_COLOR
+										)
+									})
+								);
+							}
 							all_2d_lines_oc.extend(
 								stock.get_price_history_latest(stock_history_len).iter().enumerate()
 										.map_windows(|[(i_prev, price_prev), (i, price)]| {
@@ -1245,19 +1376,54 @@ impl App {
 						let pixels_x_range = pixels_x_right - pixels_x_left;
 						let pixels_y_range = pixels_y_bottom - pixels_y_top;
 						let pixels_x_range = pixels_x_range.round() as u32;
-						let (price_gmin, price_gmax) = stock.calc_min_max_global();
-						let price_grange = price_gmax - price_gmin;
-						let history = match self.state.left_stock_history_scale {
+						let stock_history = match self.state.left_stock_history_scale {
 							StockHistoryScale::Full => stock.get_price_history_full(),
 							StockHistoryScale::Sqrt => stock.get_price_history_sqrt(),
 							StockHistoryScale::Log2 => stock.get_price_history_log2(),
 							StockHistoryScale::Log10 => stock.get_price_history_log10(),
 						};
-						let history_len = history.len() as u32;
-						match history_len.cmp(&pixels_x_range) {
+						let stock_history_len = stock_history.len() as u32;
+						// let (price_gmin, price_gmax) = stock.calc_min_max_global();
+						let price_gmin = stock_history.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+						let price_gmax = stock_history.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+						let price_grange = price_gmax - price_gmin;
+						let recent_bought_at = stock.get_bought_at_recent(stock_history_len);
+						let recent_sold_at = stock.get_sold_at_recent(stock_history_len);
+						let invisible_history_len = stock.get_price_history_len().saturating_sub(stock_history_len);
+						match stock_history_len.cmp(&pixels_x_range) {
 							Ordering::Equal => {
+								if self.state.is_shown_bought_sold_lines { // see #jqpdgf
+									all_2d_lines_oc.extend(
+										recent_bought_at.iter().map(|bought_at| {
+											let x = *bought_at - invisible_history_len;
+											let x_left = pixels_x_left + (x as f32);
+											let x_right = pixels_x_right;
+											let y = 1. - ((stock.get_price_at(*bought_at) - price_gmin) / price_grange) as f32;
+											let y = y * pixels_y_range + pixels_y_top;
+											Line2dOC::new(
+												Vec2::new(x_left, y),
+												Vec2::new(x_right, y),
+												BOUGHT_COLOR
+											)
+										})
+									);
+									all_2d_lines_oc.extend(
+										recent_sold_at.iter().map(|sold_at| {
+											let x = *sold_at - invisible_history_len;
+											let x_left = pixels_x_left + (x as f32);
+											let x_right = pixels_x_right;
+											let y = 1. - ((stock.get_price_at(*sold_at) - price_gmin) / price_grange) as f32;
+											let y = y * pixels_y_range + pixels_y_top;
+											Line2dOC::new(
+												Vec2::new(x_left, y),
+												Vec2::new(x_right, y),
+												SOLD_COLOR
+											)
+										})
+									);
+								}
 								all_2d_lines_oc.extend(
-									history.iter().enumerate()
+									stock_history.iter().enumerate()
 											.map_windows(|[(i_prev, price_prev), (i, price)]| {
 										let y_prev = 1. - ((*price_prev - price_gmin) / price_grange) as f32;
 										let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
@@ -1279,16 +1445,46 @@ impl App {
 								);
 							}
 							Ordering::Less => {
-								let k = (pixels_x_range as f32) / (history_len as f32 - 1.);
+								let k = (pixels_x_range as f64) / (stock_history_len as f64 - 1.);
+								if self.state.is_shown_bought_sold_lines { // see #jqpdgf
+									all_2d_lines_oc.extend(
+										recent_bought_at.iter().map(|bought_at| {
+											let x = *bought_at - invisible_history_len;
+											let x_left = pixels_x_left + (x as f32) * (k as f32);
+											let x_right = pixels_x_right;
+											let y = 1. - ((stock.get_price_at(*bought_at) - price_gmin) / price_grange) as f32;
+											let y = y * pixels_y_range + pixels_y_top;
+											Line2dOC::new(
+												Vec2::new(x_left, y),
+												Vec2::new(x_right, y),
+												BOUGHT_COLOR
+											)
+										})
+									);
+									all_2d_lines_oc.extend(
+										recent_sold_at.iter().map(|sold_at| {
+											let x = *sold_at - invisible_history_len;
+											let x_left = pixels_x_left + (x as f32) * (k as f32);
+											let x_right = pixels_x_right;
+											let y = 1. - ((stock.get_price_at(*sold_at) - price_gmin) / price_grange) as f32;
+											let y = y * pixels_y_range + pixels_y_top;
+											Line2dOC::new(
+												Vec2::new(x_left, y),
+												Vec2::new(x_right, y),
+												SOLD_COLOR
+											)
+										})
+									);
+								}
 								all_2d_lines_oc.extend(
-									history.iter().enumerate()
+									stock_history.iter().enumerate()
 											.map_windows(|[(i_prev, price_prev), (i, price)]| {
 										let y_prev = 1. - ((*price_prev - price_gmin) / price_grange) as f32;
 										let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
-										let pixels_x_prev = pixels_x_left + (*i_prev as f32) * k;
+										let pixels_x_prev = pixels_x_left + (*i_prev as f32) * (k as f32);
 										let y = 1. - ((*price - price_gmin) / price_grange) as f32;
 										let pixels_y = y * pixels_y_range + pixels_y_top;
-										let pixels_x = pixels_x_left + (*i as f32) * k;
+										let pixels_x = pixels_x_left + (*i as f32) * (k as f32);
 										let color = match price.partial_cmp(price_prev).unwrap() {
 											Ordering::Less => ColorU8::RED,
 											Ordering::Greater => ColorU8::GREEN,
@@ -1303,11 +1499,42 @@ impl App {
 								);
 							}
 							Ordering::Greater => {
-								let history = Vec::from_fn(pixels_x_range as usize, |i| {
-									history[((i as f32) / (pixels_x_range as f32) * (history_len as f32)).round() as usize]
+								let stock_history_rescaled = Vec::from_fn(pixels_x_range as usize, |i| {
+									stock_history[((i as f32) / (pixels_x_range as f32) * (stock_history_len as f32)).round() as usize]
 								});
+								let k = (stock_history_rescaled.len() as f64) / (stock_history_len as f64);
+								if self.state.is_shown_bought_sold_lines { // see #jqpdgf
+									all_2d_lines_oc.extend(
+										recent_bought_at.iter().map(|bought_at| {
+											let x = *bought_at - invisible_history_len;
+											let x_left = pixels_x_left + (x as f32) * (k as f32);
+											let x_right = pixels_x_right;
+											let y = 1. - ((stock.get_price_at(*bought_at) - price_gmin) / price_grange) as f32;
+											let y = y * pixels_y_range + pixels_y_top;
+											Line2dOC::new(
+												Vec2::new(x_left, y),
+												Vec2::new(x_right, y),
+												BOUGHT_COLOR
+											)
+										})
+									);
+									all_2d_lines_oc.extend(
+										recent_sold_at.iter().map(|sold_at| {
+											let x = *sold_at - invisible_history_len;
+											let x_left = pixels_x_left + (x as f32) * (k as f32);
+											let x_right = pixels_x_right;
+											let y = 1. - ((stock.get_price_at(*sold_at) - price_gmin) / price_grange) as f32;
+											let y = y * pixels_y_range + pixels_y_top;
+											Line2dOC::new(
+												Vec2::new(x_left, y),
+												Vec2::new(x_right, y),
+												SOLD_COLOR
+											)
+										})
+									);
+								}
 								all_2d_lines_oc.extend(
-									history.iter().enumerate()
+									stock_history_rescaled.iter().enumerate()
 											.map_windows(|[(i_prev, price_prev), (i, price)]| {
 										let y_prev = 1. - ((*price_prev - price_gmin) / price_grange) as f32;
 										let pixels_y_prev = y_prev * pixels_y_range + pixels_y_top;
@@ -1348,8 +1575,41 @@ impl App {
 						let (price_min, price_max) = stock.calc_min_max_latest(stock_history_len);
 						let price_range = price_max - price_min;
 						// let price_grange = price_gmax - price_gmin;
+						let recent_bought_at = stock.get_bought_at_recent(stock_history_len);
+						let recent_sold_at = stock.get_sold_at_recent(stock_history_len);
+						let invisible_history_len = stock.get_price_history_len().saturating_sub(stock_history_len);
 						match self.state.stock_zoom {
 							0 => {
+								if self.state.is_shown_bought_sold_lines { // see #jqpdgf
+									all_2d_lines_oc.extend(
+										recent_bought_at.iter().map(|bought_at| {
+											let x = *bought_at - invisible_history_len;
+											let x_left = pixels_x_left + (x as f32);
+											let x_right = pixels_x_right;
+											let y = 1. - ((stock.get_price_at(*bought_at) - price_min) / price_range) as f32;
+											let y = y * pixels_y_range + pixels_y_top;
+											Line2dOC::new(
+												Vec2::new(x_left, y),
+												Vec2::new(x_right, y),
+												BOUGHT_COLOR
+											)
+										})
+									);
+									all_2d_lines_oc.extend(
+										recent_sold_at.iter().map(|sold_at| {
+											let x = *sold_at - invisible_history_len;
+											let x_left = pixels_x_left + (x as f32);
+											let x_right = pixels_x_right;
+											let y = 1. - ((stock.get_price_at(*sold_at) - price_min) / price_range) as f32;
+											let y = y * pixels_y_range + pixels_y_top;
+											Line2dOC::new(
+												Vec2::new(x_left, y),
+												Vec2::new(x_right, y),
+												SOLD_COLOR
+											)
+										})
+									);
+								}
 								all_2d_lines_oc.extend(
 									stock.get_price_history_latest(stock_history_len).iter().enumerate()
 											.map_windows(|[(i_prev, price_prev), (i, price)]| {
@@ -1374,6 +1634,36 @@ impl App {
 							}
 							zoom if zoom < 0 => {
 								let k = zoom.unsigned_abs() + 1;
+								if self.state.is_shown_bought_sold_lines { // see #jqpdgf
+									all_2d_lines_oc.extend(
+										recent_bought_at.iter().map(|bought_at| {
+											let x = *bought_at - invisible_history_len;
+											let x_left = pixels_x_left + (x as f32) / (k as f32);
+											let x_right = pixels_x_right;
+											let y = 1. - ((stock.get_price_at(*bought_at) - price_min) / price_range) as f32;
+											let y = y * pixels_y_range + pixels_y_top;
+											Line2dOC::new(
+												Vec2::new(x_left, y),
+												Vec2::new(x_right, y),
+												BOUGHT_COLOR
+											)
+										})
+									);
+									all_2d_lines_oc.extend(
+										recent_sold_at.iter().map(|sold_at| {
+											let x = *sold_at - invisible_history_len;
+											let x_left = pixels_x_left + (x as f32) / (k as f32);
+											let x_right = pixels_x_right;
+											let y = 1. - ((stock.get_price_at(*sold_at) - price_min) / price_range) as f32;
+											let y = y * pixels_y_range + pixels_y_top;
+											Line2dOC::new(
+												Vec2::new(x_left, y),
+												Vec2::new(x_right, y),
+												SOLD_COLOR
+											)
+										})
+									);
+								}
 								all_2d_lines_oc.extend(
 									stock.get_price_history_latest(stock_history_len)
 											.chunks(k as usize).map(|chunk| chunk[chunk.len()-1])
@@ -1399,6 +1689,36 @@ impl App {
 							}
 							zoom if zoom > 0 => {
 								let k = zoom + 1;
+								if self.state.is_shown_bought_sold_lines { // see #jqpdgf
+									all_2d_lines_oc.extend(
+										recent_bought_at.iter().map(|bought_at| {
+											let x = *bought_at - invisible_history_len;
+											let x_left = pixels_x_left + (x as f32) * (k as f32);
+											let x_right = pixels_x_right;
+											let y = 1. - ((stock.get_price_at(*bought_at) - price_min) / price_range) as f32;
+											let y = y * pixels_y_range + pixels_y_top;
+											Line2dOC::new(
+												Vec2::new(x_left, y),
+												Vec2::new(x_right, y),
+												BOUGHT_COLOR
+											)
+										})
+									);
+									all_2d_lines_oc.extend(
+										recent_sold_at.iter().map(|sold_at| {
+											let x = *sold_at - invisible_history_len;
+											let x_left = pixels_x_left + (x as f32) * (k as f32);
+											let x_right = pixels_x_right;
+											let y = 1. - ((stock.get_price_at(*sold_at) - price_min) / price_range) as f32;
+											let y = y * pixels_y_range + pixels_y_top;
+											Line2dOC::new(
+												Vec2::new(x_left, y),
+												Vec2::new(x_right, y),
+												SOLD_COLOR
+											)
+										})
+									);
+								}
 								all_2d_lines_oc.extend(
 									stock.get_price_history_latest(stock_history_len).iter().enumerate()
 											.map_windows(|[(i_prev, price_prev), (i, price)]| {
@@ -1980,13 +2300,14 @@ struct GameState {
 
 	// money: f128,
 	money: f64,
-	stock_market: StockMarket,
+	stock_market: StockMarket, // TODO: add stocks depending on LAs in world/base
 	is_stock_market_open: bool = false,
 	stock_market_index: u32 = 0,
 	is_specific_stock_open: bool = false,
 	stock_zoom: i32 = 0,
 	buy_sell_scale: u32 = 0,
 	left_stock_history_scale: StockHistoryScale = StockHistoryScale::Full,
+	is_shown_bought_sold_lines: bool = true, // TODO: 2^3 states for left/right/specific plot
 }
 
 impl GameState {
@@ -2012,9 +2333,11 @@ impl GameState {
 			".",
 			"stock market:",
 			"e/q - buy/sell",
+			"E/Q - buy/sell 10x",
 			"left/right - inc/dec buy/sell number",
 			"+/- - zoom in/out",
 			"r - reset zoom",
+			"tab - change show bought/sold lines", // TODO: rewrite
 			".",
 			"stocks list:",
 			"space - change stocks left history scale", // TODO: rewrite
