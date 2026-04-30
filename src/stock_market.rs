@@ -99,18 +99,20 @@ impl Stock {
 	}
 
 	fn update(&mut self, rng: &mut ThreadRng) {
-		enum Change { AddSub(f64), MulDiv(f64) }
+		enum Change { None, AddSub(f64), MulDiv(f64) }
 		use Change::*;
 		let change = match_random_weighted! { rng,
+			0.1 => None,
 			1. => AddSub(rng.random_range(-1. ..= 1.)),
-			0.2 => AddSub(rng.random_range(-0.1 ..= 0.1)),
+			0.3 => AddSub(rng.random_range(-0.1 ..= 0.1)),
 			0.1 => AddSub(rng.random_range(-10. ..= 10.)),
-			0.03 => AddSub(rng.random_range(-100. ..= 100.)),
-			0.3 => MulDiv(rng.random_range(1. ..= 1.3)),
-			0.01 => MulDiv(rng.random_range(1.3 ..= 3.)),
-			0.001 => MulDiv(rng.random_range(3. ..= 10.)),
+			0.01 => AddSub(rng.random_range(-100. ..= 100.)),
+			0.01 => MulDiv(rng.random_range(1. ..= 1.3)),
+			0.001 => MulDiv(rng.random_range(1.3 ..= 3.)),
+			0.00001 => MulDiv(rng.random_range(3. ..= 10.)),
 		};
 		self.current_price = match change {
+			None => self.current_price,
 			AddSub(delta) => self.current_price + if rng.random_bool(0.5) { delta } else { -delta },
 			MulDiv(coef) => self.current_price * if rng.random_bool(0.5) { coef } else { coef.recip() },
 		};
