@@ -158,9 +158,10 @@ impl Stock {
 			0.3 => AddSub(rng.random_range(-0.1 ..= 0.1)),
 			0.1 => AddSub(rng.random_range(-10. ..= 10.)),
 			0.01 => AddSub(rng.random_range(-100. ..= 100.)),
-			0.01 => MulDiv(rng.random_range(1. ..= 1.3)),
-			0.001 => MulDiv(rng.random_range(1.3 ..= 3.)),
-			0.00001 => MulDiv(rng.random_range(3. ..= 10.)),
+			0.003 => MulDiv(rng.random_range(1. ..= 1.3)),
+			0.0003 => MulDiv(rng.random_range(1.3 ..= 3.)),
+			0.00003 => MulDiv(rng.random_range(3. ..= 10.)),
+			1e-5 => MulDiv(-1.),
 		};
 		self.current_price = match change {
 			None => self.current_price,
