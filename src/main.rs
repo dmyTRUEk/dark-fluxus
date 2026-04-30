@@ -1077,11 +1077,11 @@ impl App {
 
 		{ // stock_market rendering
 			const PADDING: f32 = 20.;
-			const ITEM_Y: f32 = 150.;
 			const ITEMS_N: u32 = 5;
 			// debug_assert_eq!(1, ITEMS_N % 2);
-			const SIZE_X: f32 = 1400.; // TODO: relative size (90%)
-			const SIZE_Y: f32 = PADDING + (ITEM_Y + PADDING) * (ITEMS_N as f32); // TODO: relative size (90%)
+			let size_x: f32 = wf * 0.9;
+			let size_y: f32 = hf * 0.9;
+			let item_y: f32 = (size_y - PADDING - PADDING*(ITEMS_N as f32)) / (ITEMS_N as f32);
 			const BOUGHT_COLOR: ColorU8 = ColorU8::DARK_GREEN_32;
 			const SOLD_COLOR: ColorU8 = ColorU8::DARK_ORANGE_32;
 			fn calc_text_width_(text_len: u32, font_size: u8) -> u32 {
@@ -1094,11 +1094,11 @@ impl App {
 			}
 			if self.state.is_specific_stock_open {
 				const TEXT_SIZE: u8 = 5;
-				all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
-				all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
+				all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: size_x, h: size_y, color: ColorU8::BLACK });
+				all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: size_x, h: size_y, color: ColorU8::WHITE });
 				let stock = &self.state.stock_market.stocks[self.state.stock_market_index as usize];
-				let text_x = wfh - SIZE_X/2. + PADDING;
-				let text_y = hfh - SIZE_Y/2. + PADDING;
+				let text_x = wfh - size_x/2. + PADDING;
+				let text_y = hfh - size_y/2. + PADDING;
 				let price_current = stock.get_current_price();
 				let price_current_str = format!("{price_current:.2}"); // TODO: better format big nums
 				{ // render top text
@@ -1115,7 +1115,7 @@ impl App {
 					let buy_sell_n_str = buy_sell_scale_to_n_str(self.state.buy_sell_scale);
 					let buy_sell_n_str = format!("BUY/SELL N: {buy_sell_n_str}");
 					let text_width = calc_text_width(&buy_sell_n_str, TEXT_SIZE);
-					let text_x = wfh + SIZE_X/2. - PADDING - (text_width as f32);
+					let text_x = wfh + size_x/2. - PADDING - (text_width as f32);
 					all_2d_points.extend(
 						get_text_pixels(&buy_sell_n_str, (text_x.round() as i32, text_y.round() as i32), TEXT_SIZE, wh)
 							.into_iter().map(|(x,y)| Point2d::from(x, y, ColorU8::WHITE))
@@ -1134,8 +1134,8 @@ impl App {
 					let pixels_x_left = text_x;
 					let pixels_y_top = text_y + (TEXT_SIZE as f32) * 5. + PADDING;
 					let text_width = calc_text_width_(rt_text_max_len, RT_TEXT_SIZE) as f32;
-					let pixels_x_right = wfh + SIZE_X/2. - PADDING - text_width - PLOT_RT_TEXT_PADDING;
-					let pixels_y_bottom = hfh + SIZE_Y/2. - PADDING;
+					let pixels_x_right = wfh + size_x/2. - PADDING - text_width - PLOT_RT_TEXT_PADDING;
+					let pixels_y_bottom = hfh + size_y/2. - PADDING;
 					let pixels_x_range = pixels_x_right - pixels_x_left;
 					let pixels_y_range = pixels_y_bottom - pixels_y_top;
 					let stock_history_len = pixels_x_range;
@@ -1356,9 +1356,9 @@ impl App {
 				}
 			}
 			else if self.state.is_stock_market_open {
-				all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::BLACK });
-				all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: SIZE_X, h: SIZE_Y, color: ColorU8::WHITE });
-				const ITEM_X: f32 = SIZE_X - 2. * PADDING;
+				all_2d_rect_filled.push(Rectangle2dOC { x: wfh, y: hfh, w: size_x, h: size_y, color: ColorU8::BLACK });
+				all_2d_rect_hollow.push(Rectangle2dOC { x: wfh, y: hfh, w: size_x, h: size_y, color: ColorU8::WHITE });
+				let item_x: f32 = size_x - 2. * PADDING;
 				const ITEM_UNSELECTED_COLOR: ColorU8 = ColorU8::GRAY_64;
 				const ITEM_SELECTED_COLOR: ColorU8 = ColorU8::WHITE;
 				// const ITEM_TEXT_COLOR: ColorU8 = ColorU8::GREEN;
@@ -1370,12 +1370,12 @@ impl App {
 				while i - i_init < ITEMS_N && i < self.state.stock_market.stocks.len() as u32 {
 					let stock = &self.state.stock_market.stocks[i as usize];
 					let item_cx = wfh;
-					let item_cy = hfh - SIZE_Y/2. + PADDING + ITEM_Y/2. + (PADDING+ITEM_Y)*((i - i_init) as f32);
+					let item_cy = hfh - size_y/2. + PADDING + item_y/2. + (PADDING+item_y)*((i - i_init) as f32);
 					let is_selected = i == self.state.stock_market_index;
 					let color = is_selected.select(ITEM_SELECTED_COLOR, ITEM_UNSELECTED_COLOR);
-					all_2d_rect_hollow.push(Rectangle2dOC { x: item_cx, y: item_cy, w: ITEM_X, h: ITEM_Y, color });
-					let text_x = item_cx - ITEM_X/2. + ITEM_INNER_PADDING;
-					let text_y = item_cy - ITEM_Y/2. + ITEM_INNER_PADDING;
+					all_2d_rect_hollow.push(Rectangle2dOC { x: item_cx, y: item_cy, w: item_x, h: item_y, color });
+					let text_x = item_cx - item_x/2. + ITEM_INNER_PADDING;
+					let text_y = item_cy - item_y/2. + ITEM_INNER_PADDING;
 					{ // render text
 						let left_text = format!("{name} ({owned_n}): ", name=stock.get_name(), owned_n=stock.get_n_owned_by_player());
 						all_2d_points.extend(
@@ -1393,7 +1393,7 @@ impl App {
 							let buy_sell_n_str = buy_sell_scale_to_n_str(self.state.buy_sell_scale);
 							let buy_sell_n_str = format!("BUY/SELL N: {buy_sell_n_str}");
 							let text_width = calc_text_width(&buy_sell_n_str, ITEM_TEXT_SIZE);
-							let text_x = item_cx + ITEM_X/2. - ITEM_INNER_PADDING - (text_width as f32);
+							let text_x = item_cx + item_x/2. - ITEM_INNER_PADDING - (text_width as f32);
 							all_2d_points.extend(
 								get_text_pixels(&buy_sell_n_str, (text_x.round() as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
 									.into_iter().map(|(x,y)| Point2d::from(x, y, ColorU8::WHITE))
@@ -1402,10 +1402,10 @@ impl App {
 					}
 					const GLOBAL_LOCAL_PRICES_PADDING: f32 = 10.;
 					{ // plot global prices over time
-						let pixels_x_left = item_cx - ITEM_X/2. + ITEM_INNER_PADDING;
+						let pixels_x_left = item_cx - item_x/2. + ITEM_INNER_PADDING;
 						let pixels_y_top = text_y + (ITEM_TEXT_SIZE as f32) * 5. + ITEM_INNER_PADDING;
 						let pixels_x_right = item_cx - GLOBAL_LOCAL_PRICES_PADDING/2.;
-						let pixels_y_bottom = item_cy + ITEM_Y/2. - ITEM_INNER_PADDING;
+						let pixels_y_bottom = item_cy + item_y/2. - ITEM_INNER_PADDING;
 						let pixels_x_range = pixels_x_right - pixels_x_left;
 						let pixels_y_range = pixels_y_bottom - pixels_y_top;
 						let pixels_x_range = pixels_x_range.round() as u32;
@@ -1593,8 +1593,8 @@ impl App {
 					{ // plot local prices over time
 						let pixels_x_left = item_cx + GLOBAL_LOCAL_PRICES_PADDING/2.;
 						let pixels_y_top = text_y + (ITEM_TEXT_SIZE as f32) * 5. + ITEM_INNER_PADDING;
-						let pixels_x_right = item_cx + ITEM_X/2. - ITEM_INNER_PADDING;
-						let pixels_y_bottom = item_cy + ITEM_Y/2. - ITEM_INNER_PADDING;
+						let pixels_x_right = item_cx + item_x/2. - ITEM_INNER_PADDING;
+						let pixels_y_bottom = item_cy + item_y/2. - ITEM_INNER_PADDING;
 						let pixels_x_range = pixels_x_right - pixels_x_left;
 						let pixels_y_range = pixels_y_bottom - pixels_y_top;
 						let stock_history_len = pixels_x_range;
