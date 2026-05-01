@@ -3,6 +3,8 @@
 #![feature(
 	default_field_values,
 	generic_const_exprs,
+	// iter_array_chunks,
+	iter_intersperse,
 	iter_map_windows,
 	vec_from_fn,
 )]
@@ -446,9 +448,8 @@ impl App {
 				else if self.state.is_stock_market_open {
 					// TODO: same for shift+space => `.prev()`
 					self.state.left_stock_history_scale.next();
-					let left_stock_history_scale_str = format!("{:?}", self.state.left_stock_history_scale).to_uppercase();
 					self.state.messages.push(Message {
-						text: format!("LEFT STOCK HISTORY SCALE: {}", left_stock_history_scale_str),
+						text: format!("LEFT STOCK HISTORY SCALE: {:?}", self.state.left_stock_history_scale).to_uppercase(),
 						expiration_time: 1.,
 						color: ColorU8::GRAY,
 					});
@@ -1128,7 +1129,7 @@ impl App {
 				let text_x = wfh - size_x/2. + PADDING;
 				let text_y = hfh - size_y/2. + PADDING;
 				let price_current = stock.get_current_price();
-				let price_current_str = format!("{price_current:.2}"); // TODO: better format big nums
+				let price_current_str = price_current.to_string_pretty(2);
 				{ // render top text
 					let left_text = format!("{name} ({owned_n}): ", name=stock.get_name(), owned_n=stock.get_n_owned_by_player());
 					all_2d_points.extend(
@@ -1153,7 +1154,8 @@ impl App {
 					const RT_TEXT_SIZE: u8 = 3;
 					const PLOT_RT_TEXT_PADDING: f32 = 5.;
 					let (price_gmin, price_gmax) = stock.calc_min_max_global();
-					let (price_gmin_str, price_gmax_str) = (format!("{price_gmin:.2}"), format!("{price_gmax:.2}")); // TODO: better format big nums
+					let price_gmin_str = price_gmin.to_string_pretty(2);
+					let price_gmax_str = price_gmax.to_string_pretty(2);
 					// let rt_text_max_len = [price_min_str, price_max_str, price_gmin_str, price_gmax_str]
 					// 	.map(|s| s.len()).into_iter().max().unwrap();
 					let rt_text_max_len = [&price_gmin_str, &price_gmax_str, &price_current_str]
@@ -1175,7 +1177,8 @@ impl App {
 					};
 					let stock_history_len = stock_history_len.round() as u32;
 					let (price_min, price_max) = stock.calc_min_max_latest(stock_history_len);
-					let (price_min_str, price_max_str) = (format!("{price_min:.2}"), format!("{price_max:.2}")); // TODO: better format big nums
+					let price_min_str = price_min.to_string_pretty(2);
+					let price_max_str = price_max.to_string_pretty(2);
 					let price_range = price_max - price_min;
 					// let price_grange = price_gmax - price_gmin;
 					let recent_bought_at = stock.get_bought_at_recent(stock_history_len);
@@ -1411,7 +1414,7 @@ impl App {
 								.into_iter().map(|(x,y)| Point2d::from(x, y, color))
 						);
 						let price = stock.get_current_price();
-						let price_str = format!("{price:.2}"); // TODO: better format big nums
+						let price_str = price.to_string_pretty(2);
 						let color = (price > 0.).select(color, is_selected.select(ColorU8::RED, ColorU8::DARK_RED_64)); // TODO?: change color
 						all_2d_points.extend(
 							get_text_pixels(&price_str, (text_x.round() as i32 + calc_text_width(&left_text, ITEM_TEXT_SIZE) as i32, text_y.round() as i32), ITEM_TEXT_SIZE, wh)
@@ -1817,7 +1820,7 @@ impl App {
 			let text_size = 3;
 			let color = ColorU8::GRAY_32;
 			let mut top_left_lines = vec![
-				(format!("$: {:.2} + {:.2}", self.state.money, self.state.stock_market.calc_money_in_stocks()), self.state.is_stock_market_open.select(ColorU8::WHITE, color)), // TODO: better format big nums
+				(format!("$: {} + {}", self.state.money.to_string_pretty(2), self.state.stock_market.calc_money_in_stocks().to_string_pretty(2)), self.state.is_stock_market_open.select(ColorU8::WHITE, color)),
 				// format!("$: {}", { // if money is f128
 				// 	let money = self.state.money;
 				// 	if !money.is_finite() {
