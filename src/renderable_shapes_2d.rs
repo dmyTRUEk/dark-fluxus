@@ -1,6 +1,6 @@
 //! renderable shapes
 
-use glam::Vec2;
+use glam::{Vec2, vec2};
 
 use crate::{Vertex, color_u8::ColorU8, extensions::{Flatten, Into_}, renderable_shapes::*, vec2_ext::ExtVec2};
 
@@ -22,7 +22,7 @@ pub struct Point2d {
 }
 impl Point2d {
 	pub fn from(x: impl Into_<f32>, y: impl Into_<f32>, color: ColorU8) -> Self {
-		Self { v: Vec2::new(x.into_(), y.into_()), color }
+		Self { v: vec2(x.into_(), y.into_()), color }
 	}
 }
 impl ToVertex for Point2d {
@@ -174,8 +174,8 @@ impl Rectangle2dOC {
 		let w = w / 2.;
 		let h = h / 2.;
 		[
-			Triangle2dOC::new(Vec2::new(x-w, y-h), Vec2::new(x+w, y-h), Vec2::new(x-w, y+h), color),
-			Triangle2dOC::new(Vec2::new(x+w, y+h), Vec2::new(x+w, y-h), Vec2::new(x-w, y+h), color),
+			Triangle2dOC::new(vec2(x-w, y-h), vec2(x+w, y-h), vec2(x-w, y+h), color),
+			Triangle2dOC::new(vec2(x+w, y+h), vec2(x+w, y-h), vec2(x-w, y+h), color),
 		]
 	}
 	fn to_lines(self) -> [Line2dOC; 4] {
@@ -183,10 +183,10 @@ impl Rectangle2dOC {
 		let w = w / 2.;
 		let h = h / 2.;
 		[
-			Line2dOC::new(Vec2::new(x-w, y-h), Vec2::new(x-w, y+h), color),
-			Line2dOC::new(Vec2::new(x-w, y+h), Vec2::new(x+w, y+h), color),
-			Line2dOC::new(Vec2::new(x+w, y+h), Vec2::new(x+w, y-h), color),
-			Line2dOC::new(Vec2::new(x+w, y-h), Vec2::new(x-w, y-h), color),
+			Line2dOC::new(vec2(x-w, y-h), vec2(x-w, y+h), color),
+			Line2dOC::new(vec2(x-w, y+h), vec2(x+w, y+h), color),
+			Line2dOC::new(vec2(x+w, y+h), vec2(x+w, y-h), color),
+			Line2dOC::new(vec2(x+w, y-h), vec2(x-w, y-h), color),
 		]
 	}
 	pub fn to_triangles_vertices(self) -> [Vertex; 6] {

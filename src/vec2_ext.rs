@@ -1,6 +1,6 @@
 //! Vec2 extensions
 
-use glam::{Vec2, Vec3};
+use glam::{Vec2, Vec3, vec3};
 use rand::{RngExt, rngs::ThreadRng};
 
 use crate::extensions::{BoolSelect, Into_};
@@ -22,9 +22,9 @@ impl ExtVec2 for Vec2 {
 	fn from_x(x: impl Into_<f32>) -> Self { Self::ZERO.with_x(x.into_()) }
 	fn from_y(y: impl Into_<f32>) -> Self { Self::ZERO.with_y(y.into_()) }
 	fn from_xy(x: impl Into_<f32>, y: impl Into_<f32>) -> Self { Self::new(x.into_(), y.into_()) }
-	fn xy0(self)  -> Vec3 { Vec3::new(self.x, self.y, 0.) }
-	fn x0y(self)  -> Vec3 { Vec3::new(self.x, 0., self.y) }
-	fn _0xy(self) -> Vec3 { Vec3::new(0., self.x, self.y) }
+	fn xy0(self)  -> Vec3 { vec3(self.x, self.y, 0.) }
+	fn x0y(self)  -> Vec3 { vec3(self.x, 0., self.y) }
+	fn _0xy(self) -> Vec3 { vec3(0., self.x, self.y) }
 	fn random_unit_square(rng: &mut ThreadRng) -> Self {
 		Self {
 			x: rng.random_range(-1. ..= 1.),

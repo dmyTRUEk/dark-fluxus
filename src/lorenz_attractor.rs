@@ -1,6 +1,6 @@
 //! lorenz attractor
 
-use glam::Vec3;
+use glam::{Vec3, vec3};
 
 
 
@@ -66,7 +66,7 @@ impl LorenzAttractor {
 		(self.x, self.y, self.z)
 	}
 	pub fn get_xyz_as_vec3d(&self) -> Vec3 {
-		Vec3::new(self.x, self.y, self.z)
+		vec3(self.x, self.y, self.z)
 	}
 	pub fn get_linear_combination(&self, cx: f32, cy: f32, cz: f32) -> f32 {
 		cx * self.x + cy * self.y + cz * self.z

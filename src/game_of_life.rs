@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use glam::IVec2;
+use glam::{IVec2, ivec2};
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 
 use crate::{extensions::BoolSelectEither, math::{lerp, min_max}, misc::{int_circle_spiral, int_square_spiral}, utils::hash_str_to_u64};
@@ -59,29 +59,29 @@ impl GameOfLifeState {
 	pub fn updated(&self) -> Self {
 		fn around(IVec2 { x, y }: IVec2) -> [IVec2; 8] {
 			[
-				// IVec2::new(x, y),
-				IVec2::new(x, y-1),
-				IVec2::new(x-1, y),
-				IVec2::new(x-1, y-1),
-				IVec2::new(x, y+1),
-				IVec2::new(x+1, y),
-				IVec2::new(x+1, y+1),
-				IVec2::new(x+1, y-1),
-				IVec2::new(x-1, y+1),
+				// ivec2(x, y),
+				ivec2(x, y-1),
+				ivec2(x-1, y),
+				ivec2(x-1, y-1),
+				ivec2(x, y+1),
+				ivec2(x+1, y),
+				ivec2(x+1, y+1),
+				ivec2(x+1, y-1),
+				ivec2(x-1, y+1),
 			]
 		}
 		fn around_and_self(IVec2 { x, y }: IVec2) -> [IVec2; 9] {
 			// around(p).pushed(p)
 			[
-				IVec2::new(x, y),
-				IVec2::new(x, y-1),
-				IVec2::new(x-1, y),
-				IVec2::new(x-1, y-1),
-				IVec2::new(x, y+1),
-				IVec2::new(x+1, y),
-				IVec2::new(x+1, y+1),
-				IVec2::new(x+1, y-1),
-				IVec2::new(x-1, y+1),
+				ivec2(x, y),
+				ivec2(x, y-1),
+				ivec2(x-1, y),
+				ivec2(x-1, y-1),
+				ivec2(x, y+1),
+				ivec2(x+1, y),
+				ivec2(x+1, y+1),
+				ivec2(x+1, y-1),
+				ivec2(x-1, y+1),
 			]
 		}
 		let old_alive_cells = &self.alive_cells;

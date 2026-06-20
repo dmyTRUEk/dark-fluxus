@@ -29,7 +29,7 @@
 use std::{cmp::Ordering, collections::VecDeque, f32::consts::{GOLDEN_RATIO, PI, TAU}, time::Instant};
 
 //use f128::f128;
-use glam::{Mat4, Vec2, Vec3};
+use glam::{Mat4, Vec2, Vec3, vec2, vec3};
 //use num_traits::float::Float; // for f128 methods
 use pollster::block_on;
 use rand::{RngExt, rng, rngs::ThreadRng};
@@ -749,7 +749,7 @@ impl App {
 					while x < CHUNK_SIZE_HALF {
 						let mut z = -CHUNK_SIZE_HALF;
 						while z < CHUNK_SIZE_HALF {
-							let pos = Vec3::new((dx as f32)*CHUNK_SIZE + x, 0., (dz as f32)*CHUNK_SIZE + z);
+							let pos = vec3((dx as f32)*CHUNK_SIZE + x, 0., (dz as f32)*CHUNK_SIZE + z);
 							let pos = pos.flip_x_if(self.state.is_x_flipped_global);
 							let pos = pos.flip_z_if(self.state.is_z_flipped_global);
 							let color = {
@@ -763,10 +763,10 @@ impl App {
 								// chunk.color
 							};
 							// let lines = [
-							// 	(Vec3::new(pos.x - step/3., 0., pos.z - step/3.),
-							// 	 Vec3::new(pos.x + step/3., 0., pos.z + step/3.)),
-							// 	(Vec3::new(pos.x - step/3., 0., pos.z + step/3.),
-							// 	 Vec3::new(pos.x + step/3., 0., pos.z - step/3.)),
+							// 	(vec3(pos.x - step/3., 0., pos.z - step/3.),
+							// 	 vec3(pos.x + step/3., 0., pos.z + step/3.)),
+							// 	(vec3(pos.x - step/3., 0., pos.z + step/3.),
+							// 	 vec3(pos.x + step/3., 0., pos.z - step/3.)),
 							// ];
 							// for (a, b) in lines.into_iter() {
 							// 	all_3d_lines_oc.push(Line3dOC::from(a, b, color));
@@ -788,7 +788,7 @@ impl App {
 					for (pos, ro) in chunk.renderable_objects.iter() {
 						use RenderableShape::*;
 						let shift: Vec3 = pos.flip_x_if(is_x_flipped).flip_z_if(is_z_flipped) +
-							Vec3::new((dx as f32)*CHUNK_SIZE, 0., (dz as f32)*CHUNK_SIZE)
+							vec3((dx as f32)*CHUNK_SIZE, 0., (dz as f32)*CHUNK_SIZE)
 								.flip_x_if(self.state.is_x_flipped_global).flip_z_if(self.state.is_z_flipped_global);
 						let color = {
 							let ColorU8 { mut r, mut g, mut b, .. } = chunk.color;
@@ -937,11 +937,11 @@ impl App {
 						let zf = (z as f32) * mesh_step;
 						for x in 0..MESH_SIZE-1 {
 							let xf = (x as f32) * mesh_step;
-							let a = Vec3::new(xf+cx, surface[(x,z)], zf+cz);
-							let b = Vec3::new(xf+cx+mesh_step, surface[(x+1,z)], zf+cz);
+							let a = vec3(xf+cx, surface[(x,z)], zf+cz);
+							let b = vec3(xf+cx+mesh_step, surface[(x+1,z)], zf+cz);
 							all_3d_lines_oc.push(Line3dOC::from(a, b, *lod_color));
-							let a = Vec3::new(xf+cx, surface[(x,z)], zf+cz);
-							let b = Vec3::new(xf+cx, surface[(x,z+1)], zf+cz+mesh_step);
+							let a = vec3(xf+cx, surface[(x,z)], zf+cz);
+							let b = vec3(xf+cx, surface[(x,z+1)], zf+cz+mesh_step);
 							all_3d_lines_oc.push(Line3dOC::from(a, b, *lod_color));
 						}
 					}
@@ -949,16 +949,16 @@ impl App {
 						let z = MESH_SIZE-1;
 						let zf = (z as f32) * mesh_step;
 						let xf = (x as f32) * mesh_step;
-						let a = Vec3::new(xf+cx, surface[(x,z)], zf+cz);
-						let b = Vec3::new(xf+cx+mesh_step, surface[(x+1,z)], zf+cz);
+						let a = vec3(xf+cx, surface[(x,z)], zf+cz);
+						let b = vec3(xf+cx+mesh_step, surface[(x+1,z)], zf+cz);
 						all_3d_lines_oc.push(Line3dOC::from(a, b, *lod_color));
 					}
 					for z in 0..MESH_SIZE-1 {
 						let x = MESH_SIZE-1;
 						let xf = (x as f32) * mesh_step;
 						let zf = (z as f32) * mesh_step;
-						let a = Vec3::new(xf+cx, surface[(x,z)], zf+cz);
-						let b = Vec3::new(xf+cx, surface[(x,z+1)], zf+cz+mesh_step);
+						let a = vec3(xf+cx, surface[(x,z)], zf+cz);
+						let b = vec3(xf+cx, surface[(x,z+1)], zf+cz+mesh_step);
 						all_3d_lines_oc.push(Line3dOC::from(a, b, *lod_color));
 					}
 				}
@@ -1197,8 +1197,8 @@ impl App {
 										let y = 1. - ((stock.get_price_at(*bought_at) - price_min) / price_range) as f32;
 										let y = y * pixels_y_range + pixels_y_top;
 										Line2dOC::new(
-											Vec2::new(x_left, y),
-											Vec2::new(x_right, y),
+											vec2(x_left, y),
+											vec2(x_right, y),
 											BOUGHT_COLOR
 										)
 									})
@@ -1211,8 +1211,8 @@ impl App {
 										let y = 1. - ((stock.get_price_at(*sold_at) - price_min) / price_range) as f32;
 										let y = y * pixels_y_range + pixels_y_top;
 										Line2dOC::new(
-											Vec2::new(x_left, y),
-											Vec2::new(x_right, y),
+											vec2(x_left, y),
+											vec2(x_right, y),
 											SOLD_COLOR
 										)
 									})
@@ -1233,8 +1233,8 @@ impl App {
 										Ordering::Equal => ColorU8::WHITE,
 									};
 									Line2dOC::new(
-										Vec2::new(pixels_x_prev, pixels_y_prev),
-										Vec2::new(pixels_x, pixels_y),
+										vec2(pixels_x_prev, pixels_y_prev),
+										vec2(pixels_x, pixels_y),
 										color
 									)
 								})
@@ -1251,8 +1251,8 @@ impl App {
 										let y = 1. - ((stock.get_price_at(*bought_at) - price_min) / price_range) as f32;
 										let y = y * pixels_y_range + pixels_y_top;
 										Line2dOC::new(
-											Vec2::new(x_left, y),
-											Vec2::new(x_right, y),
+											vec2(x_left, y),
+											vec2(x_right, y),
 											BOUGHT_COLOR
 										)
 									})
@@ -1265,8 +1265,8 @@ impl App {
 										let y = 1. - ((stock.get_price_at(*sold_at) - price_min) / price_range) as f32;
 										let y = y * pixels_y_range + pixels_y_top;
 										Line2dOC::new(
-											Vec2::new(x_left, y),
-											Vec2::new(x_right, y),
+											vec2(x_left, y),
+											vec2(x_right, y),
 											SOLD_COLOR
 										)
 									})
@@ -1288,8 +1288,8 @@ impl App {
 										Ordering::Equal => ColorU8::WHITE,
 									};
 									Line2dOC::new(
-										Vec2::new(pixels_x_prev, pixels_y_prev),
-										Vec2::new(pixels_x, pixels_y),
+										vec2(pixels_x_prev, pixels_y_prev),
+										vec2(pixels_x, pixels_y),
 										color
 									)
 								})
@@ -1306,8 +1306,8 @@ impl App {
 										let y = 1. - ((stock.get_price_at(*bought_at) - price_min) / price_range) as f32;
 										let y = y * pixels_y_range + pixels_y_top;
 										Line2dOC::new(
-											Vec2::new(x_left, y),
-											Vec2::new(x_right, y),
+											vec2(x_left, y),
+											vec2(x_right, y),
 											BOUGHT_COLOR
 										)
 									})
@@ -1320,8 +1320,8 @@ impl App {
 										let y = 1. - ((stock.get_price_at(*sold_at) - price_min) / price_range) as f32;
 										let y = y * pixels_y_range + pixels_y_top;
 										Line2dOC::new(
-											Vec2::new(x_left, y),
-											Vec2::new(x_right, y),
+											vec2(x_left, y),
+											vec2(x_right, y),
 											SOLD_COLOR
 										)
 									})
@@ -1342,8 +1342,8 @@ impl App {
 										Ordering::Equal => ColorU8::WHITE,
 									};
 									Line2dOC::new(
-										Vec2::new(pixels_x_prev, pixels_y_prev),
-										Vec2::new(pixels_x, pixels_y),
+										vec2(pixels_x_prev, pixels_y_prev),
+										vec2(pixels_x, pixels_y),
 										color
 									)
 								})
@@ -1470,8 +1470,8 @@ impl App {
 											let y = 1. - ((stock.get_price_at(*bought_at) - price_gmin) / price_grange) as f32;
 											let y = y * pixels_y_range + pixels_y_top;
 											Line2dOC::new(
-												Vec2::new(x_left, y),
-												Vec2::new(x_right, y),
+												vec2(x_left, y),
+												vec2(x_right, y),
 												BOUGHT_COLOR
 											)
 										})
@@ -1484,8 +1484,8 @@ impl App {
 											let y = 1. - ((stock.get_price_at(*sold_at) - price_gmin) / price_grange) as f32;
 											let y = y * pixels_y_range + pixels_y_top;
 											Line2dOC::new(
-												Vec2::new(x_left, y),
-												Vec2::new(x_right, y),
+												vec2(x_left, y),
+												vec2(x_right, y),
 												SOLD_COLOR
 											)
 										})
@@ -1506,8 +1506,8 @@ impl App {
 											Ordering::Equal => ColorU8::WHITE,
 										};
 										Line2dOC::new(
-											Vec2::new(pixels_x_prev, pixels_y_prev),
-											Vec2::new(pixels_x, pixels_y),
+											vec2(pixels_x_prev, pixels_y_prev),
+											vec2(pixels_x, pixels_y),
 											color
 										)
 									})
@@ -1524,8 +1524,8 @@ impl App {
 											let y = 1. - ((stock.get_price_at(*bought_at) - price_gmin) / price_grange) as f32;
 											let y = y * pixels_y_range + pixels_y_top;
 											Line2dOC::new(
-												Vec2::new(x_left, y),
-												Vec2::new(x_right, y),
+												vec2(x_left, y),
+												vec2(x_right, y),
 												BOUGHT_COLOR
 											)
 										})
@@ -1538,8 +1538,8 @@ impl App {
 											let y = 1. - ((stock.get_price_at(*sold_at) - price_gmin) / price_grange) as f32;
 											let y = y * pixels_y_range + pixels_y_top;
 											Line2dOC::new(
-												Vec2::new(x_left, y),
-												Vec2::new(x_right, y),
+												vec2(x_left, y),
+												vec2(x_right, y),
 												SOLD_COLOR
 											)
 										})
@@ -1560,8 +1560,8 @@ impl App {
 											Ordering::Equal => ColorU8::WHITE,
 										};
 										Line2dOC::new(
-											Vec2::new(pixels_x_prev, pixels_y_prev),
-											Vec2::new(pixels_x, pixels_y),
+											vec2(pixels_x_prev, pixels_y_prev),
+											vec2(pixels_x, pixels_y),
 											color
 										)
 									})
@@ -1581,8 +1581,8 @@ impl App {
 											let y = 1. - ((stock.get_price_at(*bought_at) - price_gmin) / price_grange) as f32;
 											let y = y * pixels_y_range + pixels_y_top;
 											Line2dOC::new(
-												Vec2::new(x_left, y),
-												Vec2::new(x_right, y),
+												vec2(x_left, y),
+												vec2(x_right, y),
 												BOUGHT_COLOR
 											)
 										})
@@ -1595,8 +1595,8 @@ impl App {
 											let y = 1. - ((stock.get_price_at(*sold_at) - price_gmin) / price_grange) as f32;
 											let y = y * pixels_y_range + pixels_y_top;
 											Line2dOC::new(
-												Vec2::new(x_left, y),
-												Vec2::new(x_right, y),
+												vec2(x_left, y),
+												vec2(x_right, y),
 												SOLD_COLOR
 											)
 										})
@@ -1617,8 +1617,8 @@ impl App {
 											Ordering::Equal => ColorU8::WHITE,
 										};
 										Line2dOC::new(
-											Vec2::new(pixels_x_prev, pixels_y_prev),
-											Vec2::new(pixels_x, pixels_y),
+											vec2(pixels_x_prev, pixels_y_prev),
+											vec2(pixels_x, pixels_y),
 											color
 										)
 									})
@@ -1658,8 +1658,8 @@ impl App {
 											let y = 1. - ((stock.get_price_at(*bought_at) - price_min) / price_range) as f32;
 											let y = y * pixels_y_range + pixels_y_top;
 											Line2dOC::new(
-												Vec2::new(x_left, y),
-												Vec2::new(x_right, y),
+												vec2(x_left, y),
+												vec2(x_right, y),
 												BOUGHT_COLOR
 											)
 										})
@@ -1672,8 +1672,8 @@ impl App {
 											let y = 1. - ((stock.get_price_at(*sold_at) - price_min) / price_range) as f32;
 											let y = y * pixels_y_range + pixels_y_top;
 											Line2dOC::new(
-												Vec2::new(x_left, y),
-												Vec2::new(x_right, y),
+												vec2(x_left, y),
+												vec2(x_right, y),
 												SOLD_COLOR
 											)
 										})
@@ -1694,8 +1694,8 @@ impl App {
 											Ordering::Equal => ColorU8::WHITE,
 										};
 										Line2dOC::new(
-											Vec2::new(pixels_x_prev, pixels_y_prev),
-											Vec2::new(pixels_x, pixels_y),
+											vec2(pixels_x_prev, pixels_y_prev),
+											vec2(pixels_x, pixels_y),
 											color
 										)
 									})
@@ -1712,8 +1712,8 @@ impl App {
 											let y = 1. - ((stock.get_price_at(*bought_at) - price_min) / price_range) as f32;
 											let y = y * pixels_y_range + pixels_y_top;
 											Line2dOC::new(
-												Vec2::new(x_left, y),
-												Vec2::new(x_right, y),
+												vec2(x_left, y),
+												vec2(x_right, y),
 												BOUGHT_COLOR
 											)
 										})
@@ -1726,8 +1726,8 @@ impl App {
 											let y = 1. - ((stock.get_price_at(*sold_at) - price_min) / price_range) as f32;
 											let y = y * pixels_y_range + pixels_y_top;
 											Line2dOC::new(
-												Vec2::new(x_left, y),
-												Vec2::new(x_right, y),
+												vec2(x_left, y),
+												vec2(x_right, y),
 												SOLD_COLOR
 											)
 										})
@@ -1749,8 +1749,8 @@ impl App {
 											Ordering::Equal => ColorU8::WHITE,
 										};
 										Line2dOC::new(
-											Vec2::new(pixels_x_prev, pixels_y_prev),
-											Vec2::new(pixels_x, pixels_y),
+											vec2(pixels_x_prev, pixels_y_prev),
+											vec2(pixels_x, pixels_y),
 											color
 										)
 									})
@@ -1767,8 +1767,8 @@ impl App {
 											let y = 1. - ((stock.get_price_at(*bought_at) - price_min) / price_range) as f32;
 											let y = y * pixels_y_range + pixels_y_top;
 											Line2dOC::new(
-												Vec2::new(x_left, y),
-												Vec2::new(x_right, y),
+												vec2(x_left, y),
+												vec2(x_right, y),
 												BOUGHT_COLOR
 											)
 										})
@@ -1781,8 +1781,8 @@ impl App {
 											let y = 1. - ((stock.get_price_at(*sold_at) - price_min) / price_range) as f32;
 											let y = y * pixels_y_range + pixels_y_top;
 											Line2dOC::new(
-												Vec2::new(x_left, y),
-												Vec2::new(x_right, y),
+												vec2(x_left, y),
+												vec2(x_right, y),
 												SOLD_COLOR
 											)
 										})
@@ -1803,8 +1803,8 @@ impl App {
 											Ordering::Equal => ColorU8::WHITE,
 										};
 										Line2dOC::new(
-											Vec2::new(pixels_x_prev, pixels_y_prev),
-											Vec2::new(pixels_x, pixels_y),
+											vec2(pixels_x_prev, pixels_y_prev),
+											vec2(pixels_x, pixels_y),
 											color
 										)
 									})
@@ -2768,20 +2768,20 @@ impl RenderableObject {
 			Cube { size } => {
 				let s = size / 2.;
 				vec![Lines3dNC_(vec![
-					(Vec3::new(-s,-s,-s), Vec3::new(-s,-s, s)).into(),
-					(Vec3::new(-s,-s,-s), Vec3::new(-s, s,-s)).into(),
-					(Vec3::new(-s, s, s), Vec3::new(-s,-s, s)).into(),
-					(Vec3::new(-s, s, s), Vec3::new(-s, s,-s)).into(),
+					(vec3(-s,-s,-s), vec3(-s,-s, s)).into(),
+					(vec3(-s,-s,-s), vec3(-s, s,-s)).into(),
+					(vec3(-s, s, s), vec3(-s,-s, s)).into(),
+					(vec3(-s, s, s), vec3(-s, s,-s)).into(),
 					//
-					(Vec3::new( s,-s,-s), Vec3::new( s,-s, s)).into(),
-					(Vec3::new( s,-s,-s), Vec3::new( s, s,-s)).into(),
-					(Vec3::new( s, s, s), Vec3::new( s,-s, s)).into(),
-					(Vec3::new( s, s, s), Vec3::new( s, s,-s)).into(),
+					(vec3( s,-s,-s), vec3( s,-s, s)).into(),
+					(vec3( s,-s,-s), vec3( s, s,-s)).into(),
+					(vec3( s, s, s), vec3( s,-s, s)).into(),
+					(vec3( s, s, s), vec3( s, s,-s)).into(),
 					//
-					(Vec3::new(-s,-s,-s), Vec3::new( s,-s,-s)).into(),
-					(Vec3::new( s, s, s), Vec3::new(-s, s, s)).into(),
-					(Vec3::new(-s,-s, s), Vec3::new( s,-s, s)).into(),
-					(Vec3::new(-s, s,-s), Vec3::new( s, s,-s)).into(),
+					(vec3(-s,-s,-s), vec3( s,-s,-s)).into(),
+					(vec3( s, s, s), vec3(-s, s, s)).into(),
+					(vec3(-s,-s, s), vec3( s,-s, s)).into(),
+					(vec3(-s, s,-s), vec3( s, s,-s)).into(),
 				])]
 			}
 			LorenzAttractor { size, last_points, .. } => {
@@ -2791,15 +2791,15 @@ impl RenderableObject {
 				vec![Lines3dNC_(sizes.iter().flat_map(|size| {
 					let s = size / 2.;
 					vec![
-						(Vec3::new(-s,-s,-s), Vec3::new(-s,-s, s)).into(),
-						(Vec3::new(-s,-s,-s), Vec3::new(-s, s,-s)).into(),
-						(Vec3::new(-s, s, s), Vec3::new(-s,-s, s)).into(),
-						(Vec3::new(-s, s, s), Vec3::new(-s, s,-s)).into(),
+						(vec3(-s,-s,-s), vec3(-s,-s, s)).into(),
+						(vec3(-s,-s,-s), vec3(-s, s,-s)).into(),
+						(vec3(-s, s, s), vec3(-s,-s, s)).into(),
+						(vec3(-s, s, s), vec3(-s, s,-s)).into(),
 						//
-						(Vec3::new( s,-s,-s), Vec3::new( s,-s, s)).into(),
-						(Vec3::new( s,-s,-s), Vec3::new( s, s,-s)).into(),
-						(Vec3::new( s, s, s), Vec3::new( s,-s, s)).into(),
-						(Vec3::new( s, s, s), Vec3::new( s, s,-s)).into(),
+						(vec3( s,-s,-s), vec3( s,-s, s)).into(),
+						(vec3( s,-s,-s), vec3( s, s,-s)).into(),
+						(vec3( s, s, s), vec3( s,-s, s)).into(),
+						(vec3( s, s, s), vec3( s, s,-s)).into(),
 					]
 				}).collect())]
 			}
@@ -2823,18 +2823,18 @@ impl RenderableObject {
 				const PHI: f32 = GOLDEN_RATIO;
 				let mut vertices = [
 					// src: https://en.wikipedia.org/wiki/Regular_icosahedron
-					Vec3::new(-PHI, 0., -1.),
-					Vec3::new(-PHI, 0.,  1.),
-					Vec3::new( PHI, 0., -1.),
-					Vec3::new( PHI, 0.,  1.),
-					Vec3::new(-1., -PHI, 0.),
-					Vec3::new(-1.,  PHI, 0.),
-					Vec3::new( 1., -PHI, 0.),
-					Vec3::new( 1.,  PHI, 0.),
-					Vec3::new(0., -1., -PHI),
-					Vec3::new(0., -1.,  PHI),
-					Vec3::new(0.,  1., -PHI),
-					Vec3::new(0.,  1.,  PHI),
+					vec3(-PHI, 0., -1.),
+					vec3(-PHI, 0.,  1.),
+					vec3( PHI, 0., -1.),
+					vec3( PHI, 0.,  1.),
+					vec3(-1., -PHI, 0.),
+					vec3(-1.,  PHI, 0.),
+					vec3( 1., -PHI, 0.),
+					vec3( 1.,  PHI, 0.),
+					vec3(0., -1., -PHI),
+					vec3(0., -1.,  PHI),
+					vec3(0.,  1., -PHI),
+					vec3(0.,  1.,  PHI),
 				].map(|v| v * *size);
 				for (rotplane, _rotvel, phase) in rotplanes_rotvels_phases.iter() {
 					for vertex in vertices.iter_mut() {
@@ -2977,14 +2977,14 @@ impl RenderableObject {
 			RGBCubeHollow { size, rotplanes_rotvels_phases, .. } => {
 				let size = *size;
 				let mut vertices = [
-					Point3d::new(Vec3::new( size,  size,  size), ColorU8::from_int(0x000000)), // 0
-					Point3d::new(Vec3::new( size,  size, -size), ColorU8::from_int(0x0000ff)), // 1
-					Point3d::new(Vec3::new( size, -size,  size), ColorU8::from_int(0x00ff00)), // 2
-					Point3d::new(Vec3::new( size, -size, -size), ColorU8::from_int(0x00ffff)), // 3
-					Point3d::new(Vec3::new(-size,  size,  size), ColorU8::from_int(0xff0000)), // 4
-					Point3d::new(Vec3::new(-size,  size, -size), ColorU8::from_int(0xff00ff)), // 5
-					Point3d::new(Vec3::new(-size, -size,  size), ColorU8::from_int(0xffff00)), // 6
-					Point3d::new(Vec3::new(-size, -size, -size), ColorU8::from_int(0xffffff)), // 7
+					Point3d::new(vec3( size,  size,  size), ColorU8::from_int(0x000000)), // 0
+					Point3d::new(vec3( size,  size, -size), ColorU8::from_int(0x0000ff)), // 1
+					Point3d::new(vec3( size, -size,  size), ColorU8::from_int(0x00ff00)), // 2
+					Point3d::new(vec3( size, -size, -size), ColorU8::from_int(0x00ffff)), // 3
+					Point3d::new(vec3(-size,  size,  size), ColorU8::from_int(0xff0000)), // 4
+					Point3d::new(vec3(-size,  size, -size), ColorU8::from_int(0xff00ff)), // 5
+					Point3d::new(vec3(-size, -size,  size), ColorU8::from_int(0xffff00)), // 6
+					Point3d::new(vec3(-size, -size, -size), ColorU8::from_int(0xffffff)), // 7
 				];
 				for (rotplane, _rotvel, phase) in rotplanes_rotvels_phases.iter() {
 					for v in vertices.iter_mut() {
@@ -3009,14 +3009,14 @@ impl RenderableObject {
 			RGBCube { size, rotplanes_rotvels_phases, .. } => {
 				let size = *size;
 				let mut vertices = [
-					Point3d::new(Vec3::new( size,  size,  size), ColorU8::from_int(0x000000)), // 0 : 1 2 4 : 1 2 4
-					Point3d::new(Vec3::new( size,  size, -size), ColorU8::from_int(0x0000ff)), // 1 : 0 3 5 : 3 5
-					Point3d::new(Vec3::new( size, -size,  size), ColorU8::from_int(0x00ff00)), // 2 : 0 3 6 : 3 6
-					Point3d::new(Vec3::new( size, -size, -size), ColorU8::from_int(0x00ffff)), // 3 : 1 2 7 : 7
-					Point3d::new(Vec3::new(-size,  size,  size), ColorU8::from_int(0xff0000)), // 4 : 0 5 6 : 5 6
-					Point3d::new(Vec3::new(-size,  size, -size), ColorU8::from_int(0xff00ff)), // 5 : 1 4 7 : 7
-					Point3d::new(Vec3::new(-size, -size,  size), ColorU8::from_int(0xffff00)), // 6 : 2 4 7 : 7
-					Point3d::new(Vec3::new(-size, -size, -size), ColorU8::from_int(0xffffff)), // 7 : 3 5 6 : -
+					Point3d::new(vec3( size,  size,  size), ColorU8::from_int(0x000000)), // 0 : 1 2 4 : 1 2 4
+					Point3d::new(vec3( size,  size, -size), ColorU8::from_int(0x0000ff)), // 1 : 0 3 5 : 3 5
+					Point3d::new(vec3( size, -size,  size), ColorU8::from_int(0x00ff00)), // 2 : 0 3 6 : 3 6
+					Point3d::new(vec3( size, -size, -size), ColorU8::from_int(0x00ffff)), // 3 : 1 2 7 : 7
+					Point3d::new(vec3(-size,  size,  size), ColorU8::from_int(0xff0000)), // 4 : 0 5 6 : 5 6
+					Point3d::new(vec3(-size,  size, -size), ColorU8::from_int(0xff00ff)), // 5 : 1 4 7 : 7
+					Point3d::new(vec3(-size, -size,  size), ColorU8::from_int(0xffff00)), // 6 : 2 4 7 : 7
+					Point3d::new(vec3(-size, -size, -size), ColorU8::from_int(0xffffff)), // 7 : 3 5 6 : -
 					// faces: 0123 0145 0246 1357 2367 4567
 				];
 				for (rotplane, _rotvel, phase) in rotplanes_rotvels_phases.iter() {
@@ -3080,7 +3080,7 @@ impl Chunk {
 					0.5 => Vec::from_fn(
 						rng.random_range(0. ..= 4_f32).powi(2).round() as usize,
 						|_i| (
-							Vec3::new(
+							vec3(
 								rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),
 								rng.random_range(1. ..= 9.),
 								rng.random_range(-CHUNK_SIZE_HALF ..= CHUNK_SIZE_HALF),

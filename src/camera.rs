@@ -2,7 +2,7 @@
 
 use std::f32::consts::FRAC_PI_2;
 
-use glam::{Mat3, Mat4, Quat, Vec3};
+use glam::{Mat3, Mat4, Quat, Vec3, vec3};
 use rand::{RngExt, rngs::ThreadRng};
 
 use crate::InputState; // main
@@ -25,11 +25,11 @@ pub struct Camera {
 
 impl Camera {
 	const GROUNDED_CAMERA_Y: f32 = 1.5;
-	const DEFAULT_POSITION: Vec3 = Vec3::new(0., Self::GROUNDED_CAMERA_Y, 0.);
+	const DEFAULT_POSITION: Vec3 = vec3(0., Self::GROUNDED_CAMERA_Y, 0.);
 
 	pub fn new(aspect_ratio: f32) -> Self {
 		Self {
-			position: Vec3::new(0., Self::GROUNDED_CAMERA_Y, 0.),
+			position: vec3(0., Self::GROUNDED_CAMERA_Y, 0.),
 			orientation: Quat::IDENTITY,
 			aspect_ratio,
 			fov_x: 100_f32.to_radians(),
