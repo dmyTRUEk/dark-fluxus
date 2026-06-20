@@ -36,6 +36,7 @@ use rand::{RngExt, rng, rngs::ThreadRng};
 use wgpu::util::DeviceExt;
 use winit::{event::{DeviceEvent, ElementState, KeyEvent, WindowEvent}, event_loop::ActiveEventLoop, window::Window};
 
+mod array2d;
 mod camera;
 mod color_u8;
 mod consts;
@@ -53,11 +54,11 @@ mod stock_market;
 mod typesafe_rng;
 mod utils;
 mod utils_io;
-mod vec2D;
 mod vec2_ext;
 mod vec3_ext;
 mod zqqx_lang;
 
+use array2d::*;
 use camera::*;
 use color_u8::*;
 use consts::*;
@@ -75,7 +76,6 @@ use stock_market::*;
 use typesafe_rng::*;
 use utils::*;
 use utils_io::*;
-use vec2D::*;
 use vec2_ext::*;
 use vec3_ext::*;
 // use zqqx_lang::*;
@@ -923,7 +923,7 @@ impl App {
 					let mesh_step = MESH_STEP * (*lod_n as f32);
 					let cx = self.state.camera.position.x - (MESH_SIZE as f32 - 1.) * mesh_step / 2.;
 					let cz = self.state.camera.position.z - (MESH_SIZE as f32 - 1.) * mesh_step / 2.;
-					let surface = Vec2D::from_fn(MESH_SIZE, MESH_SIZE, |x, z| {
+					let surface = Array2d::from_fn(MESH_SIZE, MESH_SIZE, |x, z| {
 						let x = (x as f32) * mesh_step;
 						let z = (z as f32) * mesh_step;
 						surface_at(x + cx - cx.rem_euclid(mesh_step), z + cz - cz.rem_euclid(mesh_step), params)
@@ -2328,7 +2328,7 @@ struct GameState {
 	// TODO(refactor)?: move into Dimension::SurfaceWorld
 	surface_world_params: Vec<(f32, f32, f32, f32)>,
 
-	chunks: Vec2D<Chunk>,
+	chunks: Array2d<Chunk>,
 	render_distance: u32 = 5,
 	current_chunk_x: u32 = 0,
 	current_chunk_z: u32 = 0,
@@ -2411,7 +2411,7 @@ impl GameState {
 			.offset_params_(Vec3::random_unit_cube(rng) * 0.1)
 			.offset_xyz(30., 0., 0.);
 
-		let chunks = Vec2D::<Chunk>::from_fn(CHUNKS_N, CHUNKS_N, |_x, _z| {
+		let chunks = Array2d::<Chunk>::from_fn(CHUNKS_N, CHUNKS_N, |_x, _z| {
 			Chunk::new_random(rng)
 		});
 		// println!("chunks.len = {}", chunks.iter().count());

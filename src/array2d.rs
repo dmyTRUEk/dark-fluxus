@@ -5,13 +5,13 @@ use std::ops::{Index, IndexMut};
 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Vec2D<T> {
+pub struct Array2d<T> {
 	x_size: u32,
 	y_size: u32,
 	elems: Vec<T>,
 }
 
-impl<T> Vec2D<T> {
+impl<T> Array2d<T> {
 	pub fn new() -> Self {
 		Self { x_size: 0, y_size: 0, elems: Vec::new() }
 	}
@@ -111,20 +111,20 @@ fn xy_to_i(x: u32, y: u32, x_size: u32) -> usize {
 	(x as usize) + (y as usize) * (x_size as usize)
 }
 
-impl<T> Vec2D<T> where T: Clone {
+impl<T> Array2d<T> where T: Clone {
 	pub fn from_elem(x_size: u32, y_size: u32, elem: T) -> Self {
 		Self { x_size, y_size, elems: vec![elem; (x_size as usize) * (y_size as usize)] }
 	}
 	pub fn from_vec_of_vecs(_elems: Vec<Vec<T>>) -> Self { todo!() }
 }
 
-impl<T> Index<(u32, u32)> for Vec2D<T> {
+impl<T> Index<(u32, u32)> for Array2d<T> {
 	type Output = T;
 	fn index(&self, (x, y): (u32, u32)) -> &Self::Output {
 		&self.elems[self.xy_to_i(x, y)]
 	}
 }
-impl<T> IndexMut<(u32, u32)> for Vec2D<T> {
+impl<T> IndexMut<(u32, u32)> for Array2d<T> {
 	fn index_mut(&mut self, (x, y): (u32, u32)) -> &mut Self::Output {
 		let i = self.xy_to_i(x, y);
 		&mut self.elems[i]
@@ -147,8 +147,8 @@ mod tests {
 		#[test]
 		fn _2_3() {
 			assert_eq!(
-				Vec2D { x_size: 2, y_size: 3, elems: vec!['a','a','a', 'a','a','a'] },
-				Vec2D::from_elem(2, 3, 'a')
+				Array2d { x_size: 2, y_size: 3, elems: vec!['a','a','a', 'a','a','a'] },
+				Array2d::from_elem(2, 3, 'a')
 			)
 		}
 	}
@@ -158,15 +158,15 @@ mod tests {
 		#[test]
 		fn _3_2__sum() {
 			assert_eq!(
-				Vec2D { x_size: 3, y_size: 2, elems: vec![0,1,2, 1,2,3] },
-				Vec2D::from_fn(3, 2, |x, y| x + y)
+				Array2d { x_size: 3, y_size: 2, elems: vec![0,1,2, 1,2,3] },
+				Array2d::from_fn(3, 2, |x, y| x + y)
 			)
 		}
 		#[test]
 		fn _3_4__pow() {
 			assert_eq!(
-				Vec2D { x_size: 3, y_size: 4, elems: vec![1,0,0, 1,1,1, 1,2,4, 1,3,9] },
-				Vec2D::from_fn(3, 4, |x, y| y.pow(x))
+				Array2d { x_size: 3, y_size: 4, elems: vec![1,0,0, 1,1,1, 1,2,4, 1,3,9] },
+				Array2d::from_fn(3, 4, |x, y| y.pow(x))
 			)
 		}
 	}
@@ -177,7 +177,7 @@ mod tests {
 		fn _3_2__1_1() {
 			assert_eq!(
 				2,
-				Vec2D { x_size: 3, y_size: 2, elems: vec![0,1,2, 1,2,3] }[(1,1)]
+				Array2d { x_size: 3, y_size: 2, elems: vec![0,1,2, 1,2,3] }[(1,1)]
 			)
 		}
 	}
@@ -186,10 +186,10 @@ mod tests {
 		use super::*;
 		#[test]
 		fn _3_2__1_1__42() {
-			let mut vec2d = Vec2D { x_size: 3, y_size: 2, elems: vec![0,1,2, 1,2,3] };
+			let mut vec2d = Array2d { x_size: 3, y_size: 2, elems: vec![0,1,2, 1,2,3] };
 			vec2d[(1,1)] = 42;
 			assert_eq!(
-				Vec2D { x_size: 3, y_size: 2, elems: vec![0,1,2, 1,42,3] },
+				Array2d { x_size: 3, y_size: 2, elems: vec![0,1,2, 1,42,3] },
 				vec2d
 			)
 		}
@@ -208,7 +208,7 @@ mod tests {
 			fn _0_0() {
 				assert_eq!(
 					vec![a],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -224,7 +224,7 @@ mod tests {
 			fn _1_2() {
 				assert_eq!(
 					vec![j],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -240,7 +240,7 @@ mod tests {
 			fn _3_1() {
 				assert_eq!(
 					vec![h],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -256,7 +256,7 @@ mod tests {
 			fn _4_1() {
 				assert_eq!(
 					vec![e],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -272,7 +272,7 @@ mod tests {
 			fn _5_1() {
 				assert_eq!(
 					vec![f],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -288,7 +288,7 @@ mod tests {
 			fn _5_2() {
 				assert_eq!(
 					vec![j],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -304,7 +304,7 @@ mod tests {
 			fn _5_3() {
 				assert_eq!(
 					vec![b],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -320,7 +320,7 @@ mod tests {
 			fn _1_3() {
 				assert_eq!(
 					vec![b],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -344,7 +344,7 @@ mod tests {
 						f,g,h,
 						j,k,l,
 					],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -364,7 +364,7 @@ mod tests {
 						g,h,e,
 						k,l,i,
 					],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -384,7 +384,7 @@ mod tests {
 						i,j,k,
 						a,b,c,
 					],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -404,7 +404,7 @@ mod tests {
 						j,k,l,
 						b,c,d,
 					],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -424,7 +424,7 @@ mod tests {
 						k,l,i,
 						c,d,a,
 					],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -444,7 +444,7 @@ mod tests {
 						l,i,j,
 						d,a,b,
 					],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -464,7 +464,7 @@ mod tests {
 						d,a,b,
 						h,e,f,
 					],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -492,7 +492,7 @@ mod tests {
 			fn _0_0() {
 				assert_eq!(
 					vec![a],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -508,7 +508,7 @@ mod tests {
 			fn _1_2() {
 				assert_eq!(
 					vec![j],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -524,7 +524,7 @@ mod tests {
 			fn _3_1() {
 				assert_eq!(
 					vec![h],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -540,7 +540,7 @@ mod tests {
 			fn _4_1() {
 				assert_eq!(
 					vec![e],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -556,7 +556,7 @@ mod tests {
 			fn _5_1() {
 				assert_eq!(
 					vec![f],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -572,7 +572,7 @@ mod tests {
 			fn _5_2() {
 				assert_eq!(
 					vec![b],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -588,7 +588,7 @@ mod tests {
 			fn _5_3() {
 				assert_eq!(
 					vec![k],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -604,7 +604,7 @@ mod tests {
 			fn _1_3() {
 				assert_eq!(
 					vec![c],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -628,7 +628,7 @@ mod tests {
 						f,g,h,
 						j,k,l,
 					],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -648,7 +648,7 @@ mod tests {
 						g,h,e,
 						k,l,a,
 					],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -668,7 +668,7 @@ mod tests {
 						i,j,k,
 						d,c,b,
 					],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -688,7 +688,7 @@ mod tests {
 						j,k,l,
 						c,b,a,
 					],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -708,7 +708,7 @@ mod tests {
 						k,l,a,
 						b,a,l,
 					],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -728,7 +728,7 @@ mod tests {
 						l,a,b,
 						a,l,k,
 					],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
@@ -748,7 +748,7 @@ mod tests {
 						l,a,b,
 						h,e,f,
 					],
-					Vec2D {
+					Array2d {
 						x_size: 4,
 						y_size: 3,
 						elems: vec![
