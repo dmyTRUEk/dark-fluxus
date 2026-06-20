@@ -12,6 +12,7 @@
 #![allow(
 	clippy::collapsible_if,
 	clippy::collapsible_match,
+	clippy::items_after_test_module,
 	clippy::just_underscores_and_digits,
 	clippy::let_and_return,
 	clippy::useless_format,
@@ -2501,7 +2502,7 @@ fn gen_surface_world_param(rng: &mut impl RngExt) -> (f32, f32, f32, f32) {
 	// returns amplitude, phase, cx, cz
 	(
 		rng.random_range(0. ..= 3_f32).powi(2),
-		rng.random_range(0. ..= TAU),
+		rng.random_angle(),
 		rng.random_range(-2. ..= 2.),
 		rng.random_range(-2. ..= 2.),
 	)
@@ -2626,7 +2627,7 @@ impl RenderableObject {
 				),
 				last_points: VecDeque::new(),
 				rotplane: Vec3::random_unit(rng),
-				rotangle: rng.random_range(0. ..= TAU),
+				rotangle: rng.random_angle(),
 				max_len: 10_f32.powf(rng.random_range(2. ..= 4.)).round() as u32,
 			},
 			0.1 => RenderableObject::Monolith {
@@ -2644,7 +2645,7 @@ impl RenderableObject {
 						Vec3::random_unit(rng) * if let Some(s) = equidistant_from_center { s } else { random_r!() },
 						Vec3::random_unit(rng),
 						rng.random_range(0.5 ..= 1.4_f32).powi(2),
-						rng.random_range(0. ..= TAU),
+						rng.random_angle(),
 					)).collect()
 				},
 			},
@@ -2656,7 +2657,7 @@ impl RenderableObject {
 					|_i| (
 						Vec3::random_unit(rng),
 						rng.random_range(0.1 ..= 2.),
-						rng.random_range(0. ..= TAU),
+						rng.random_angle(),
 					)
 				),
 			},
@@ -2676,7 +2677,7 @@ impl RenderableObject {
 						Vec3::random_unit(rng) * if let Some(s) = equidistant_from_center { s } else { random_r!() },
 						Vec3::random_unit(rng),
 						rng.random_range(0.5 ..= 1.4_f32).powi(2),
-						rng.random_range(0. ..= TAU),
+						rng.random_angle(),
 					)).collect()
 				},
 			},
@@ -2688,7 +2689,7 @@ impl RenderableObject {
 					|_i| (
 						Vec3::random_unit(rng),
 						rng.random_range(0.1 ..= 2.),
-						rng.random_range(0. ..= TAU),
+						rng.random_angle(),
 					)
 				),
 			},
@@ -2700,7 +2701,7 @@ impl RenderableObject {
 					|_i| (
 						Vec3::random_unit(rng),
 						rng.random_range(0.1 ..= 2.),
-						rng.random_range(0. ..= TAU),
+						rng.random_angle(),
 					)
 				),
 			},

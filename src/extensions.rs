@@ -1,6 +1,9 @@
 //! extensions
 
+use std::f32::consts::TAU;
+
 use either::Either;
+use rand::RngExt;
 
 
 
@@ -472,6 +475,17 @@ mod to_string_pretty {
 		#[test] fn _13(){ assert_eq!("-3.141_592_653_589_8_E30", X.to_string_pretty(13)) }
 		#[test] fn _14(){ assert_eq!("-3.141_592_653_589_79_E30", X.to_string_pretty(14)) }
 		// only up to 15 digits
+	}
+}
+
+
+
+pub trait RngRandomAngle {
+	fn random_angle(&mut self) -> f32;
+}
+impl<R: RngExt> RngRandomAngle for R {
+	fn random_angle(&mut self) -> f32 {
+		self.random_range(0. ..= TAU)
 	}
 }
 
