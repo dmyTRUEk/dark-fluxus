@@ -1,7 +1,7 @@
 //! Vec3 extensions
 
 use glam::Vec3;
-use rand::{RngExt, rngs::ThreadRng};
+use rand::RngExt;
 
 use crate::extensions::{BoolSelect, Into_};
 
@@ -14,8 +14,8 @@ pub trait ExtVec3 {
 	fn from_xz(x: impl Into_<f32>, z: impl Into_<f32>) -> Self;
 	fn from_xy(x: impl Into_<f32>, y: impl Into_<f32>) -> Self;
 	fn from_xyz(x: impl Into_<f32>, y: impl Into_<f32>, z: impl Into_<f32>) -> Self;
-	fn random_unit_cube(rng: &mut ThreadRng) -> Self;
-	fn random_unit(rng: &mut ThreadRng) -> Self;
+	fn random_unit_cube(rng: &mut impl RngExt) -> Self;
+	fn random_unit(rng: &mut impl RngExt) -> Self;
 	fn flip_x_if(self, flip: bool) -> Self;
 	fn flip_y_if(self, flip: bool) -> Self;
 	fn flip_z_if(self, flip: bool) -> Self;
@@ -28,14 +28,14 @@ impl ExtVec3 for Vec3 {
 	fn from_xz(x: impl Into_<f32>, z: impl Into_<f32>) -> Self { Self::new(x.into_(), 0., z.into_()) }
 	fn from_xy(x: impl Into_<f32>, y: impl Into_<f32>) -> Self { Self::new(x.into_(), y.into_(), 0.) }
 	fn from_xyz(x: impl Into_<f32>, y: impl Into_<f32>, z: impl Into_<f32>) -> Self { Self::new(x.into_(), y.into_(), z.into_()) }
-	fn random_unit_cube(rng: &mut ThreadRng) -> Self {
+	fn random_unit_cube(rng: &mut impl RngExt) -> Self {
 		Self {
 			x: rng.random_range(-1. ..= 1.),
 			y: rng.random_range(-1. ..= 1.),
 			z: rng.random_range(-1. ..= 1.),
 		}
 	}
-	fn random_unit(rng: &mut ThreadRng) -> Self {
+	fn random_unit(rng: &mut impl RngExt) -> Self {
 		Self::random_unit_cube(rng).normalize()
 	}
 	fn flip_x_if(self, flip: bool) -> Self { self.with_x(flip.select(-self.x, self.x)) }

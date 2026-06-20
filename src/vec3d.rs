@@ -2,7 +2,7 @@
 
 use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign};
 
-use rand::{RngExt, rngs::ThreadRng};
+use rand::RngExt;
 
 use crate::extensions::{BoolSelect, Into_};
 use crate::math_aliases::{cos, sin};
@@ -79,14 +79,14 @@ impl Vec3f {
 	pub const fn from_yz(y: f32, z: f32) -> Self { Self { x: 0., y, z } }
 	pub const fn from_xz(x: f32, z: f32) -> Self { Self { x, y: 0., z } }
 	pub const fn from_xy(x: f32, y: f32) -> Self { Self { x, y, z: 0. } }
-	pub fn random_unit_cube(rng: &mut ThreadRng) -> Self {
+	pub fn random_unit_cube(rng: &mut impl RngExt) -> Self {
 		Self {
 			x: rng.random_range(-1. ..= 1.),
 			y: rng.random_range(-1. ..= 1.),
 			z: rng.random_range(-1. ..= 1.),
 		}
 	}
-	pub fn random_unit(rng: &mut ThreadRng) -> Self {
+	pub fn random_unit(rng: &mut impl RngExt) -> Self {
 		Self::random_unit_cube(rng).normed()
 	}
 	pub fn norm2(self) -> f32 { self.dot(self) }

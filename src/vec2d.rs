@@ -2,7 +2,7 @@
 
 use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign};
 
-use rand::{RngExt, rngs::ThreadRng};
+use rand::RngExt;
 use sdl3::render::FPoint;
 
 use crate::extensions::{BoolSelect, Into_};
@@ -54,13 +54,13 @@ impl Vec2f {
 	pub const ORT_Y: Self = Self::from_y(1.);
 	pub const fn from_x(x: f32) -> Self { Self { x, y: 0. } }
 	pub const fn from_y(y: f32) -> Self { Self { x: 0., y } }
-	pub fn random_unit_cube(rng: &mut ThreadRng) -> Self {
+	pub fn random_unit_cube(rng: &mut impl RngExt) -> Self {
 		Self {
 			x: rng.random_range(-1. ..= 1.),
 			y: rng.random_range(-1. ..= 1.),
 		}
 	}
-	pub fn random_unit(rng: &mut ThreadRng) -> Self {
+	pub fn random_unit(rng: &mut impl RngExt) -> Self {
 		Self::random_unit_cube(rng).normed()
 	}
 	pub fn norm2(self) -> f32 { self.dot(self) }

@@ -1,7 +1,7 @@
 //! Vec2 extensions
 
 use glam::{Vec2, Vec3, vec3};
-use rand::{RngExt, rngs::ThreadRng};
+use rand::RngExt;
 
 use crate::extensions::{BoolSelect, Into_};
 
@@ -13,8 +13,8 @@ pub trait ExtVec2 {
 	fn xy0(self) -> Vec3;
 	fn x0y(self) -> Vec3;
 	fn _0xy(self) -> Vec3;
-	fn random_unit_square(rng: &mut ThreadRng) -> Self;
-	fn random_unit(rng: &mut ThreadRng) -> Self;
+	fn random_unit_square(rng: &mut impl RngExt) -> Self;
+	fn random_unit(rng: &mut impl RngExt) -> Self;
 	fn flip_x_if(self, flip: bool) -> Self;
 	fn flip_y_if(self, flip: bool) -> Self;
 }
@@ -25,13 +25,13 @@ impl ExtVec2 for Vec2 {
 	fn xy0(self)  -> Vec3 { vec3(self.x, self.y, 0.) }
 	fn x0y(self)  -> Vec3 { vec3(self.x, 0., self.y) }
 	fn _0xy(self) -> Vec3 { vec3(0., self.x, self.y) }
-	fn random_unit_square(rng: &mut ThreadRng) -> Self {
+	fn random_unit_square(rng: &mut impl RngExt) -> Self {
 		Self {
 			x: rng.random_range(-1. ..= 1.),
 			y: rng.random_range(-1. ..= 1.),
 		}
 	}
-	fn random_unit(rng: &mut ThreadRng) -> Self {
+	fn random_unit(rng: &mut impl RngExt) -> Self {
 		Self::random_unit_square(rng).normalize()
 	}
 	fn flip_x_if(self, flip: bool) -> Self { self.with_x(flip.select(-self.x, self.x)) }

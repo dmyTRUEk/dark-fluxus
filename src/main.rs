@@ -2359,7 +2359,7 @@ struct GameState {
 }
 
 impl GameState {
-	fn new(w: f32, h: f32, rng: &mut ThreadRng) -> Self {
+	fn new(w: f32, h: f32, rng: &mut impl RngExt) -> Self {
 		let help_lines = [
 			"hint: this menu is scrollable by arrows",
 			".",
@@ -2497,7 +2497,7 @@ fn base_color(la: &LorenzAttractor) -> u8 {
 	c
 }
 
-fn gen_surface_world_param(rng: &mut ThreadRng) -> (f32, f32, f32, f32) {
+fn gen_surface_world_param(rng: &mut impl RngExt) -> (f32, f32, f32, f32) {
 	// returns amplitude, phase, cx, cz
 	(
 		rng.random_range(0. ..= 3_f32).powi(2),
@@ -2506,7 +2506,7 @@ fn gen_surface_world_param(rng: &mut ThreadRng) -> (f32, f32, f32, f32) {
 		rng.random_range(-2. ..= 2.),
 	)
 }
-fn gen_surface_world_params(rng: &mut ThreadRng) -> Vec<(f32, f32, f32, f32)> {
+fn gen_surface_world_params(rng: &mut impl RngExt) -> Vec<(f32, f32, f32, f32)> {
 	Vec::from_fn(
 		rng.random_range(2. ..= 7_f32).powi(2).round() as usize,
 		|_i| gen_surface_world_param(rng)
@@ -2536,7 +2536,7 @@ enum InventoryItem {
 	Text(String), // just for test
 }
 impl InventoryItem {
-	fn new_random(rng: &mut ThreadRng) -> Self {
+	fn new_random(rng: &mut impl RngExt) -> Self {
 		use InventoryItem::*;
 		match_random_weighted! { rng,
 			0.1 => SurfaceWorld,
@@ -2612,7 +2612,7 @@ enum RenderableObject {
 	RGBCube { size: f32, global_rotvel: f32, rotplanes_rotvels_phases: Vec<(Vec3, f32, f32)> },
 }
 impl RenderableObject {
-	fn new_random(rng: &mut ThreadRng) -> Self {
+	fn new_random(rng: &mut impl RngExt) -> Self {
 		match_random_weighted! { rng,
 			0.1 => RenderableObject::Cube {
 				size: rng.random_range(0.3 ..= 3.),
@@ -3069,7 +3069,7 @@ struct Chunk {
 	renderable_objects: Vec<(Vec3, RenderableObject)>,
 }
 impl Chunk {
-	fn new_random(rng: &mut ThreadRng) -> Self {
+	fn new_random(rng: &mut impl RngExt) -> Self {
 		Self {
 			// color: Color::RGB(255/(CHUNKS_N as u8)*(1 + x as u8), 255/(CHUNKS_N as u8)*(1 + z as u8), 0), // for dbg
 			color: ColorU8::new(rng.random(), rng.random(), rng.random()),

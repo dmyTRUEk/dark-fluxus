@@ -3,7 +3,7 @@
 use std::f32::consts::FRAC_PI_2;
 
 use glam::{Mat3, Mat4, Quat, Vec3, vec3};
-use rand::{RngExt, rngs::ThreadRng};
+use rand::RngExt;
 
 use crate::InputState; // main
 use crate::math_aliases::{asigmoid, atan, sigmoid, tan};
@@ -84,7 +84,7 @@ impl Camera {
 		2.0 * atan(tan(self.fov_x * 0.5) / self.aspect_ratio)
 	}
 
-	pub fn update(&mut self, input: &mut InputState, dt: f32, rng: &mut ThreadRng) {
+	pub fn update(&mut self, input: &mut InputState, dt: f32, rng: &mut impl RngExt) {
 		// TODO: first update position or orientation?
 		self.update_position(input, dt);
 		self.update_orientation(input, dt);
@@ -200,7 +200,7 @@ impl Camera {
 		input.mouse_dy = 0.;
 	}
 
-	fn update_fov(&mut self, input: &InputState, dt: f32, rng: &mut ThreadRng) {
+	fn update_fov(&mut self, input: &InputState, dt: f32, rng: &mut impl RngExt) {
 		const FOV_MIN: f32 = 1e-1_f32.to_radians();
 		const FOV_MAX: f32 = 170_f32.to_radians();
 		const FOV_RANGE: f32 = FOV_MAX - FOV_MIN;

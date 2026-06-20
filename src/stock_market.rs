@@ -1,6 +1,6 @@
 //! stock market
 
-use rand::{RngExt, rngs::ThreadRng};
+use rand::RngExt;
 
 use crate::match_random_weighted;
 
@@ -36,7 +36,7 @@ impl StockMarket {
 	pub fn calc_money_in_stocks(&self) -> f64 {
 		self.stocks.iter().map(|s| s.calc_money_in_stock()).sum()
 	}
-	pub fn update(&mut self, rng: &mut ThreadRng) {
+	pub fn update(&mut self, rng: &mut impl RngExt) {
 		for stock in self.stocks.iter_mut() {
 			stock.update(rng);
 		}
@@ -164,7 +164,7 @@ impl Stock {
 		(min, max)
 	}
 
-	fn update(&mut self, rng: &mut ThreadRng) {
+	fn update(&mut self, rng: &mut impl RngExt) {
 		enum Change { None, AddSub(f64), MulDiv(f64) }
 		use Change::*;
 		let change = match_random_weighted! { rng,
