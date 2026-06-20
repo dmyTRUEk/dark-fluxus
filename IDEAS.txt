@@ -25,6 +25,7 @@ v alt home repr world is a sphere? (square enclosed on itself across the center)
 - tarot cards
 - random shaders?
 - random differential equations simulator/"solver"
+	- with n vars, which are reduced to 2/3d by some fns (like in string theory)
 - hash solver using ispiral: hash("seed:x:z") and cell is colored according to number of leading zeros in hash
 v game of life
 - langtons ant
@@ -50,3 +51,6 @@ v game of life
 - double roulette (two different colored balls)
 - (continuous) automata with colorful particles: similar attract, opposite repel
 	- random/custom forces
+- pipedream (windows xp pipes screensaver)
+- ispiral if primes / twin primes / triple
+- cbonsai / cmatrix
