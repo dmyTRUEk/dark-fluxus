@@ -2600,7 +2600,7 @@ impl PauseMenuItem {
 #[derive(Debug, Clone)]
 enum RenderableObject {
 	Cube { size: f32 },
-	LorenzAttractor { size: f32, la: LorenzAttractor, last_points: VecDeque<Vec3>, max_len: u32 },
+	LorenzAttractor { size: f32, la: LorenzAttractor, last_points: VecDeque<Vec3>, rotplane: Vec3, rotangle: f32, max_len: u32 },
 	// SpinningText?
 	Monolith { sizes: Vec<f32> },
 	Simplex { initpoints_rotplanes_rotvels_phases: Vec<(Vec3, Vec3, f32, f32)> },
@@ -2625,6 +2625,8 @@ impl RenderableObject {
 					Vec3::random_unit(rng) * rng.random_range(0.1 ..= 0.2)
 				),
 				last_points: VecDeque::new(),
+				rotplane: Vec3::random_unit(rng),
+				rotangle: rng.random_range(0. ..= TAU),
 				max_len: 10_f32.powf(rng.random_range(2. ..= 4.)).round() as u32,
 			},
 			0.1 => RenderableObject::Monolith {
@@ -2726,9 +2728,10 @@ impl RenderableObject {
 			| Cube { .. }
 			| Monolith { .. }
 			=> {}
-			LorenzAttractor { la, last_points, max_len, size: _ } => {
+			LorenzAttractor { la, last_points, max_len, rotplane, rotangle, size: _ } => {
 				// TODO(optim): use Queue (VecDeque)
-				last_points.push_back(la.get_xyz_as_vec3d());
+				let new_point = la.get_xyz_as_vec3d().rotate_axis(*rotplane, *rotangle);
+				last_points.push_back(new_point);
 				if last_points.len() as u32 > *max_len {
 					let _ = last_points.pop_front();
 				}
@@ -3042,7 +3045,7 @@ impl ToString for RenderableObject {
 		#[allow(unused_variables)]
 		match self {
 			Cube { size } => format!("cube (size={size:.2})"),
-			LorenzAttractor { size, la, last_points, max_len } => format!("lorenz attractor (size={size:.2})"),
+			LorenzAttractor { size, la, last_points, rotplane, rotangle, max_len } => format!("lorenz attractor (size={size:.2})"),
 			Monolith { sizes } => format!("monolith"),
 			Simplex { initpoints_rotplanes_rotvels_phases } => format!("simplex ({n} points)", n=initpoints_rotplanes_rotvels_phases.len()),
 			Icosahedron { size, global_rotvel, rotplanes_rotvels_phases } => format!("icosahedron ({n} rotation vectors)", n=rotplanes_rotvels_phases.len()),
