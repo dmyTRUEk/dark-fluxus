@@ -26,7 +26,7 @@
 	unused_variables, // FIXME: ENABLE ME
 )]
 
-use std::{cmp::Ordering, f32::consts::{GOLDEN_RATIO, PI, TAU}, time::Instant};
+use std::{cmp::Ordering, collections::VecDeque, f32::consts::{GOLDEN_RATIO, PI, TAU}, time::Instant};
 
 //use f128::f128;
 use glam::{Mat4, Vec2, Vec3};
@@ -2069,8 +2069,6 @@ struct Uniforms {
 	view_proj: [[f32; 4]; 4],
 }
 
-
-
 // TODO(refactor): rename to GpuVertex
 // TODO(optim): separate into Vertex3d and Vertex2d (remove one f32 lol)
 #[repr(C)]
@@ -2602,7 +2600,7 @@ impl PauseMenuItem {
 #[derive(Debug, Clone)]
 enum RenderableObject {
 	Cube { size: f32 },
-	LorenzAttractor { size: f32, la: LorenzAttractor, last_points: Vec<Vec3>, max_len: u32 },
+	LorenzAttractor { size: f32, la: LorenzAttractor, last_points: VecDeque<Vec3>, max_len: u32 },
 	// SpinningText?
 	Monolith { sizes: Vec<f32> },
 	Simplex { initpoints_rotplanes_rotvels_phases: Vec<(Vec3, Vec3, f32, f32)> },
@@ -2626,7 +2624,7 @@ impl RenderableObject {
 				).set_xyz_(
 					Vec3::random_unit(rng) * rng.random_range(0.1 ..= 0.2)
 				),
-				last_points: vec![],
+				last_points: VecDeque::new(),
 				max_len: 10_f32.powf(rng.random_range(2. ..= 4.)).round() as u32,
 			},
 			0.1 => RenderableObject::Monolith {
@@ -2730,9 +2728,9 @@ impl RenderableObject {
 			=> {}
 			LorenzAttractor { la, last_points, max_len, size: _ } => {
 				// TODO(optim): use Queue (VecDeque)
-				last_points.push(la.get_xyz_as_vec3d());
+				last_points.push_back(la.get_xyz_as_vec3d());
 				if last_points.len() as u32 > *max_len {
-					let _ = last_points.remove(0);
+					let _ = last_points.pop_front();
 				}
 				la.step(delta_time);
 			}
@@ -3039,9 +3037,9 @@ impl RenderableObject {
 	}
 }
 impl ToString for RenderableObject {
-	#[allow(unused_variables)]
 	fn to_string(&self) -> String {
 		use RenderableObject::*;
+		#[allow(unused_variables)]
 		match self {
 			Cube { size } => format!("cube (size={size:.2})"),
 			LorenzAttractor { size, la, last_points, max_len } => format!("lorenz attractor (size={size:.2})"),
