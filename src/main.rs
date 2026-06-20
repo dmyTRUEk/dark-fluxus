@@ -586,8 +586,8 @@ impl App {
 
 	fn update(&mut self) {
 		let now = Instant::now();
-		let dt = now.duration_since(self.state.last_update_inst).as_secs_f32();
-		self.state.last_update_inst = now;
+		let dt = now.duration_since(self.state.last_update_call).as_secs_f32();
+		self.state.last_update_call = now;
 		let dt = dt.min(0.1); // prevent huge dt (ie after pause) // TODO: fix better?
 
 		let is_overlay = self.state.is_overlay();
@@ -609,7 +609,12 @@ impl App {
 
 		// physics update:
 		if !self.state.is_paused /* TODO: && exist what needs to be updated */ {
-			self.state.stock_market.update(&mut self.rng); // TODO!: update only sometimes
+
+			if now.duration_since(self.state.stockmarket_last_update).as_secs_f32() > 1. {
+				self.state.stock_market.update(&mut self.rng);
+				self.state.stockmarket_last_update = now;
+			}
+
 			match self.state.dimension {
 				Dimension::Base => {
 					self.state.dim_base_la_for_floor_color.step(DIM_BASE_LA_SPEED * dt);
@@ -1912,7 +1917,7 @@ impl App {
 			if self.state.is_extra_info_shown {
 				// TODO: better fps measurement/handling?
 				let frame_end_timestamp = Instant::now();
-				let frametime = frame_end_timestamp.duration_since(self.state.last_update_inst);
+				let frametime = frame_end_timestamp.duration_since(self.state.last_update_call);
 				let fps = 1. / frametime.as_secs_f32();
 				// if fps < 60. { panic!() }
 				let fps_text = format!("FPS?: {fps:.1}");
@@ -2302,7 +2307,7 @@ impl StockHistoryScale {
 struct GameState {
 	camera: Camera,
 	input: InputState,
-	last_update_inst: Instant,
+	last_update_call: Instant,
 	is_redraw_needed: bool = true,
 	messages: Vec<Message> = vec![],
 
@@ -2347,6 +2352,7 @@ struct GameState {
 	game_of_life_state: GameOfLifeState,
 	game_of_life_is_fast: bool = false,
 
+	stockmarket_last_update: Instant,
 	// money: f128,
 	money: f64,
 	stock_market: StockMarket, // TODO: add stocks depending on LAs in world/base
@@ -2417,10 +2423,12 @@ impl GameState {
 		});
 		// println!("chunks.len = {}", chunks.iter().count());
 
+		let now = Instant::now();
+
 		Self {
 			camera: Camera::new(w / h),
 			input: InputState::new(),
-			last_update_inst: Instant::now(),
+			last_update_call: now,
 			inventory_items: Vec::with_capacity(100),
 			surface_world_params: gen_surface_world_params(rng),
 			game_of_life_state: GameOfLifeState::from_seed("j"),
@@ -2428,6 +2436,7 @@ impl GameState {
 			pause_menu_items,
 			dim_base_la_for_floor_color,
 			chunks,
+			stockmarket_last_update: now,
 			// money: f128::from(1000.),
 			money: 1000.,
 			stock_market: StockMarket::new(),
