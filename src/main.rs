@@ -2878,7 +2878,7 @@ impl RenderableObject {
 					let tau_div_n = TAU / (N as f32);
 					Vec::from_fn(N as usize, |i| (i as f32) * tau_div_n)
 				};
-				let (cam_r, cam_u, cam_f) = camera.basis();
+				let (cam_f, cam_u, cam_r) = camera.basis();
 				let points_outline: Vec<Vec3> = angles_of_points_on_circle_20.iter()
 					.chain(std::iter::once(angles_of_points_on_circle_20.first().unwrap()))
 					.enumerate()

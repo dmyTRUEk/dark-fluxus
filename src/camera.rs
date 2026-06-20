@@ -2,7 +2,7 @@
 
 use std::f32::consts::FRAC_PI_2;
 
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat3, Mat4, Quat, Vec3};
 use rand::{RngExt, rngs::ThreadRng};
 
 use crate::InputState; // main
@@ -57,9 +57,9 @@ impl Camera {
 	fn up(&self) -> Vec3 {
 		self.orientation * Vec3::Y
 	}
-	/// returns (right, up, forward) vectors
+	/// returns (forward, up, right) vectors
 	pub fn basis(&self) -> (Vec3, Vec3, Vec3) {
-		(self.right(), self.up(), self.forward())
+		(self.forward(), self.up(), self.right())
 	}
 
 	pub fn view_matrix(&self) -> Mat4 {
@@ -231,7 +231,18 @@ impl Camera {
 	}
 
 	fn reset_roll(&mut self) {
-		todo!()
+		let forward = self.forward().normalize();
+		// Pick a reference up that is not parallel to forward.
+		let reference_up = if forward.y.abs() > 0.999 { Vec3::Z } else { Vec3::Y };
+		// Build a level basis with the same forward direction.
+		let right = forward.cross(reference_up).normalize();
+		let up = right.cross(forward).normalize();
+		// Camera local axes -> world axes:
+		// local +X = right
+		// local +Y = up
+		// local -Z = forward
+		let rot = Mat3::from_cols(right, up, -forward);
+		self.orientation = Quat::from_mat3(&rot).normalize();
 	}
 
 	pub fn reset_position(&mut self) {
