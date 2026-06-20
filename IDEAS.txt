@@ -1,6 +1,7 @@
 v "home" world is a torus (square enclosed on itself simply) - Rotating Black Hole (BH)
 v alt home repr world is a sphere? (square enclosed on itself across the center) - Static Black Hole (BH)
 - from "fishing" can obtain things that can be placed at home
+- offline protocol (OP) to exchange stuff with other players "offline" (exchange some "codes"/"msgs" with them by any available channel), keep internal/private "blockchain" to prevent double use/get/send?
 - fractals - rendered as formula
 ~ stock market (with rng 4 letter names and are based on la in the world)
 	- exchange (set to buy/sell when price </> some value)
@@ -9,10 +10,12 @@ v alt home repr world is a sphere? (square enclosed on itself across the center)
 - hyperbolic space?
 ~ "plane with a function" world
 - "missing texture" texture
-- console where interesting stuff is hidden behind hashes (if hash(input) in hashes => execute something interesting)
+- console
+- something where interesting stuff is hidden behind hashes (if hash(input) in hashes => execute something interesting)
 - library of babel
 - pixelated versions of images/paintings (of Francisco Goya - black paintings) from numbers
 - radio/electricity towers?
+	- needed to use OP
 - laby-nd
 - scoundrel
 - poker with N decks? (youtu.be/QAuyryV1fJI), diy bltr
@@ -22,8 +25,28 @@ v alt home repr world is a sphere? (square enclosed on itself across the center)
 - tarot cards
 - random shaders?
 - random differential equations simulator/"solver"
+- hash solver using ispiral: hash("seed:x:z") and cell is colored according to number of leading zeros in hash
 v game of life
 - langtons ant
-- other cellural automatas
+- other cellular automatas
 - ui overlay like in cruelty squad
 - show cursor when in ui
+- mouse wheel to change move speed?
+- custom diy cellular automata
+- use one of super/monster group for something
+- impl extended rock-paper-scissors *entities*/cards which you can get/buy, make a deck out of them, (set their "moves" order / "actions"), and send them to battle with other player and get some(thing) back (needs OP)
+	- player/deck have lean in some class, and same class things amplify each other but weakens other classes (aka resonance)
+	- each card is an [i8; 7(or 31?)] (7 traits)
+	- battle between two cards: for each trait calc pa=e^(k*a) and pb=e^(k*b), and do `rng.random_bool/weighted(pa,pb)`, then who won most traits wins battle
+	- or even pa=e^(k * rng.random_range(dec(a), inc(a))), where dec/inc might be +-1 or 10, +-10%, 1/a..a, other? (random/somehow select per battle/deck?)
+	- battle between two decks: make full tournament between cards (each with each, maybe even twice (a vs b and b vs a)?)
+- fpv drone that you can properly fly
+- "string theory" / higher dimensional stuff/things/something (eg 7d/8d)
+- 2048
+- lvl-ing up idea from fate fluxus (need two n-1-th lvl stuff to make one n-th lvl stuff)
+	- any lvl items can be combined (a,b), but the result is random in range (a+1,b+1) (skew probabilities towards min?), ie 5+5=>6, 1+9 => 2..10
+- scripting lang (lisp, my custom lisp-like (with indents and without extra brackets), functional, rust's scripting langs?)
+- different fonts for ui (baba is you like font?)
+- double roulette (two different colored balls)
+- (continuous) automata with colorful particles: similar attract, opposite repel
+	- random/custom forces
